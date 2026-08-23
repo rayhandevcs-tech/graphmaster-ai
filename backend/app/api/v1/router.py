@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, avatars, health, users
+from app.api.v1 import auth, avatars, classes, graphs, health, users, vocabulary
 
 api_router = APIRouter()
 
@@ -15,3 +15,6 @@ api_router.include_router(health.router, prefix="/health")
 api_router.include_router(auth.router, prefix="/auth")
 api_router.include_router(users.router, prefix="/users")
 api_router.include_router(avatars.router, prefix="/avatars")
+api_router.include_router(classes.router, prefix="/classes")
+api_router.include_router(graphs.router, prefix="/graphs")
+api_router.include_router(vocabulary.router, prefix="/vocabulary")

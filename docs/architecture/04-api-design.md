@@ -129,7 +129,24 @@ Teachers may only act on classes they own; admins are unrestricted (FR-11.6).
 
 Students never receive `reference_description` from `GET /graphs/{id}` before
 submitting — it is a model answer, and returning it would let a student copy it.
-It appears only in the result payload after scoring.
+It appears only in the result payload after scoring. This is enforced by
+returning a different response model to students, which has no such field,
+rather than by omitting the value at serialisation time.
+
+Three further rules constrain this resource:
+
+- **A graph is created unpublished** and cannot be published until it has at
+  least one *required* target term. The vocabulary percentage is
+  `detected / required targets`, so publishing an empty target set would put a
+  zero in that denominator and make the exercise unscoreable. The same check
+  refuses a `PUT .../target-vocabulary` that would empty the required set of an
+  already-published graph.
+- **Unpublished graphs read as `404` to students**, not `403`, so drafts cannot
+  be enumerated. `include_unpublished=true` is honoured for teachers and
+  administrators and ignored for students.
+- **Editing is open to any teacher; deletion is not.** The practice library is
+  shared, so any teacher may improve any graph, but `DELETE` is irreversible
+  and is restricted to the graph's author or an administrator.
 
 ### 3.6 Vocabulary
 
@@ -141,6 +158,22 @@ It appears only in the result payload after scoring.
 | PATCH | `/vocabulary/items/{id}` | Update term, lemma, category or weight | T A |
 | DELETE | `/vocabulary/items/{id}` | Deactivate (soft delete — see schema §3.4) | T A |
 | POST | `/vocabulary/items/bulk` | Create many terms in one request | T A |
+
+`DELETE` is a soft delete: the row survives so historical scores that reference
+the term stay readable, and the lemma stays reserved. Reactivate with
+`PATCH {"is_active": true}`.
+
+`POST /vocabulary/items/bulk` **skips** terms whose lemma already exists rather
+than failing the whole request, and reports them in `skipped`. A teacher
+pasting forty terms where three already exist should not lose the other
+thirty-seven.
+
+`is_phrase` is never accepted from the client — it is derived from whether the
+term contains whitespace, so the flag cannot disagree with the term. `lemma`
+defaults to the lowercased term; supply it explicitly for irregular forms
+(`"higher than"` → `"high than"`). Changing a term does **not** re-derive a
+lemma that was set by hand, because that would silently stop the term being
+detected.
 
 ### 3.7 Submissions — the practice flow
 

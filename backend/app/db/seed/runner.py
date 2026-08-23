@@ -6,7 +6,9 @@ repeatedly against a populated database updates rather than duplicates.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+import uuid
+
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -14,6 +16,7 @@ from app.db.seed.data import (
     ACHIEVEMENTS,
     AVATARS,
     BADGES,
+    SAMPLE_GRAPHS,
     VOCABULARY_CATEGORIES,
     VOCABULARY_ITEMS,
 )
@@ -21,9 +24,13 @@ from app.models import (
     Achievement,
     Avatar,
     Badge,
+    Graph,
+    GraphTargetVocabulary,
+    User,
     VocabularyCategory,
     VocabularyItem,
 )
+from app.models.enums import UserRole
 
 logger = get_logger(__name__)
 
@@ -135,12 +142,103 @@ async def seed_achievements(db: AsyncSession) -> int:
     return created
 
 
+async def seed_graphs(db: AsyncSession, *, author_id: uuid.UUID) -> int:
+    """Seed the sample practice library, attributed to ``author_id``.
+
+    Graphs are matched by title. An existing graph's content is refreshed but
+    its ``is_published`` flag is left alone: a teacher who unpublished a sample
+    exercise should not find it back in the catalogue after a redeploy.
+    """
+    existing = {g.title: g for g in (await db.execute(select(Graph))).scalars()}
+    items = {i.lemma: i for i in (await db.execute(select(VocabularyItem))).scalars()}
+    created = 0
+
+    for row in SAMPLE_GRAPHS:
+        graph = existing.get(row["title"])
+        if graph is None:
+            graph = Graph(
+                title=row["title"],
+                prompt=row["prompt"],
+                graph_type=row["graph_type"],
+                difficulty=row["difficulty"],
+                chart_data=row["chart_data"],
+                reference_description=row["reference_description"],
+                created_by=author_id,
+                # Published on creation: the target set is written below in the
+                # same transaction, so the graph is never visible unscoreable.
+                is_published=True,
+            )
+            db.add(graph)
+            created += 1
+        else:
+            graph.prompt = row["prompt"]
+            graph.graph_type = row["graph_type"]
+            graph.difficulty = row["difficulty"]
+            graph.chart_data = row["chart_data"]
+            graph.reference_description = row["reference_description"]
+
+        await db.flush()
+
+        missing = [lemma for lemma in row["targets"] if lemma not in items]
+        if missing:
+            raise RuntimeError(
+                f"Sample graph {row['title']!r} targets unknown lemmas: {missing}. "
+                "Seed the vocabulary library first."
+            )
+
+        await db.execute(
+            delete(GraphTargetVocabulary).where(GraphTargetVocabulary.graph_id == graph.id)
+        )
+        for lemma in row["targets"]:
+            db.add(
+                GraphTargetVocabulary(
+                    graph_id=graph.id,
+                    vocabulary_item_id=items[lemma].id,
+                    is_required=True,
+                )
+            )
+
+    await db.flush()
+    logger.info("Sample graphs: %d created, %d refreshed", created, len(SAMPLE_GRAPHS) - created)
+    return created
+
+
+async def find_content_author(db: AsyncSession) -> User | None:
+    """An account the sample graphs can be attributed to.
+
+    ``graphs.created_by`` is NOT NULL with ON DELETE RESTRICT, so the sample
+    library needs a real author. Prefers an administrator, falls back to any
+    teacher, and returns None on a database with neither — seeding then skips
+    the graphs rather than inventing an account with a guessable password.
+    """
+    stmt = (
+        select(User)
+        .where(User.role.in_([UserRole.ADMIN.value, UserRole.TEACHER.value]))
+        # Administrators first, then oldest account, so repeated runs pick the
+        # same author instead of reattributing content on every deploy.
+        .order_by((User.role != UserRole.ADMIN.value), User.created_at)
+        .limit(1)
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
 async def seed_all(db: AsyncSession) -> dict[str, int]:
     """Seed all reference data. Safe to run repeatedly."""
     avatars = await seed_avatars(db)
     categories, items = await seed_vocabulary(db)
     badges = await seed_badges(db)
     achievements = await seed_achievements(db)
+
+    graphs = 0
+    author = await find_content_author(db)
+    if author is None:
+        logger.warning(
+            "Skipping sample graphs: no teacher or administrator account exists yet. "
+            "Register one, then re-run seeding to install the practice library."
+        )
+    else:
+        graphs = await seed_graphs(db, author_id=author.id)
+
     await db.commit()
     return {
         "avatars": avatars,
@@ -148,4 +246,5 @@ async def seed_all(db: AsyncSession) -> dict[str, int]:
         "vocabulary_items": items,
         "badges": badges,
         "achievements": achievements,
+        "graphs": graphs,
     }

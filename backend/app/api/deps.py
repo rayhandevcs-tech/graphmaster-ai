@@ -21,9 +21,18 @@ from app.models.enums import UserRole
 from app.models.identity import User
 from app.repositories.auth_session import AuthSessionRepository
 from app.repositories.avatar import AvatarRepository
+from app.repositories.class_ import ClassRepository
+from app.repositories.graph import GraphRepository
 from app.repositories.user import UserRepository
+from app.repositories.vocabulary import (
+    VocabularyCategoryRepository,
+    VocabularyItemRepository,
+)
 from app.services.auth import AuthService
+from app.services.class_ import ClassService
+from app.services.graph import GraphService
 from app.services.user import UserService
+from app.services.vocabulary import VocabularyService
 
 # auto_error=False so a missing header raises our own InvalidTokenError in the
 # shared envelope, rather than Starlette's bare 403 with a different shape.
@@ -47,9 +56,31 @@ def get_auth_session_repository(db: DbSession) -> AuthSessionRepository:
     return AuthSessionRepository(db)
 
 
+def get_vocabulary_category_repository(db: DbSession) -> VocabularyCategoryRepository:
+    return VocabularyCategoryRepository(db)
+
+
+def get_vocabulary_item_repository(db: DbSession) -> VocabularyItemRepository:
+    return VocabularyItemRepository(db)
+
+
+def get_graph_repository(db: DbSession) -> GraphRepository:
+    return GraphRepository(db)
+
+
+def get_class_repository(db: DbSession) -> ClassRepository:
+    return ClassRepository(db)
+
+
 UserRepo = Annotated[UserRepository, Depends(get_user_repository)]
 AvatarRepo = Annotated[AvatarRepository, Depends(get_avatar_repository)]
 SessionRepo = Annotated[AuthSessionRepository, Depends(get_auth_session_repository)]
+VocabCategoryRepo = Annotated[
+    VocabularyCategoryRepository, Depends(get_vocabulary_category_repository)
+]
+VocabItemRepo = Annotated[VocabularyItemRepository, Depends(get_vocabulary_item_repository)]
+GraphRepo = Annotated[GraphRepository, Depends(get_graph_repository)]
+ClassRepo = Annotated[ClassRepository, Depends(get_class_repository)]
 
 
 # ── Services ─────────────────────────────────────────────────────────────────
@@ -63,8 +94,25 @@ def get_user_service(users: UserRepo, avatars: AvatarRepo, sessions: SessionRepo
     return UserService(users, avatars, sessions)
 
 
+def get_vocabulary_service(
+    categories: VocabCategoryRepo, items: VocabItemRepo
+) -> VocabularyService:
+    return VocabularyService(categories, items)
+
+
+def get_graph_service(graphs: GraphRepo, items: VocabItemRepo) -> GraphService:
+    return GraphService(graphs, items)
+
+
+def get_class_service(classes: ClassRepo, users: UserRepo) -> ClassService:
+    return ClassService(classes, users)
+
+
 AuthSvc = Annotated[AuthService, Depends(get_auth_service)]
 UserSvc = Annotated[UserService, Depends(get_user_service)]
+VocabularySvc = Annotated[VocabularyService, Depends(get_vocabulary_service)]
+GraphSvc = Annotated[GraphService, Depends(get_graph_service)]
+ClassSvc = Annotated[ClassService, Depends(get_class_service)]
 
 
 # ── Authentication ───────────────────────────────────────────────────────────

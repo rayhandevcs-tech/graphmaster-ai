@@ -50,6 +50,16 @@ Framer Motion · Lottie · Chart.js · TanStack Query
     reference them.
 11. **Never commit secrets.** `.env` is ignored; `.env.example` documents every
     variable.
+12. **A graph cannot be published without at least one *required* target term.**
+    Required targets are the denominator of the vocabulary percentage, so an
+    empty set makes the exercise unscoreable.
+13. **`is_phrase` is derived from the term, never sent by the client.** And
+    editing a term does not re-derive a hand-set lemma — that would silently
+    stop the term being detected.
+14. **After a flush, re-read before serialising.** Columns with a server-side
+    `onupdate` (`updated_at`) are expired by the flush, and relationships set
+    by foreign key alone go stale in the identity map. Both surface as a lazy
+    load that the async driver cannot service.
 
 ## Conventions
 

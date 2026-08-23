@@ -113,6 +113,107 @@ async def seeded(db: AsyncSession):
 
 
 @pytest.fixture
+async def seeded_vocabulary(db: AsyncSession):
+    """The seven categories and the full term library.
+
+    Returned as a lemma -> item mapping so a test can pick target terms by
+    name instead of by position.
+    """
+    from app.db.seed.runner import seed_vocabulary
+
+    await seed_vocabulary(db)
+
+    from sqlalchemy import select
+
+    from app.models.content import VocabularyItem
+
+    rows = (await db.execute(select(VocabularyItem))).scalars().all()
+    return {item.lemma: item for item in rows}
+
+
+@pytest.fixture
+def chart_payload():
+    """A minimal, valid Chart.js payload."""
+
+    def make(**overrides) -> dict:
+        base = {
+            "labels": ["2023", "2024", "2025"],
+            "datasets": [{"label": "Output (MWh)", "data": [120, 190, 260]}],
+            "x_axis_label": "Year",
+            "y_axis_label": "Output (MWh)",
+        }
+        return base | overrides
+
+    return make
+
+
+@pytest.fixture
+def graph_factory(db: AsyncSession, chart_payload):
+    """Build and persist a graph directly, bypassing the API."""
+    from app.models.content import Graph, GraphTargetVocabulary
+
+    counter = {"n": 0}
+
+    async def make(
+        *,
+        created_by,
+        title: str | None = None,
+        graph_type: str = "line",
+        difficulty: str = "beginner",
+        is_published: bool = True,
+        reference_description: str | None = "The line graph illustrates a steady rise.",
+        targets: list = (),
+    ) -> Graph:
+        counter["n"] += 1
+        graph = Graph(
+            title=title or f"Test graph {counter['n']}",
+            prompt="Describe this chart in at least 150 words.",
+            graph_type=graph_type,
+            difficulty=difficulty,
+            chart_data=chart_payload(),
+            reference_description=reference_description,
+            is_published=is_published,
+            created_by=created_by,
+        )
+        db.add(graph)
+        await db.flush()
+        for item in targets:
+            db.add(
+                GraphTargetVocabulary(
+                    graph_id=graph.id, vocabulary_item_id=item.id, is_required=True
+                )
+            )
+        await db.flush()
+        return graph
+
+    return make
+
+
+@pytest.fixture
+def class_factory(db: AsyncSession):
+    """Build and persist a class directly."""
+    from app.models.identity import Class
+
+    counter = {"n": 0}
+
+    async def make(
+        *, teacher_id, name: str | None = None, code: str | None = None, is_active: bool = True
+    ) -> Class:
+        counter["n"] += 1
+        class_ = Class(
+            name=name or f"Test class {counter['n']}",
+            code=code or f"TESTC{counter['n']:03d}",
+            teacher_id=teacher_id,
+            is_active=is_active,
+        )
+        db.add(class_)
+        await db.flush()
+        return class_
+
+    return make
+
+
+@pytest.fixture
 def user_factory(db: AsyncSession):
     """Build and persist a user directly, bypassing the registration endpoint."""
     from app.core.security import hash_password
