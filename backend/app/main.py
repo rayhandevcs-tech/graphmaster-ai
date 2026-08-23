@@ -17,6 +17,7 @@ from app.core.config import get_settings
 from app.core.exceptions import GraphMasterError, RateLimitError
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
+from app.nlp.pipeline import warm_up as warm_up_nlp
 from app.ocr.chain import OCRChain
 from app.ocr.factory import get_ocr_chain
 
@@ -48,6 +49,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
     else:
         _warm_up_ocr(chain)
+
+    # Loading the spaCy model and running one throwaway parse. Analysis is not
+    # optional the way OCR is — without it nothing can be scored — but a
+    # missing model still must not stop the server: students can then still
+    # sign in, read their history and practise, and the operator sees one
+    # actionable warning instead of every submission failing at 500.
+    if not warm_up_nlp():
+        logger.warning(
+            "The analysis engine is unavailable. Scoring will return 503 until the "
+            "spaCy model is installed."
+        )
 
     yield
     logger.info("Shutting down %s", settings.PROJECT_NAME)

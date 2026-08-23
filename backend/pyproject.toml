@@ -79,6 +79,18 @@ ignore = [
 "app/ocr/validation.py" = ["RUF001", "RUF002"]
 "app/schemas/ocr.py" = ["RUF001"]
 "tests/unit/test_ocr_postprocess.py" = ["RUF001"]
+# The normaliser's whole job is mapping the real Unicode characters students
+# paste in — curly quotes, en dashes, non-breaking spaces. Rewriting those
+# literals to their ASCII lookalikes would delete the mapping it performs, and
+# the tests must feed it the same real characters.
+"app/nlp/normalise.py" = ["RUF001", "RUF002"]
+"tests/unit/test_nlp_normalise.py" = ["RUF001"]
+# Ranges and formulae in user-facing prose: "150-250 words", "(detected / total) x 100".
+"app/nlp/writing.py" = ["RUF002"]
+"app/nlp/scoring.py" = ["RUF002"]
+"app/nlp/feedback.py" = ["RUF001"]
+"app/nlp/defaults.py" = ["RUF003"]
+"tests/unit/test_nlp_scoring.py" = ["RUF003"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

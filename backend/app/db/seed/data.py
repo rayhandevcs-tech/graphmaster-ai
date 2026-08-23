@@ -380,7 +380,12 @@ SAMPLE_GRAPHS: list[dict[str, Any]] = [
             "only decline of the period, falling to 255 MWh in 2023, before "
             "recovering. The highest point was reached in 2025 at 410 MWh, more "
             "than three times the 2019 figure and considerably higher than every "
-            "preceding year."
+            "preceding year. The growth was not evenly distributed across the seven "
+            "years: the increase between 2021 and 2022 alone accounted for roughly a "
+            "quarter of the total gain, whereas the two years either side of it "
+            "added far less. Taken as a whole, the chart shows a campus moving "
+            "decisively towards solar generation, with a single interruption that "
+            "did little to slow the underlying trend."
         ),
         "targets": ["increase", "rise", "climb", "surge", "fall", "high point"],
     },
@@ -420,8 +425,13 @@ SAMPLE_GRAPHS: list[dict[str, Any]] = [
             "visits, overtaking Humanities, whose figure declined slightly to 5.1. "
             "Engineering grew from 3.2 to 3.9 visits, remaining relatively stable "
             "compared with the other faculties. Business was the only faculty to drop "
-            "in both absolute and relative terms, falling to 1.8 visits and reaching "
-            "the lowest point on the chart."
+            "in both absolute and relative terms, falling to 1.8 visits, lower than "
+            "every other faculty, and reaching the lowest point on the chart. The gap "
+            "between the highest and lowest faculties therefore widened over the two "
+            "years, from 3.3 visits per week to 4.4. It is also notable that the two "
+            "faculties with the heaviest reading loads, Medicine and Humanities, "
+            "occupied the top two positions in both years, while the more practical "
+            "disciplines remained well below them throughout."
         ),
         "targets": ["high than", "low than", "compare with", "rise", "decline", "stable"],
     },
@@ -457,12 +467,17 @@ SAMPLE_GRAPHS: list[dict[str, Any]] = [
             "modes of transport to travel to campus. Overall, public and active "
             "transport dominate, with the bus accounting for the largest single share "
             "and the train the smallest. The bus is by far the most common choice at "
-            "38% of students, considerably higher than any other mode. Walking follows "
-            "at 24%, while cycling accounts for 17%. Taken together, these three "
+            "38% of students, considerably higher than any other mode. Compared with "
+            "walking at 24%, cycling accounts for a smaller 17%. Taken together, these three "
             "options represent almost four-fifths of all journeys. Car travel is "
             "comparatively low at 13%, lower than every active or public option except "
             "the train. The train represents the lowest point on the chart at just 8%, "
-            "less than a quarter of the bus figure."
+            "less than a quarter of the bus figure. Overall, the chart suggests that "
+            "campus travel is dominated by options requiring no private vehicle, "
+            "which together account for 87% of journeys. The two remaining "
+            "categories, by contrast, are the only ones to fall below 15%, and the "
+            "difference between them is smaller than that between any other pair of "
+            "modes on the chart."
         ),
         "targets": ["high than", "low than", "compare with", "low point"],
     },
@@ -515,7 +530,7 @@ SAMPLE_GRAPHS: list[dict[str, Any]] = [
             "The area chart compares quarterly water consumption in two campus "
             "buildings over a three-year period. Overall, both buildings fluctuated "
             "seasonally rather than following any long-term trend, and the halls of "
-            "residence consumed considerably more water than the science block in "
+            "residence were consistently higher than the science block in "
             "every quarter except the third of each year. Consumption in the halls "
             "oscillated dramatically, peaking at 1,210 m³ in Q4 2023 and bottoming out "
             "at around 400 m³ each third quarter, when the vacation empties the "
@@ -523,7 +538,11 @@ SAMPLE_GRAPHS: list[dict[str, Any]] = [
             "between roughly 590 and 930 m³ throughout. Its lowest point of 590 m³ came "
             "in Q3 2025, part of a slight downward drift in third-quarter figures. "
             "Both buildings showed a marginal decline across the three years, though "
-            "the seasonal pattern remained constant."
+            "the seasonal pattern remained constant. The difference between the two "
+            "buildings was therefore greatest in the winter quarters and almost "
+            "disappeared in the summer, when the halls bottomed out while the science "
+            "block continued to operate normally. This seasonal contrast, rather than "
+            "any change in overall demand, is the clearest feature of the chart."
         ),
         "targets": [
             "fluctuate",

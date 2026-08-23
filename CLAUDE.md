@@ -56,7 +56,23 @@ Framer Motion · Lottie · Chart.js · TanStack Query
 13. **`is_phrase` is derived from the term, never sent by the client.** And
     editing a term does not re-derive a hand-set lemma — that would silently
     stop the term being detected.
-14. **After a flush, re-read before serialising.** Columns with a server-side
+14. **Vocabulary matching is lemma *and* surface.** spaCy's lemmatiser gets some
+    terms wrong (`plateaued` → `plateaue`) and derivations are separate lemmas
+    entirely (`fluctuation` is not `fluctuate`), so inflections and
+    nominalisations generated from the target term are matched too. Variants are
+    only ever generated **from a curated term**, never inferred from what the
+    student wrote.
+15. **Normalisation never lowercases or strips punctuation.** Case feeds the POS
+    tagger and punctuation feeds sentence segmentation; matching is
+    case-insensitive because it runs on token attributes. Every normalised
+    character keeps an index back to the original so highlight offsets are real.
+16. **`engine_version` fingerprints the rubric, not just the code.** Weights and
+    thresholds are env config, so two scores could otherwise share a version and
+    be incomparable.
+17. **Feedback must never claim something the student did not do**, in either
+    direction: no praise for unused vocabulary, and no "you used no X language"
+    for a category they did use.
+18. **After a flush, re-read before serialising.** Columns with a server-side
     `onupdate` (`updated_at`) are expired by the flush, and relationships set
     by foreign key alone go stale in the identity map. Both surface as a lazy
     load that the async driver cannot service.

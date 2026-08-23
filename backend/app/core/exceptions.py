@@ -196,6 +196,28 @@ class AnalysisError(ValidationError):
     message = "The response could not be analysed."
 
 
+# ── 503 ──────────────────────────────────────────────────────────────────────
+
+
+class ServiceUnavailableError(GraphMasterError):
+    status_code = 503
+    code = "SERVICE_UNAVAILABLE"
+    message = "This capability is not available on this server right now."
+
+
+class AnalysisEngineUnavailableError(ServiceUnavailableError):
+    """The language model scoring depends on is not installed.
+
+    Distinct from :class:`AnalysisError`, which means *this particular answer*
+    could not be analysed. This one is a deployment fault, not a data fault,
+    and is reported as 503 so a caller knows retrying the same request against
+    a correctly provisioned server would succeed.
+    """
+
+    code = "ANALYSIS_ENGINE_UNAVAILABLE"
+    message = "The language model needed for scoring is not installed on this server."
+
+
 # ── 429 ──────────────────────────────────────────────────────────────────────
 
 

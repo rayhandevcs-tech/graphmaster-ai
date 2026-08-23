@@ -124,10 +124,19 @@ async def seeded_vocabulary(db: AsyncSession):
     await seed_vocabulary(db)
 
     from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
 
     from app.models.content import VocabularyItem
 
-    rows = (await db.execute(select(VocabularyItem))).scalars().all()
+    # The category is eager-loaded: a test reading `item.category.code` off a
+    # lazily loaded relationship gets a MissingGreenlet, because the async
+    # driver cannot service a lazy load raised from synchronous attribute
+    # access.
+    rows = (
+        (await db.execute(select(VocabularyItem).options(selectinload(VocabularyItem.category))))
+        .scalars()
+        .all()
+    )
     return {item.lemma: item for item in rows}
 
 
@@ -163,6 +172,7 @@ def graph_factory(db: AsyncSession, chart_payload):
         is_published: bool = True,
         reference_description: str | None = "The line graph illustrates a steady rise.",
         targets: list = (),
+        optional_targets: list = (),
     ) -> Graph:
         counter["n"] += 1
         graph = Graph(
@@ -181,6 +191,12 @@ def graph_factory(db: AsyncSession, chart_payload):
             db.add(
                 GraphTargetVocabulary(
                     graph_id=graph.id, vocabulary_item_id=item.id, is_required=True
+                )
+            )
+        for item in optional_targets:
+            db.add(
+                GraphTargetVocabulary(
+                    graph_id=graph.id, vocabulary_item_id=item.id, is_required=False
                 )
             )
         await db.flush()
@@ -280,3 +296,77 @@ def reset_rate_limiter():
     limiter.reset()
     yield
     limiter.reset()
+
+
+# ── Analysis engine ──────────────────────────────────────────────────────────
+
+
+@pytest.fixture(scope="session")
+def spacy_model():
+    """Skip a test that needs the language model when it is not installed.
+
+    Only the tests that genuinely parse text depend on this. Normalisation,
+    inflection, the scoring arithmetic and the feedback templates are pure
+    functions and run unconditionally, so a machine without the model still
+    exercises most of the engine rather than reporting a green run that
+    checked nothing.
+    """
+    from app.nlp.pipeline import is_available
+
+    if not is_available():
+        pytest.skip("spaCy model not installed — run: python -m spacy download en_core_web_sm")
+    return True
+
+
+@pytest.fixture
+def term_factory():
+    """Build :class:`TargetTerm` values without touching the database."""
+    from app.nlp.terms import TargetTerm
+
+    def make(
+        term: str,
+        lemma: str | None = None,
+        *,
+        category: str = "increase",
+        category_name: str | None = None,
+        is_phrase: bool | None = None,
+        is_required: bool = True,
+        weight: float = 1.0,
+    ):
+        return TargetTerm(
+            term=term,
+            lemma=lemma if lemma is not None else term,
+            category_code=category,
+            category_name=category_name or category.title(),
+            is_phrase=(" " in term) if is_phrase is None else is_phrase,
+            is_required=is_required,
+            weight=weight,
+        )
+
+    return make
+
+
+@pytest.fixture
+def strong_answer() -> str:
+    """A competent 165-word description using most of the target vocabulary."""
+    return (
+        "Overall, the line graph illustrates the amount of electricity generated from "
+        "three renewable sources between 2010 and 2022. It is clear that solar generation "
+        "grew far more quickly than the other two sources, while hydroelectric output "
+        "remained stable throughout. In 2010 hydroelectric power was the dominant source "
+        "at roughly 230 gigawatt hours, which was considerably higher than solar and wind "
+        "combined. Over the following six years it fluctuated between 220 and 250 gigawatt "
+        "hours, showing no clear trend. Solar generation, which began from a negligible "
+        "base, climbed steadily after 2014 and then surged from 2018 onwards, reaching its "
+        "highest point of approximately 410 gigawatt hours in 2022. Wind energy followed a "
+        "similar but gentler trajectory, rising from 15 to about 90 gigawatt hours. "
+        "Hydroelectric output bottomed out in 2016 before a modest increase. The most "
+        "striking feature is the point in 2019 at which solar overtook hydroelectricity, "
+        "whereas wind remained the smallest contributor throughout the period shown."
+    )
+
+
+@pytest.fixture
+def weak_answer() -> str:
+    """Three short sentences with almost no target vocabulary."""
+    return "The graph go up. Then it go down a lot. Sales increase in 2015 and that is all."

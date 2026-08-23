@@ -29,6 +29,7 @@ from app.repositories.vocabulary import (
     VocabularyCategoryRepository,
     VocabularyItemRepository,
 )
+from app.services.analysis import AnalysisService
 from app.services.auth import AuthService
 from app.services.class_ import ClassService
 from app.services.graph import GraphService
@@ -111,6 +112,12 @@ def get_class_service(classes: ClassRepo, users: UserRepo) -> ClassService:
     return ClassService(classes, users)
 
 
+def get_analysis_service(
+    graphs: GraphRepo, items: VocabItemRepo, graph_service: GraphSvc
+) -> AnalysisService:
+    return AnalysisService(graphs, items, graph_service)
+
+
 def get_ocr_service() -> OCRService:
     # Both dependencies are process-wide singletons: the chain holds the
     # loaded recognition models, and rebuilding either per request would add
@@ -124,6 +131,7 @@ VocabularySvc = Annotated[VocabularyService, Depends(get_vocabulary_service)]
 GraphSvc = Annotated[GraphService, Depends(get_graph_service)]
 ClassSvc = Annotated[ClassService, Depends(get_class_service)]
 OCRSvc = Annotated[OCRService, Depends(get_ocr_service)]
+AnalysisSvc = Annotated[AnalysisService, Depends(get_analysis_service)]
 
 
 # ── Authentication ───────────────────────────────────────────────────────────
