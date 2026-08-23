@@ -17,6 +17,8 @@ from app.core.config import get_settings
 from app.core.exceptions import GraphMasterError, RateLimitError
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
+from app.ocr.chain import OCRChain
+from app.ocr.factory import get_ocr_chain
 
 logger = get_logger(__name__)
 
@@ -33,8 +35,39 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
     configure_logging()
     logger.info("Starting %s v%s (%s)", settings.PROJECT_NAME, __version__, settings.ENVIRONMENT)
+
+    # Probe provider availability once, here, rather than per upload: it is a
+    # configuration question whose answer cannot change within a process
+    # lifetime, and probing Google Vision per request would add a network round
+    # trip to every submission (07-ocr-architecture.md §3.1).
+    chain = get_ocr_chain()
+    if not chain.is_operational:
+        logger.warning(
+            "No OCR provider is available. Handwriting upload will be refused; "
+            "typed answers are unaffected."
+        )
+    else:
+        _warm_up_ocr(chain)
+
     yield
     logger.info("Shutting down %s", settings.PROJECT_NAME)
+
+
+def _warm_up_ocr(chain: OCRChain) -> None:
+    """Load recognition models during boot.
+
+    Otherwise the several seconds of model loading land on whichever student
+    happens to upload first, and count against the 10-second budget of
+    NFR-1.3 for that one unlucky request.
+    """
+    for provider in chain.available_providers:
+        warm_up = getattr(provider, "warm_up", None)
+        if warm_up is None:
+            continue
+        try:
+            warm_up()
+        except Exception as exc:
+            logger.warning("Could not warm up OCR provider %s: %s", provider.name, exc)
 
 
 def create_app() -> FastAPI:

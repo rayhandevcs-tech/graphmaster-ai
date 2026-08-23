@@ -175,6 +175,34 @@ defaults to the lowercased term; supply it explicitly for irregular forms
 lemma that was set by hand, because that would silently stop the term being
 detected.
 
+### 3.6b OCR
+
+| Method | Path | Description | Roles |
+|---|---|---|---|
+| GET | `/ocr/status` | Which recognition engines this server can actually use | S T A |
+| POST | `/ocr/extract` | Read handwriting from an uploaded image and return an editable preview | S T A |
+
+`POST /ocr/extract` recognises an image **without binding it to a submission**.
+It is the standalone preview surface: it lets a teacher check how well the
+configured engine reads their students' handwriting before setting an
+assignment, and it is the same service `POST /submissions/{id}/upload` calls.
+
+`GET /ocr/status` exists so a client can hide the handwriting option entirely
+on a server with no engine configured, rather than letting a student photograph
+a page and only then discover it cannot be read.
+
+Uploads are validated by **signature bytes**, never by filename or the declared
+`Content-Type` — both are trivially forged. `413` for an oversized file, `415`
+for anything that is not a JPG, PNG or WEBP, and `422` when every engine fails.
+The uploaded original is stored *before* recognition is attempted and is
+**never deleted on failure**, so a student can retry or switch to typing
+without re-photographing the page (FR-4.9).
+
+An empty extraction is **not** an error: a blank or unreadable page is a
+legitimate outcome, so it returns `200` with empty text and a `warning`. Low
+confidence never blocks either — it sets a `warning` telling the student to
+read the preview carefully.
+
 ### 3.7 Submissions — the practice flow
 
 | Method | Path | Description | Roles |

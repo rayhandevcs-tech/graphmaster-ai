@@ -19,6 +19,7 @@ from app.core.security import decode_token
 from app.db.session import get_db
 from app.models.enums import UserRole
 from app.models.identity import User
+from app.ocr.factory import get_ocr_chain
 from app.repositories.auth_session import AuthSessionRepository
 from app.repositories.avatar import AvatarRepository
 from app.repositories.class_ import ClassRepository
@@ -31,8 +32,10 @@ from app.repositories.vocabulary import (
 from app.services.auth import AuthService
 from app.services.class_ import ClassService
 from app.services.graph import GraphService
+from app.services.ocr import OCRService
 from app.services.user import UserService
 from app.services.vocabulary import VocabularyService
+from app.storage.factory import get_storage
 
 # auto_error=False so a missing header raises our own InvalidTokenError in the
 # shared envelope, rather than Starlette's bare 403 with a different shape.
@@ -108,11 +111,19 @@ def get_class_service(classes: ClassRepo, users: UserRepo) -> ClassService:
     return ClassService(classes, users)
 
 
+def get_ocr_service() -> OCRService:
+    # Both dependencies are process-wide singletons: the chain holds the
+    # loaded recognition models, and rebuilding either per request would add
+    # seconds of model loading to every upload.
+    return OCRService(get_ocr_chain(), get_storage())
+
+
 AuthSvc = Annotated[AuthService, Depends(get_auth_service)]
 UserSvc = Annotated[UserService, Depends(get_user_service)]
 VocabularySvc = Annotated[VocabularyService, Depends(get_vocabulary_service)]
 GraphSvc = Annotated[GraphService, Depends(get_graph_service)]
 ClassSvc = Annotated[ClassService, Depends(get_class_service)]
+OCRSvc = Annotated[OCRService, Depends(get_ocr_service)]
 
 
 # ── Authentication ───────────────────────────────────────────────────────────

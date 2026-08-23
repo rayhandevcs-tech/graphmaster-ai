@@ -72,6 +72,13 @@ ignore = [
 "tests/*" = ["E501"]
 # Seed data is user-facing prose; en dashes in "60-89%" ranges are deliberate.
 "app/db/seed/data.py" = ["RUF001"]
+# User-facing typography is deliberate: "500×500 pixels", "0.0–1.0",
+# "deskew(+2.2°)". And the OCR post-processor must match the real Unicode
+# hyphens engines emit, so those literals cannot be normalised to ASCII.
+"app/ocr/postprocess.py" = ["RUF001"]
+"app/ocr/validation.py" = ["RUF001", "RUF002"]
+"app/schemas/ocr.py" = ["RUF001"]
+"tests/unit/test_ocr_postprocess.py" = ["RUF001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

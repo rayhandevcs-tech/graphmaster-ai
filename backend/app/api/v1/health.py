@@ -12,6 +12,7 @@ from app import __version__
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db.session import get_db
+from app.ocr.factory import get_ocr_chain
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["health"])
@@ -43,7 +44,14 @@ async def ready(response: Response, db: AsyncSession = Depends(get_db)) -> dict[
         checks["database"] = {"status": "error", "detail": str(exc)}
         healthy = False
 
-    checks["ocr"] = {"status": "not_configured", "providers": settings.ocr_provider_order}
+    # Reported but never allowed to fail readiness: with no OCR engine the
+    # platform still serves typed answers, which is most of it. Failing
+    # readiness here would pull a working instance out of the load balancer.
+    chain = get_ocr_chain()
+    checks["ocr"] = {
+        "status": "ok" if chain.is_operational else "not_configured",
+        "providers": {s.name: s.available for s in chain.statuses()},
+    }
     checks["nlp"] = {"status": "not_configured", "model": settings.SPACY_MODEL}
 
     if not healthy:
