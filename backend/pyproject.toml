@@ -85,6 +85,10 @@ addopts = "-q --strict-markers"
 [tool.coverage.run]
 source = ["app"]
 omit = ["app/db/seed/*", "alembic/*", "*/__init__.py"]
+# SQLAlchemy's async layer switches greenlets on every await that touches the
+# database. Without this, coverage loses every line executed after such an
+# await and reports well-tested async services as barely covered.
+concurrency = ["greenlet", "thread"]
 
 [tool.coverage.report]
 exclude_lines = [

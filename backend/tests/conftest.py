@@ -92,3 +92,90 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     fastapi_app.dependency_overrides.clear()
+
+
+# ── Seed data and user factories ─────────────────────────────────────────────
+
+
+@pytest.fixture
+async def seeded(db: AsyncSession):
+    """Reference data every test that touches users needs.
+
+    Registration assigns an avatar from gender, so without seeded avatars every
+    registration test would exercise the unseeded-database path instead of the
+    real one.
+    """
+    from app.db.seed.runner import seed_avatars, seed_badges
+
+    await seed_avatars(db)
+    await seed_badges(db)
+    return db
+
+
+@pytest.fixture
+def user_factory(db: AsyncSession):
+    """Build and persist a user directly, bypassing the registration endpoint."""
+    from app.core.security import hash_password
+    from app.models.enums import Gender, UserRole
+    from app.models.identity import User
+
+    counter = {"n": 0}
+
+    async def make(
+        *,
+        email: str | None = None,
+        password: str = "testpass123",
+        role: UserRole = UserRole.STUDENT,
+        gender: Gender = Gender.FEMALE,
+        full_name: str = "Test User",
+        is_active: bool = True,
+        total_xp: int = 0,
+        current_level: int = 1,
+        avatar_id=None,
+        class_id=None,
+    ) -> User:
+        counter["n"] += 1
+        user = User(
+            email=email or f"user{counter['n']}@test.edu",
+            password_hash=hash_password(password),
+            full_name=full_name,
+            role=role.value,
+            gender=gender.value,
+            is_active=is_active,
+            total_xp=total_xp,
+            current_level=current_level,
+            avatar_id=avatar_id,
+            class_id=class_id,
+        )
+        db.add(user)
+        await db.flush()
+        return user
+
+    return make
+
+
+@pytest.fixture
+def auth_headers():
+    """Build an Authorization header for a user."""
+    from app.core.security import create_access_token
+
+    def make(user) -> dict[str, str]:
+        token = create_access_token(user.id, role=user.role, gender=user.gender)
+        return {"Authorization": f"Bearer {token}"}
+
+    return make
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Clear rate-limit state between tests.
+
+    The limiter is a process-wide singleton, so without this the auth tests
+    would exhaust the 10-per-5-minutes budget and later tests would fail with
+    429 for reasons unrelated to what they assert.
+    """
+    from app.core.rate_limit import limiter
+
+    limiter.reset()
+    yield
+    limiter.reset()
