@@ -127,7 +127,7 @@ Applied to a copy; the original is always retained unmodified.
 | Step | Purpose |
 |---|---|
 | Grayscale | Handwriting is monochrome; colour adds noise, not signal |
-| Deskew | Phone photographs of paper are rarely square to the page |
+| Deskew | Phone photographs of paper are rarely square to the page. Applied only between 0.3° and 15°: below that, resampling softens the strokes for no gain; above it, the estimate is more likely a misdetection than a real tilt |
 | Contrast normalisation | Compensates for uneven lighting and shadow across the sheet |
 | Denoise | Removes paper grain and JPEG artefacts |
 | Bounded resize | Caps inference cost; very large photos are downscaled to a maximum edge |
@@ -144,8 +144,19 @@ Raw OCR output needs cleanup before it reaches the analyser:
 - Hyphenated line-end splits are rejoined (`fluctu-` + `ate` → `fluctuate`).
   Without this, a term split across two lines is silently lost from the score.
 - Runs of whitespace collapse to single spaces.
-- Common confusions are corrected conservatively (`0`↔`O`, `1`↔`l`) **only**
-  inside otherwise-alphabetic words.
+- Common confusions are corrected conservatively, and only inside a single
+  token whose own shape makes the intent unambiguous:
+  - `0` → `o` in a mostly-alphabetic token (`s0ared` → `soared`).
+  - `O`/`l`/`I` → digits in a mostly-numeric token (`2O19` → `2019`).
+  - A token containing a **run** of two or more digits is left alone in the
+    alphabetic direction. That guard is what protects `COVID19`, `30mm` and
+    `Q1 2019` from being corrupted into words.
+  - **`1` is deliberately never mapped back to a letter**, though revision 2.0
+    of this document called for it. `1` is equally shaped like `l`, `I` and
+    `i`, so "1ncrease" is as readily "lncrease" as "increase": the correction
+    swaps one non-word for another while risking the wrong one. Disambiguating
+    it needs a lexicon, which the analyser has and this layer does not, so the
+    ambiguous case is passed through untouched.
 
 Cleanup is deliberately restrained. Aggressive autocorrection risks inventing a
 vocabulary term the student never wrote, which would inflate the score — a worse
@@ -192,3 +203,25 @@ observing that the score was low.
 All are within the 10-second budget of NFR-1.3. The EasyOCR reader is
 instantiated **once at application start** and reused; constructing it per
 request would add several seconds of model loading to every upload.
+
+## 8. Implementation notes
+
+### 8.1 The skew angle is normalised modulo 90
+
+`cv2.minAreaRect` identifies a rectangle's orientation only up to a quarter
+turn, and **which** quarter OpenCV reports has changed between major versions —
+4.5+ returns `[0, 90)`, 5.0 returns `[-90, 0]`. The estimate is therefore
+reduced modulo 90 into `(-45, 45]`, which yields the same correction under
+either convention. A version-specific normalisation was the original
+implementation and silently stopped deskewing anything on OpenCV 5; the
+regression is now covered by a test that asserts the correction negates a known
+rotation.
+
+### 8.2 Optional dependencies
+
+`opencv-python-headless`, `numpy`, `easyocr`, `pytesseract` and
+`google-cloud-vision` all live in the `[ocr]` extra, and every module that uses
+them imports lazily. A minimal install without the extra still boots, still
+serves typed answers, and reports `operational: false` from `GET /ocr/status`;
+preprocessing falls back to the Pillow-only path. This is what keeps the test
+suite runnable without a multi-gigabyte model download.

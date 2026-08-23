@@ -6,6 +6,10 @@ help:
 
 install:  ## Create the backend virtualenv and install dependencies
 	cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[dev,reports]"
+	# Scoring cannot run without the language model, and it is a separate
+	# download rather than a package dependency. Without this the server still
+	# starts, but every analysis request returns 503.
+	cd backend && .venv/bin/python -m spacy download en_core_web_sm
 
 migrate:  ## Apply database migrations
 	cd backend && .venv/bin/alembic upgrade head

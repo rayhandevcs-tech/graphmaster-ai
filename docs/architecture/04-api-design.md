@@ -129,7 +129,24 @@ Teachers may only act on classes they own; admins are unrestricted (FR-11.6).
 
 Students never receive `reference_description` from `GET /graphs/{id}` before
 submitting — it is a model answer, and returning it would let a student copy it.
-It appears only in the result payload after scoring.
+It appears only in the result payload after scoring. This is enforced by
+returning a different response model to students, which has no such field,
+rather than by omitting the value at serialisation time.
+
+Three further rules constrain this resource:
+
+- **A graph is created unpublished** and cannot be published until it has at
+  least one *required* target term. The vocabulary percentage is
+  `detected / required targets`, so publishing an empty target set would put a
+  zero in that denominator and make the exercise unscoreable. The same check
+  refuses a `PUT .../target-vocabulary` that would empty the required set of an
+  already-published graph.
+- **Unpublished graphs read as `404` to students**, not `403`, so drafts cannot
+  be enumerated. `include_unpublished=true` is honoured for teachers and
+  administrators and ignored for students.
+- **Editing is open to any teacher; deletion is not.** The practice library is
+  shared, so any teacher may improve any graph, but `DELETE` is irreversible
+  and is restricted to the graph's author or an administrator.
 
 ### 3.6 Vocabulary
 
@@ -141,6 +158,117 @@ It appears only in the result payload after scoring.
 | PATCH | `/vocabulary/items/{id}` | Update term, lemma, category or weight | T A |
 | DELETE | `/vocabulary/items/{id}` | Deactivate (soft delete — see schema §3.4) | T A |
 | POST | `/vocabulary/items/bulk` | Create many terms in one request | T A |
+
+`DELETE` is a soft delete: the row survives so historical scores that reference
+the term stay readable, and the lemma stays reserved. Reactivate with
+`PATCH {"is_active": true}`.
+
+`POST /vocabulary/items/bulk` **skips** terms whose lemma already exists rather
+than failing the whole request, and reports them in `skipped`. A teacher
+pasting forty terms where three already exist should not lose the other
+thirty-seven.
+
+`is_phrase` is never accepted from the client — it is derived from whether the
+term contains whitespace, so the flag cannot disagree with the term. `lemma`
+defaults to the lowercased term; supply it explicitly for irregular forms
+(`"higher than"` → `"high than"`). Changing a term does **not** re-derive a
+lemma that was set by hand, because that would silently stop the term being
+detected.
+
+### 3.6b OCR
+
+| Method | Path | Description | Roles |
+|---|---|---|---|
+| GET | `/ocr/status` | Which recognition engines this server can actually use | S T A |
+| POST | `/ocr/extract` | Read handwriting from an uploaded image and return an editable preview | S T A |
+
+`POST /ocr/extract` recognises an image **without binding it to a submission**.
+It is the standalone preview surface: it lets a teacher check how well the
+configured engine reads their students' handwriting before setting an
+assignment, and it is the same service `POST /submissions/{id}/upload` calls.
+
+`GET /ocr/status` exists so a client can hide the handwriting option entirely
+on a server with no engine configured, rather than letting a student photograph
+a page and only then discover it cannot be read.
+
+Uploads are validated by **signature bytes**, never by filename or the declared
+`Content-Type` — both are trivially forged. `413` for an oversized file, `415`
+for anything that is not a JPG, PNG or WEBP, and `422` when every engine fails.
+The uploaded original is stored *before* recognition is attempted and is
+**never deleted on failure**, so a student can retry or switch to typing
+without re-photographing the page (FR-4.9).
+
+An empty extraction is **not** an error: a blank or unreadable page is a
+legitimate outcome, so it returns `200` with empty text and a `warning`. Low
+confidence never blocks either — it sets a `warning` telling the student to
+read the preview carefully.
+
+### 3.6c Analysis — the scoring engine's own surface
+
+| Method | Path | Description | Roles |
+|---|---|---|---|
+| GET | `/analysis/engine` | The deployed rubric and the language-model state | T A |
+| GET | `/analysis/graphs/{id}/targets` | The target set a submission would be scored against | T A |
+| POST | `/analysis/graphs/{id}/preview` | Score arbitrary text against a graph, recording nothing | T A |
+
+`GET /analysis/engine`:
+
+```json
+{
+  "available": true,
+  "engine_version": "1.0.0+989d98ad",
+  "pipeline": {"model": "en_core_web_sm", "available": true, "version": "3.8.0",
+               "pipes": ["tok2vec", "tagger", "parser", "attribute_ruler", "lemmatizer"]},
+  "rubric": {
+    "vocabulary_weight": 0.70,
+    "writing_weight": 0.30,
+    "tier_thresholds": {"crown": 90.0, "flower": 60.0, "steady": 50.0, "hammer": 0.0},
+    "target_word_count": {"min": 150, "max": 250}
+  }
+}
+```
+
+Clients render the marking criteria from this rather than hardcoding a copy, so
+a rubric retuned for a study does not leave the UI describing rules the server
+no longer applies. `engine_version` carries a fingerprint of the rubric for the
+same reason — see [08-nlp-architecture.md](./08-nlp-architecture.md) §9.10.
+
+`GET /analysis/graphs/{id}/targets` reports `source` as `curated` when a teacher
+set the list and `default` when it was derived from the chart type because none
+was set (FR-5.6). Only **required** terms form the denominator of the vocabulary
+percentage; deactivated terms drop out of both.
+
+`POST /analysis/graphs/{id}/preview` runs the full pipeline and **stores
+nothing** — no submission, no score, no XP. Its response is the same body
+`POST /submissions/{id}/analyze` returns under `score`, plus `graph_id`.
+
+Detected terms carry half-open character offsets into the submitted text, so
+`text[start:end]` is exactly the matched words and the client highlights them
+without re-running any matching:
+
+```json
+{"term": "increase", "lemma": "increase", "category": "increase",
+ "count": 3, "matched_forms": ["increased", "increasing"],
+ "positions": [[45, 54], [128, 138]]}
+```
+
+**Both endpoints are restricted to teachers and administrators.** This is a
+product decision, not a security boundary:
+
+* Open to students, **preview** would let them iterate a draft against the
+  marker until it scored 100 and only then submit — turning the vocabulary
+  score from a measure of their range into a search problem, and detaching XP
+  from the work that earned it.
+* **Targets** hands back the exact list the percentage is computed against.
+  Given to a student before they write, the task stops being description and
+  becomes transcription of a word list. Students still see every term they
+  missed *after* scoring, which is where the list teaches something.
+
+Errors: `404` for an unknown graph, `409` (`NO_TARGET_VOCABULARY`) when a graph
+has no targets and none could be derived, `422` for an empty or over-long
+answer (the limit is 20,000 characters), and `503`
+(`ANALYSIS_ENGINE_UNAVAILABLE`) when the language model is not installed on the
+server.
 
 ### 3.7 Submissions — the practice flow
 
@@ -334,6 +462,8 @@ Selected error codes:
 | `SUBMISSION_ALREADY_SCORED` | 409 | Re-analysis attempted |
 | `SUBMISSION_NOT_READY` | 409 | Analysis requested with no text |
 | `OCR_FAILED` | 422 | Every provider failed |
+| `ANALYSIS_FAILED` | 422 | This answer could not be analysed (empty, or over the length limit) |
+| `ANALYSIS_ENGINE_UNAVAILABLE` | 503 | The language model is not installed on this server |
 | `UNSUPPORTED_FILE_TYPE` | 415 | Not JPG/JPEG/PNG/WEBP |
 | `FILE_TOO_LARGE` | 413 | Over the configured limit |
 | `NO_TARGET_VOCABULARY` | 409 | Graph has no target set and no type default |
@@ -347,6 +477,7 @@ Selected error codes:
 | `/auth/password-reset/*` | 3 per hour per IP |
 | `POST /submissions/*/upload` | 30 per hour per user |
 | `POST /submissions/*/analyze` | 60 per hour per user |
+| `POST /analysis/graphs/*/preview` | 60 per hour per user (same bucket — parsing costs the same whether or not the result is persisted) |
 | All other authenticated endpoints | 300 per 5 min per user |
 
 Exceeded limits return `429` with `Retry-After`.
