@@ -1,0 +1,66 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: graphmaster-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-graphmaster}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-graphmaster}
+      POSTGRES_DB: ${POSTGRES_DB:-graphmaster}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      # Without this the API would start migrating before Postgres finished
+      # initialising, and would fail its first run on a fresh volume.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-graphmaster} -d ${POSTGRES_DB:-graphmaster}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: graphmaster-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-true}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set - see backend/.env.example}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-graphmaster}:${POSTGRES_PASSWORD:-graphmaster}@db:5432/${POSTGRES_DB:-graphmaster}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      STORAGE_LOCAL_PATH: /app/storage
+      EASYOCR_MODEL_DIR: /opt/easyocr
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+    volumes:
+      - uploads_data:/app/storage
+    ports:
+      - "${API_PORT:-8000}:8000"
+    entrypoint: ["/app/scripts/entrypoint.sh"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: graphmaster-web
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    restart: unless-stopped
+    profiles:
+      # The frontend arrives in sprint 10. Until then `docker compose up`
+      # brings up db + api without failing on a missing frontend/Dockerfile.
+      - frontend
+
+volumes:
+  postgres_data:
+  uploads_data:

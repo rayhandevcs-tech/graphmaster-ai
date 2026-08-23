@@ -1,0 +1,100 @@
+[project]
+name = "graphmaster-backend"
+version = "1.0.0"
+description = "GraphMaster — AI-powered gamified graph description learning platform"
+requires-python = ">=3.11"
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14.0",
+    "asyncpg>=0.30.0",
+    "psycopg2-binary>=2.9.10",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "email-validator>=2.2.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=4.0.1,<5.0.0",
+    "python-multipart>=0.0.19",
+    "pillow>=11.0.0",
+    "spacy>=3.8.0",
+    "nltk>=3.9.1",
+    "python-json-logger>=2.0.7",
+]
+
+[project.optional-dependencies]
+ocr = [
+    "easyocr>=1.7.2",
+    "pytesseract>=0.3.13",
+    "opencv-python-headless>=4.10.0",
+    "google-cloud-vision>=3.8.0",
+]
+reports = [
+    "openpyxl>=3.1.5",
+    "reportlab>=4.2.5",
+]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.28.0",
+    "aiosqlite>=0.20.0",
+    "black>=24.10.0",
+    "ruff>=0.8.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "B008",  # FastAPI's Depends() in defaults is the framework's own idiom
+    "RUF012",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/*" = ["E501", "N999"]
+"tests/*" = ["E501"]
+# Seed data is user-facing prose; en dashes in "60-89%" ranges are deliberate.
+"app/db/seed/data.py" = ["RUF001"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/db/seed/*", "alembic/*", "*/__init__.py"]
+# SQLAlchemy's async layer switches greenlets on every await that touches the
+# database. Without this, coverage loses every line executed after such an
+# await and reports well-tested async services as barely covered.
+concurrency = ["greenlet", "thread"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+    "class .*\\(Protocol\\):",
+]
