@@ -1,94 +1,159 @@
 # Entity-Relationship Diagram
 
-This diagram is the visual companion to [02-database-schema.md](./02-database-schema.md). All entities, attributes, and cardinalities below mirror that document exactly.
+> **Revision 2.0** — regenerated for the schema in
+> [02-database-schema.md](./02-database-schema.md) revision 2.0.
 
-## 1. Full ER Diagram
+This diagram is the visual companion to the schema document. Entities,
+attributes and cardinalities mirror it exactly.
+
+## 1. Full ER diagram
 
 ```mermaid
 erDiagram
-    USERS ||--o{ AUTH_SESSIONS : "has"
-    USERS ||--o{ GRAPH_PROMPTS : "authors (content_admin)"
-    USERS ||--o{ SUBMISSIONS : "writes"
-    USERS ||--o{ XP_EVENTS : "earns"
-    USERS ||--o{ USER_ACHIEVEMENTS : "unlocks"
-    USERS ||--o{ LEADERBOARD_SNAPSHOTS : "ranked in"
+    AVATARS   ||--o{ USERS : "styles"
+    CLASSES   ||--o{ USERS : "enrols"
+    USERS     ||--o{ CLASSES : "teaches"
+    USERS     ||--o{ AUTH_SESSIONS : "holds"
+    USERS     ||--o{ GRAPHS : "authors"
+    USERS     ||--o{ VOCABULARY_ITEMS : "curates"
+    USERS     ||--o{ SUBMISSIONS : "writes"
+    USERS     ||--o{ XP_EVENTS : "earns"
+    USERS     ||--o{ USER_ACHIEVEMENTS : "unlocks"
+    USERS     ||--o{ USER_BADGES : "receives"
+    USERS     ||--o{ LEADERBOARD_ENTRIES : "ranked in"
+    USERS     ||--o{ TEACHER_REPORTS : "generates"
 
-    GRAPH_PROMPTS ||--o{ SUBMISSIONS : "answered by"
-    GRAPH_PROMPTS ||--o{ OCR_EXTRACTIONS : "extracted from"
+    VOCABULARY_CATEGORIES ||--o{ VOCABULARY_ITEMS : "groups"
+    VOCABULARY_ITEMS      ||--o{ GRAPH_TARGET_VOCABULARY : "targeted by"
+    GRAPHS                ||--o{ GRAPH_TARGET_VOCABULARY : "targets"
+    GRAPHS                ||--o{ SUBMISSIONS : "answered by"
 
-    SUBMISSIONS ||--o| NLP_ANALYSES : "scored by"
-    SUBMISSIONS ||--o{ XP_EVENTS : "may trigger"
+    SUBMISSIONS ||--|| SCORES : "scored as"
+    SUBMISSIONS ||--o{ XP_EVENTS : "awards"
+    SUBMISSIONS ||--o| USER_BADGES : "earns"
 
     ACHIEVEMENTS ||--o{ USER_ACHIEVEMENTS : "unlocked as"
-    ACHIEVEMENTS ||--o{ XP_EVENTS : "may trigger"
+    ACHIEVEMENTS ||--o{ XP_EVENTS : "awards"
+    BADGES       ||--o{ USER_BADGES : "granted as"
+
+    CLASSES ||--o{ LEADERBOARD_ENTRIES : "scopes"
+    CLASSES ||--o{ ANALYTICS_SNAPSHOTS : "scopes"
+    CLASSES ||--o{ TEACHER_REPORTS : "scopes"
 
     USERS {
         uuid id PK
         citext email UK
         text password_hash
-        text display_name
+        text full_name
         text role
-        integer current_level
+        text gender
+        uuid avatar_id FK
+        uuid class_id FK
         bigint total_xp
+        integer current_level
         integer current_streak_days
         integer longest_streak_days
         date last_activity_date
+        boolean is_active
         timestamptz created_at
+    }
+
+    AVATARS {
+        uuid id PK
+        text code UK
+        text name
+        text gender
+        text image_url
+        boolean is_default
+        integer unlock_level
+    }
+
+    CLASSES {
+        uuid id PK
+        text name
+        text code UK
+        uuid teacher_id FK
+        boolean is_active
     }
 
     AUTH_SESSIONS {
         uuid id PK
         uuid user_id FK
         text refresh_token_hash UK
-        text user_agent
         inet ip_address
         timestamptz expires_at
         timestamptz revoked_at
     }
 
-    GRAPH_PROMPTS {
+    GRAPHS {
         uuid id PK
         text title
-        text chart_type
+        text prompt
+        text graph_type
         text difficulty
-        text image_url
+        jsonb chart_data
         text reference_description
-        jsonb target_vocabulary
-        text_array tags
         boolean is_published
         uuid created_by FK
+    }
+
+    VOCABULARY_CATEGORIES {
+        uuid id PK
+        text code UK
+        text name
+        integer display_order
+    }
+
+    VOCABULARY_ITEMS {
+        uuid id PK
+        uuid category_id FK
+        text term
+        text lemma UK
+        boolean is_phrase
+        numeric weight
+        boolean is_active
+        uuid created_by FK
+    }
+
+    GRAPH_TARGET_VOCABULARY {
+        uuid id PK
+        uuid graph_id FK
+        uuid vocabulary_item_id FK
+        boolean is_required
     }
 
     SUBMISSIONS {
         uuid id PK
         uuid user_id FK
-        uuid graph_prompt_id FK
-        text response_text
+        uuid graph_id FK
+        text input_method
+        text answer_text
+        text original_image_path
+        text ocr_text
+        text ocr_provider
+        numeric ocr_confidence
+        boolean was_ocr_edited
         integer word_count
         text status
-        numeric overall_score
         timestamptz submitted_at
         timestamptz scored_at
     }
 
-    OCR_EXTRACTIONS {
-        uuid id PK
-        uuid graph_prompt_id FK
-        jsonb raw_text_blocks
-        jsonb structured_labels
-        text engine_version
-        text status
-    }
-
-    NLP_ANALYSES {
+    SCORES {
         uuid id PK
         uuid submission_id FK "UK"
-        numeric lexical_diversity_score
-        numeric academic_vocabulary_score
-        jsonb target_vocabulary_hits
-        numeric grammar_signal_score
-        numeric structure_score
-        text feedback_summary
+        numeric vocabulary_score
+        numeric writing_score
+        numeric final_score
+        numeric vocabulary_percentage
+        integer detected_count
+        integer unique_detected_count
+        integer total_target_count
+        jsonb detected_terms
+        jsonb missing_terms
+        jsonb category_breakdown
+        text reward_tier
+        jsonb feedback
         text engine_version
     }
 
@@ -97,8 +162,8 @@ erDiagram
         uuid user_id FK
         integer amount
         text reason
-        uuid source_submission_id FK
-        uuid source_achievement_id FK
+        uuid submission_id FK
+        uuid achievement_id FK
         timestamptz created_at
     }
 
@@ -108,40 +173,116 @@ erDiagram
         text title
         text description
         integer xp_reward
-        jsonb unlock_rule
+        jsonb rule
     }
 
     USER_ACHIEVEMENTS {
         uuid id PK
         uuid user_id FK
         uuid achievement_id FK
+        uuid submission_id FK
         timestamptz unlocked_at
     }
 
-    LEADERBOARD_SNAPSHOTS {
+    BADGES {
         uuid id PK
-        text period
+        text code UK
+        text name
+        text reward_tier UK
+    }
+
+    USER_BADGES {
+        uuid id PK
+        uuid user_id FK
+        uuid badge_id FK
+        uuid submission_id FK "UK"
+        timestamptz awarded_at
+    }
+
+    LEADERBOARD_ENTRIES {
+        uuid id PK
+        text scope
+        uuid class_id FK
         date period_start
+        date period_end
         uuid user_id FK
         integer rank
-        bigint xp_in_period
-        timestamptz generated_at
+        bigint xp
+        numeric average_score
+        integer achievement_count
+    }
+
+    ANALYTICS_SNAPSHOTS {
+        uuid id PK
+        text scope
+        uuid class_id FK
+        uuid user_id FK
+        date period_start
+        jsonb metrics
+    }
+
+    TEACHER_REPORTS {
+        uuid id PK
+        uuid teacher_id FK
+        uuid class_id FK
+        text report_type
+        text format
+        text file_path
+        text status
     }
 ```
 
-## 2. Cardinality Notes
+## 2. Cardinality notes
 
 | Relationship | Cardinality | Rationale |
 |---|---|---|
-| `USERS → SUBMISSIONS` | 1:N | A learner submits many attempts over time, across many prompts. |
-| `GRAPH_PROMPTS → SUBMISSIONS` | 1:N | A prompt is reused by many learners and re-attempted by the same learner. |
-| `GRAPH_PROMPTS → OCR_EXTRACTIONS` | 1:N (practically 1:1 active) | OCR is run per prompt image, not per submission — a prompt's extracted labels are cached and reused across all submissions answering it. A new row is added only when the image changes or OCR is re-run with a newer engine version. |
-| `SUBMISSIONS → NLP_ANALYSES` | 1:0..1 | Each submission is analyzed exactly once per scoring pass; `submission_id` is unique, enforcing at most one current analysis row. |
-| `USERS → XP_EVENTS` | 1:N | Append-only ledger — every XP-earning action is a new row, never mutated. This makes `total_xp` fully reconstructable by replaying the ledger, which is the source of truth if the denormalized cache on `users` ever drifts. |
-| `ACHIEVEMENTS → USER_ACHIEVEMENTS` | 1:N | Many learners unlock the same achievement; `(user_id, achievement_id)` is unique, so an achievement can only be unlocked once per user. |
-| `ACHIEVEMENTS → XP_EVENTS` | 1:N (optional) | An achievement unlock optionally produces one XP event; the FK is nullable because most XP events originate from `submission_scored`, not achievements. |
-| `USERS → LEADERBOARD_SNAPSHOTS` | 1:N | A user appears once per `(period, period_start)` snapshot; historical snapshots are retained for trend display. |
+| `AVATARS → USERS` | 1:N | Many students share the same default cartoon avatar; the avatar is reference data, not per-user data. |
+| `CLASSES → USERS` | 1:N | A class enrols many students. A student belongs to at most one class in v1.0 — multi-class enrolment would need a join table, deliberately deferred. |
+| `USERS → CLASSES` | 1:N | The reverse edge: one teacher owns many classes. Both edges point at `USERS` for different reasons, which is why the diagram shows two lines between them. |
+| `GRAPHS → SUBMISSIONS` | 1:N | A graph is answered by many students and re-attempted by the same student (FR-3.7). |
+| `GRAPHS ↔ VOCABULARY_ITEMS` | M:N via `GRAPH_TARGET_VOCABULARY` | A graph targets several terms; a term is targeted by several graphs. |
+| `SUBMISSIONS → SCORES` | 1:1 | Exactly one score row per scored submission, enforced by `UNIQUE (submission_id)`. |
+| `SUBMISSIONS → USER_BADGES` | 1:0..1 | A scored submission yields exactly one tier badge; a draft or failed one yields none. |
+| `USERS → XP_EVENTS` | 1:N | Append-only ledger; every award is a new row. |
+| `ACHIEVEMENTS → USER_ACHIEVEMENTS` | 1:N | Many students unlock the same achievement, but `UNIQUE (user_id, achievement_id)` caps it at once each (FR-8.8). |
+| `BADGES → USER_BADGES` | 1:N | Badges are re-awardable — a student earns Rising Writer on every 60–89% attempt. |
+| `CLASSES → LEADERBOARD_ENTRIES` | 1:N | Rows exist only where `scope = 'class'`, enforced by a `CHECK` constraint. |
 
-## 3. Why `xp_events` Is Modeled as a Ledger, Not a Counter
+## 3. Three design decisions worth explaining
 
-Storing `users.total_xp` as a mutable counter alone would lose the *history* of how XP was earned — needed for streak/activity feeds, anti-abuse auditing, and recomputation if a scoring bug requires retroactive correction. Modeling it as an **append-only ledger** (`xp_events`) with a denormalized cache on `users.total_xp` gives both: fast reads (no `SUM()` on every profile load) and a fully auditable, replayable history. See [09-gamification-architecture.md](./09-gamification-architecture.md) for how the cache is kept consistent with the ledger.
+### 3.1 Why badges and achievements are separate tables
+
+They look similar enough to merge, but they behave differently:
+
+- An **achievement** is a permanent, one-time milestone. *First Submission* can
+  only ever happen once, and `UNIQUE (user_id, achievement_id)` guarantees it.
+- A **badge** reflects performance on a single attempt. A student earns *Rising
+  Writer* every time they score 60–89%, and earning it does not stop them
+  earning *Practice Needed* on the next attempt.
+
+Merging them would force one of the two to carry a meaningless constraint —
+either achievements become re-awardable, breaking FR-8.8, or badges become
+one-time, so a student's tenth attempt shows no badge at all.
+
+### 3.2 Why the XP ledger is not a counter
+
+A single `users.total_xp` counter would lose the history of *how* XP was earned.
+That history is needed for the activity feed, for period-scoped leaderboards
+(weekly XP cannot be derived from a lifetime total), for detecting XP farming,
+and for retroactively correcting a scoring bug without guessing at the original
+values.
+
+Modelling it as an append-only ledger with a maintained cache on `users` gives
+both: O(1) profile reads and a fully replayable history. The partial unique
+index on `(user_id, created_at::date) WHERE reason = 'streak_bonus'` makes the
+once-per-day rule of FR-8.3 a database guarantee rather than a race condition
+waiting for two concurrent submissions.
+
+### 3.3 Why `scores` stores denormalised term lists
+
+`detected_terms` and `missing_terms` duplicate information that could, in
+principle, be recomputed by re-running the analyser. They are stored anyway
+because the vocabulary library is **mutable** — a teacher can deactivate a term
+or change a graph's target set at any time. Without the stored lists, reopening
+a result from last month would show feedback that no longer matches the score
+the student actually received.
