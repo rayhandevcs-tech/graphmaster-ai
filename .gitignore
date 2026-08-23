@@ -39,9 +39,11 @@ backend/uploads/
 backend/reports/
 *.sqlite3
 
-# ML models (baked into the Docker image, not committed)
+# ML model weights (baked into the Docker image, not committed).
+# Anchored so these do not also match backend/app/models/, the ORM layer.
+/ml-models/
+/backend/ml-models/
 .EasyOCR/
-models/
 
 # OS & editors
 .DS_Store
@@ -54,3 +56,6 @@ Thumbs.db
 *.log
 npm-debug.log*
 logs/
+
+# Test artefacts
+.test-storage/
