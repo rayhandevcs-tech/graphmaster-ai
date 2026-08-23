@@ -1,129 +1,189 @@
 # Backend Architecture
 
+> **Revision 2.0** — realigned to the modular-monolith decision in
+> [01-system-architecture.md](./01-system-architecture.md) §2.1 and to the
+> module set required by the specification.
+
 ## 1. Overview
 
-The backend is a **FastAPI** service that owns authentication, business logic, and orchestration of the OCR/NLP/gamification workflows described in [01-system-architecture.md](./01-system-architecture.md). It exposes the REST API defined in [04-api-design.md](./04-api-design.md) and reads/writes the schema defined in [02-database-schema.md](./02-database-schema.md).
+A **FastAPI** application on Python 3.12, organised as a modular monolith with
+strict layering: routers handle HTTP, services hold business rules, repositories
+own data access. It exposes the contract in [04-api-design.md](./04-api-design.md)
+over the schema in [02-database-schema.md](./02-database-schema.md).
 
-## 2. Layered Structure
+## 2. Folder structure
 
-The service follows a layered architecture to keep HTTP concerns, business rules, and data access independently testable:
+```
+backend/
+├── app/
+│   ├── main.py                  # App factory, middleware, exception handlers
+│   ├── core/
+│   │   ├── config.py            # Typed settings (pydantic-settings)
+│   │   ├── security.py          # Hashing, JWT encode/decode
+│   │   ├── exceptions.py        # Domain exception hierarchy
+│   │   ├── logging.py           # Structured JSON logging
+│   │   └── rate_limit.py        # Token-bucket limiter
+│   ├── db/
+│   │   ├── base.py              # DeclarativeBase, naming convention
+│   │   ├── session.py           # Engine, session factory, DI provider
+│   │   └── seed/                # Idempotent seed data
+│   ├── models/                  # SQLAlchemy 2.0 ORM models
+│   ├── schemas/                 # Pydantic request/response models
+│   ├── repositories/            # One repository per aggregate root
+│   ├── services/                # Business logic
+│   ├── api/
+│   │   ├── deps.py              # Shared dependencies
+│   │   └── v1/                  # Routers, one module per resource
+│   ├── ocr/                     # Provider chain (07-ocr-architecture.md)
+│   ├── nlp/                     # Analysis engine (08-nlp-architecture.md)
+│   ├── storage/                 # Storage backend abstraction
+│   └── reports/                 # CSV / XLSX / PDF generators
+├── alembic/versions/            # Migrations
+├── tests/{unit,integration,api}/
+├── pyproject.toml
+├── Dockerfile
+└── .env.example
+```
+
+## 3. Layering
 
 ```mermaid
 graph TD
-    subgraph "Routers (HTTP layer)"
-        R1[auth router]
-        R2[prompts router]
-        R3[submissions router]
-        R4[gamification router]
-    end
-
-    subgraph "Services (business logic)"
-        S1[AuthService]
-        S2[PromptService]
-        S3[SubmissionService]
-        S4[GamificationService]
-    end
-
-    subgraph "Repositories (data access)"
-        RP1[UserRepository]
-        RP2[PromptRepository]
-        RP3[SubmissionRepository]
-        RP4[XpRepository]
-    end
-
-    subgraph "External Integrations"
-        Q[Job Queue Client]
-        OBJ[Object Storage Client]
-    end
-
-    R1 --> S1 --> RP1
-    R2 --> S2 --> RP2
-    R2 --> OBJ
-    R3 --> S3 --> RP3
-    S3 --> Q
-    R4 --> S4 --> RP4
-
-    RP1 & RP2 & RP3 & RP4 --> DB[(PostgreSQL)]
+    R["Routers — HTTP only"] --> S["Services — business rules"]
+    S --> Rep["Repositories — data access"]
+    S --> OCR["OCR chain"]
+    S --> NLP["Analysis engine"]
+    S --> ST["Storage backend"]
+    Rep --> DB[(PostgreSQL)]
 ```
 
-- **Routers** handle HTTP concerns only: request parsing (Pydantic models), auth/role dependency checks, calling a service method, and mapping the result to an HTTP response. No business logic lives here.
-- **Services** implement business rules: e.g., `SubmissionService.create_submission()` validates prompt existence, persists the submission, enqueues the NLP job, and returns the created record. Services are the unit of reuse across routers, background tasks, and (later) admin tooling.
-- **Repositories** encapsulate all SQL/ORM access for one aggregate root each, keeping query logic out of services and giving services a narrow, mockable interface for testing.
+The rule that keeps this honest: **each layer may only call the layer directly
+below it**. A router never touches a repository, and a service never constructs
+its own database session or storage client — both arrive by injection.
 
-## 3. Request Lifecycle
+### 3.1 Routers
+Parse and validate requests via Pydantic, declare role dependencies, call one
+service method, shape the response. No business logic, no queries.
 
-```mermaid
-sequenceDiagram
-    participant FE as Frontend
-    participant R as Router
-    participant S as Service
-    participant Repo as Repository
-    participant Q as Job Queue
-    participant DB as PostgreSQL
+### 3.2 Services
+Own the rules. `SubmissionService.analyze()` loads the submission, checks
+ownership and state, resolves the target vocabulary, runs the analyser, persists
+the score, and calls `GamificationService` — all in one transaction.
 
-    FE->>R: POST /submissions
-    R->>R: Validate JWT, parse body (Pydantic)
-    R->>S: create_submission(user, payload)
-    S->>Repo: insert submission (status=pending)
-    Repo->>DB: INSERT
-    S->>Q: enqueue nlp_scoring_job(submission_id)
-    S-->>R: submission record
-    R-->>FE: 202 Accepted + submission body
+Services raise **domain exceptions** (`SubmissionNotFoundError`,
+`SubmissionAlreadyScoredError`), never `HTTPException`. Keeping services free of
+HTTP types is what makes them callable from tests, the seeding CLI and the
+report generator without a request in scope.
+
+### 3.3 Repositories
+All SQL for one aggregate root. Services receive them as constructor arguments,
+so a unit test substitutes a fake without a database.
+
+## 4. Dependency injection
+
+FastAPI's `Depends` wires everything:
+
+| Dependency | Provides |
+|---|---|
+| `get_db` | Request-scoped `AsyncSession`, committed or rolled back on teardown |
+| `get_current_user` | Decodes the JWT, loads the user, raises `401` |
+| `require_role(*roles)` | Role gate, raises `403` |
+| `get_*_service` | A service with its repositories and clients already injected |
+| `get_ocr_chain` | The process-wide provider chain |
+| `get_analyzer` | The process-wide spaCy analyser |
+
+The OCR chain and the analyser are **application-scoped singletons** created at
+startup, not per request. Both load models measured in tens of megabytes;
+constructing them per request would add seconds to every call.
+
+## 5. The `JobRunner` seam
+
+Analysis runs synchronously ([01-system-architecture.md](./01-system-architecture.md)
+§2.1), but behind an interface:
+
+```python
+class JobRunner(Protocol):
+    async def run(self, fn: Callable[..., T], *args, **kwargs) -> T: ...
 ```
 
-## 4. Dependency Injection
+`InlineJobRunner` awaits directly and is the default. Should classroom load ever
+justify it, a `CeleryJobRunner` attaches here and the endpoints switch to the
+`202 Accepted` + polling pattern without any service being rewritten.
 
-FastAPI's `Depends()` system wires the layers together:
+## 6. Configuration
 
-- **Database session**: a request-scoped SQLAlchemy session, provided per request and closed on teardown.
-- **Current user**: a dependency that decodes the JWT, loads the user, and raises `401`/`403` as appropriate — reused across every protected router.
-- **Service instances**: constructed via dependency providers that inject the request-scoped session and any external clients (queue, object storage), so services never instantiate their own infrastructure clients.
+One typed settings object loaded from the environment at startup and validated
+eagerly, so a missing secret fails at boot rather than on the first request that
+needs it.
 
-This keeps handlers thin and makes services trivially testable by constructing them directly with fake repositories/clients in unit tests, bypassing the HTTP layer entirely.
-
-## 5. Asynchronous Task Handling
-
-OCR and NLP work is offloaded from the request/response cycle via the job queue introduced in [01-system-architecture.md](./01-system-architecture.md):
-
-1. A router/service enqueues a job (`{job_id, job_type, payload}`) onto the Redis-backed queue and immediately returns `202 Accepted`.
-2. Independent **worker processes** (separate containers, not part of the API's request-handling event loop) consume jobs by type:
-   - `ocr_extraction` jobs → consumed by the OCR worker ([07-ocr-architecture.md](./07-ocr-architecture.md))
-   - `nlp_scoring` jobs → consumed by the NLP worker ([08-nlp-architecture.md](./08-nlp-architecture.md))
-3. Workers write results directly to PostgreSQL (`ocr_extractions`, `nlp_analyses`) and update the parent record's `status` column.
-4. The frontend polls the corresponding `GET` endpoint until the status reaches a terminal state, per the async job pattern in [04-api-design.md](./04-api-design.md).
-
-Jobs are processed **at-least-once**; every worker handler is written to be idempotent (upsert by `job_id`/`submission_id` rather than blind insert) so a redelivered job after a worker crash does not corrupt state.
-
-## 6. Configuration Management
-
-All configuration is loaded from environment variables at process start via a single typed settings object (e.g., Pydantic `BaseSettings`), validated eagerly so misconfiguration fails fast at boot rather than at first use. No configuration is read ad hoc from `os.environ` inside business logic.
-
-| Category | Examples |
+| Group | Variables |
 |---|---|
-| Database | connection URL, pool size |
-| Auth | JWT signing key, token TTLs |
-| Queue | broker URL |
-| Object storage | endpoint, bucket, credentials |
-| Feature flags | e.g. enable/disable new scoring rubric |
+| App | `ENVIRONMENT`, `DEBUG`, `SECRET_KEY`, `ALLOWED_ORIGINS` |
+| Database | `DATABASE_URL`, `DB_POOL_SIZE` |
+| Auth | `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_EXPIRE_DAYS` |
+| Storage | `STORAGE_BACKEND`, `STORAGE_LOCAL_PATH`, `S3_*` |
+| Uploads | `MAX_UPLOAD_SIZE_MB`, `ALLOWED_IMAGE_TYPES` |
+| OCR | `OCR_PROVIDER_ORDER`, `GOOGLE_APPLICATION_CREDENTIALS`, `EASYOCR_MODEL_DIR`, `TESSERACT_CMD` |
+| Scoring | `VOCABULARY_WEIGHT`, `WRITING_WEIGHT`, tier thresholds |
+| Gamification | `XP_PER_SUBMISSION`, `XP_HIGH_SCORE_BONUS`, `XP_STREAK_BONUS`, `HIGH_SCORE_THRESHOLD` |
+| Rate limits | Per-group limits from [04-api-design.md](./04-api-design.md) §5.3 |
 
-## 7. Error Handling Strategy
+Scoring weights and XP values are configuration rather than constants
+specifically so a research study can retune the rubric without a redeploy.
 
-- **Domain exceptions**: services raise typed exceptions (`SubmissionNotFoundError`, `PromptNotPublishedError`, etc.) rather than HTTP exceptions — keeping services HTTP-agnostic.
-- **Global exception handler**: a FastAPI exception handler maps domain exceptions to the HTTP error envelope defined in [04-api-design.md](./04-api-design.md), centralizing the domain-exception-to-status-code mapping in one place.
-- **Validation errors**: Pydantic request model validation failures are caught by FastAPI's default handler, reformatted to match the shared error envelope.
-- **Worker errors**: unhandled exceptions in OCR/NLP workers are caught at the job-processing boundary, logged with the job payload, and mark the parent record `status = 'failed'` with an `error_message` rather than crashing the worker process.
+## 7. Error handling
 
-## 8. Integration Boundaries
+Domain exceptions carry a `code` and a default HTTP status. A single global
+handler maps them to the error envelope of
+[04-api-design.md](./04-api-design.md) §5.2, so the mapping lives in one place
+rather than being repeated in every router.
 
-- **OCR/NLP workers** are treated as black-box services reached only through the job queue and read back only through PostgreSQL — the API never calls EasyOCR/spaCy in-process, keeping heavy ML dependencies out of the request-serving containers.
-- **Object storage** is accessed through a thin storage client interface (`upload()`, `get_url()`), so the underlying provider (S3-compatible, local disk in dev) is swappable without touching service code.
-- **Gamification** is triggered as a side effect of `SubmissionService` (on successful scoring) and exposed as its own service (`GamificationService`) for the read-side endpoints, keeping XP/achievement rules centralized rather than duplicated at each call site — detailed in [09-gamification-architecture.md](./09-gamification-architecture.md).
+```
+GraphMasterError
+├── NotFoundError            → 404
+├── PermissionDeniedError    → 403
+├── ConflictError            → 409
+├── ValidationError          → 422
+├── OCRError                 → 422
+└── RateLimitError           → 429
+```
 
-## 9. Testing Strategy
+Unhandled exceptions return a generic `500` with a request ID; the traceback is
+logged, never returned. A stack trace in a response body is a disclosure of
+internal structure to anyone who can trigger an error.
 
-| Layer | Test approach |
+## 8. Transactions
+
+One request, one transaction, committed at teardown. Scoring is the case that
+makes this matter: score insert, XP events, badge, achievements and user counter
+updates all commit together or not at all. A partial commit would show the
+student a score with no XP, which reads as lost work.
+
+## 9. Security implementation
+
+| Control | Implementation |
 |---|---|
-| Repositories | Integration tests against a real (containerized) PostgreSQL instance |
-| Services | Unit tests with fake/in-memory repositories and a fake queue client |
-| Routers | Contract tests using FastAPI's test client, asserting status codes and response shapes against [04-api-design.md](./04-api-design.md) |
-| Workers | Unit tests around the pure extraction/scoring functions, plus integration tests that a job payload produces the expected database row |
+| Password hashing | bcrypt via `passlib`, per-user salt |
+| Access tokens | HS256 JWT, 30-minute expiry, `jti` claim |
+| Refresh tokens | 256-bit random, SHA-256 hashed at rest, rotated on use, family revoked on replay |
+| RBAC | Declarative role dependency plus service-level ownership checks |
+| SQL injection | SQLAlchemy parameterised queries exclusively; no string-built SQL |
+| Upload safety | Magic-byte validation, generated filenames, stored outside any served directory |
+| Rate limiting | Middleware, keyed per IP or per user by endpoint group |
+| CORS | Explicit origin allowlist; never `*` with credentials |
+| Headers | HSTS, `X-Content-Type-Options`, `X-Frame-Options`, CSP |
+
+## 10. Testing
+
+| Layer | Approach | Target |
+|---|---|---|
+| Core utilities | Pure unit tests — security, level curve, scoring maths | 95% |
+| NLP engine | Unit tests over fixed text fixtures with known expected detections | 90% |
+| OCR chain | Fake providers exercising fallthrough and total failure | 85% |
+| Services | Unit tests with fake repositories | 85% |
+| Repositories | Integration tests against a real PostgreSQL | 80% |
+| API | Contract tests via `httpx.AsyncClient` asserting status codes and shapes | 85% |
+
+Overall target 80%+ (NFR-5.2). Tests are written alongside each sprint rather
+than deferred to sprint 9, which exists to close gaps and wire CI, not to write
+the suite from scratch.

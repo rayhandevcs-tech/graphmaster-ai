@@ -1,131 +1,258 @@
 # Gamification Architecture
 
+> **Revision 2.0** — rewritten around the specification's reward tiers, XP
+> values, achievement catalogue and four leaderboard scopes.
+
 ## 1. Overview
 
-Gamification drives engagement through three coordinated mechanics — **XP/levels**, **achievements**, and a **leaderboard** — built on the `xp_events`, `achievements`, `user_achievements`, and `leaderboard_snapshots` tables defined in [02-database-schema.md](./02-database-schema.md) §5. All three read from the same append-only ledger, keeping the system auditable and internally consistent.
+Four coordinated mechanics: **reward tiers**, **XP and levels**, **achievements
+and badges**, and **leaderboards**. All are driven from a single entry point,
+`GamificationService.on_submission_scored()`, so the rules exist in exactly one
+place rather than being re-derived at each call site.
 
-## 2. XP System
+## 2. Reward tiers
 
-### 2.1 Event-Sourced Ledger
-Every XP-earning action inserts a row into `xp_events` rather than directly mutating a counter. `users.total_xp` is a denormalized cache updated in the same transaction as the ledger insert, giving O(1) profile reads while keeping the ledger as the reconstructable source of truth (rationale detailed in [03-er-diagram.md](./03-er-diagram.md) §3).
+The centrepiece of the student experience: an animated response scaled to
+vocabulary usage.
 
-### 2.2 XP Award Triggers
+| Vocabulary % | Tier | Title (male / female) | Badge | Animation |
+|---|---|---|---|---|
+| ≥ 90 | `crown` | Graph King / Graph Queen | Royal Vocabulary Master | Golden crown descends, sparkle particles, confetti burst, victory sound |
+| 60 – 89 | `flower` | Rising Writer | Rising Writer | Flower blooms and rotates, positive chime, avatar cheers |
+| 50 – 59 | `steady` | Steady Learner | Steady Learner | Gentle encouraging pulse, soft chime, avatar nods |
+| < 50 | `hammer` | Keep Practicing! | Practice Needed | Cartoon hammer bonk, dizzy stars, brief fall, recovery, motivational message |
 
-| Reason (`xp_events.reason`) | Trigger | Amount Basis |
+Crown titles branch on `users.gender` (FR-7.2), which is why gender is stored on
+the user rather than only used at registration to pick an avatar.
+
+### 2.1 The hammer tier, and why it is designed carefully
+
+The specification is emphatic that the low-score animation must stay humorous
+and never become humiliating (FR-7.6). This constrains the design rather than
+decorating it:
+
+- The hammer is **cartoon** — oversized, comic, physically impossible. It reads
+  as slapstick, not as harm.
+- The avatar **always recovers within the same sequence**. The animation never
+  ends on the character down; recovery is part of the beat, not an optional
+  follow-up.
+- It **always** ends with "Keep Practicing! You Can Improve!" (FR-7.7). The
+  comedy and the encouragement are one unit and cannot be separated.
+- It is **skippable and replayable** (FR-7.9), so a student who does not find it
+  funny is never forced to sit through it.
+- It is **never shown to anyone else**. Tier badges appear on a student's own
+  result and dashboard; the leaderboard shows XP and level, never a hammer count.
+- `prefers-reduced-motion` reduces it to a static card with the same message
+  (FR-7.10).
+
+The 50–59% `steady` tier exists for the same reason. Widening the hammer band to
+cover a 59% score — a student who used more than half the target vocabulary —
+would land the joke on someone who is close to succeeding.
+
+### 2.2 Sound
+
+Sound is **muted by default** until the student explicitly opts in (FR-7.11).
+Audio that starts unprompted is hostile in a shared computer lab or a library,
+which is exactly where this platform is used. Browsers also block unprompted
+autoplay, so an unmuted default would fail silently and inconsistently anyway.
+
+## 3. XP system
+
+### 3.1 Award rules (FR-8.1 – FR-8.3)
+
+| Reason | Amount | Condition |
 |---|---|---|
-| `submission_scored` | NLP worker completes scoring (see [08-nlp-architecture.md](./08-nlp-architecture.md) §2) | Scaled from `submissions.overall_score`, e.g. `base_xp * (overall_score / 100)`, with a floor so any genuine attempt earns non-zero XP |
-| `daily_streak` | First qualifying submission of a new calendar day extends `users.current_streak_days` | Flat bonus, increasing with streak length up to a cap (e.g., day 1–6 flat, day 7+ multiplier) |
-| `achievement_unlocked` | An achievement's `unlock_rule` is satisfied (§3) | `achievements.xp_reward` |
-| `manual_adjustment` | Admin correction (e.g., reversing XP from a since-deleted abusive submission) | Arbitrary, requires admin role and an audit note |
+| `submission` | 20 | Every submission reaching `scored` |
+| `high_score_bonus` | 30 | `final_score ≥ 80` |
+| `streak_bonus` | 50 | First qualifying submission of a day that continues a streak |
+| `achievement` | varies | The unlocked achievement's `xp_reward` |
+| `manual_adjustment` | varies | Admin correction; requires a note |
 
-### 2.3 Award Flow
+A maximum-value submission therefore yields 100 XP plus any achievement rewards.
 
-```mermaid
-sequenceDiagram
-    participant NLP as NLP Worker
-    participant GS as GamificationService
-    participant DB as PostgreSQL
+### 3.2 Append-only ledger
 
-    NLP->>DB: write nlp_analyses, submissions.status=scored
-    NLP->>GS: on_submission_scored(submission)
-    GS->>DB: INSERT xp_events (reason=submission_scored)
-    GS->>DB: UPDATE users SET total_xp += amount
-    GS->>GS: evaluate streak (last_activity_date vs today)
-    alt streak extended
-        GS->>DB: INSERT xp_events (reason=daily_streak)
-        GS->>DB: UPDATE users.current_streak_days
-    end
-    GS->>GS: evaluate achievement unlock_rules
-    loop for each newly satisfied achievement
-        GS->>DB: INSERT user_achievements
-        GS->>DB: INSERT xp_events (reason=achievement_unlocked)
-    end
-    GS->>DB: recompute users.current_level from total_xp
+Every award inserts an `xp_events` row. `users.total_xp` is a cache updated in
+the same transaction. The ledger is never updated or deleted; corrections are
+offsetting entries.
+
+This matters concretely for the **weekly and monthly leaderboards**: XP within a
+period simply cannot be derived from a lifetime total. Without the ledger,
+FR-9.3 would be unimplementable.
+
+The once-per-day streak rule is enforced by a partial unique index rather than
+by an application check:
+
+```sql
+CREATE UNIQUE INDEX ux_xp_streak_daily
+  ON xp_events (user_id, (created_at::date))
+  WHERE reason = 'streak_bonus';
 ```
 
-This flow runs inside `GamificationService` (see [05-backend-architecture.md](./05-backend-architecture.md) §8), invoked as a side effect of scoring completion — not duplicated at multiple call sites.
+An application-level "have they already got today's bonus?" check is a
+read-then-write race: two submissions arriving together both read "no" and both
+insert. The index makes the database reject the second one.
 
-### 2.4 Levels
-`users.current_level` is derived deterministically from `total_xp` via a level curve (e.g., XP thresholds increasing geometrically per level) defined as configuration, not hardcoded, so the curve can be tuned without a schema or code-path change — recomputed and cached on every XP-affecting write, consistent with the "cache derived from ledger" pattern in §2.1.
+### 3.3 Levels (FR-8.5)
 
-## 3. Achievements
+100 levels, derived deterministically from total XP:
 
-### 3.1 Rule Model
-Each `achievements` row carries a declarative `unlock_rule` (JSONB), evaluated by `GamificationService` rather than hardcoded per-achievement logic, so new achievements can be added via data (content-admin tooling or a seed migration) without a code deploy:
+```
+xp_required_to_reach(level n) = 25 × (n − 1) × n
+```
+
+| Level | Cumulative XP | Submissions at ~50 XP |
+|---|---|---|
+| 2 | 50 | 1 |
+| 5 | 500 | 10 |
+| 10 | 2,250 | 45 |
+| 25 | 15,000 | 300 |
+| 50 | 61,250 | 1,225 |
+| 100 | 247,500 | 4,950 |
+
+Quadratic rather than exponential: an exponential curve makes the first levels
+trivial and everything past level 20 unreachable within a semester. This curve
+keeps early levels quick — level 5 within a first session — while leaving the
+upper range meaningful across a full course.
+
+`current_level` is recomputed on every XP write and cached on `users`, so no
+level lookup requires a ledger scan.
+
+## 4. Achievements
+
+### 4.1 Declarative rules (FR-8.9)
+
+Each achievement carries a JSONB `rule` evaluated by the service, so adding an
+achievement is a data change rather than a code change:
 
 ```json
-{
-  "type": "submission_count",
-  "threshold": 1
-}
+{"type": "submission_count", "threshold": 10}
+{"type": "streak_days", "threshold": 7}
+{"type": "reward_tier_count", "tier": "crown", "threshold": 1}
+{"type": "final_score_threshold", "threshold": 100}
+{"type": "vocabulary_percentage_threshold", "threshold": 90, "consecutive": 3}
+{"type": "distinct_graph_types", "threshold": 4}
 ```
 
-```json
-{
-  "type": "streak_days",
-  "threshold": 7
-}
-```
+### 4.2 Catalogue
 
-```json
-{
-  "type": "vocabulary_score_threshold",
-  "threshold": 90,
-  "consecutive": 3
-}
-```
-
-### 3.2 Example Achievement Catalog
-
-| Code | Title | Rule Type | Threshold |
+| Code | Title | Rule | XP |
 |---|---|---|---|
-| `first_submission` | First Steps | `submission_count` | 1 |
-| `week_streak` | Consistent Learner | `streak_days` | 7 |
-| `vocabulary_master` | Vocabulary Master | `vocabulary_score_threshold` (3 consecutive) | 90 |
-| `chart_variety` | Well Rounded | `distinct_chart_types_attempted` | 4 |
-| `leaderboard_top10` | Rising Star | `leaderboard_rank` | ≤10 (weekly) |
+| `first_submission` | First Steps | `submission_count` ≥ 1 | 50 |
+| `ten_submissions` | Getting Serious | `submission_count` ≥ 10 | 100 |
+| `fifty_submissions` | Dedicated Learner | `submission_count` ≥ 50 | 300 |
+| `hundred_submissions` | Centurion | `submission_count` ≥ 100 | 500 |
+| `graph_king` | Graph King | `reward_tier_count` crown ≥ 1, male | 200 |
+| `graph_queen` | Graph Queen | `reward_tier_count` crown ≥ 1, female | 200 |
+| `vocabulary_master` | Vocabulary Master | `vocabulary_percentage_threshold` 90, 3 consecutive | 400 |
+| `consistency_champion` | Consistency Champion | `streak_days` ≥ 7 | 250 |
+| `perfect_score` | Perfect Score | `final_score_threshold` = 100 | 500 |
+| `well_rounded` | Well Rounded | `distinct_graph_types` ≥ 4 | 150 |
 
-### 3.3 Evaluation Trigger
-Achievement rules are evaluated at the same point XP is awarded (§2.3) — after a submission is scored — since nearly every rule type derives from submission history, streaks, or scores. Rules that depend on leaderboard rank (e.g., `chart_variety`'s peers) are instead evaluated as part of the leaderboard snapshot job (§4.2), since rank is only meaningful at snapshot time.
+`graph_king` and `graph_queen` are gender-gated so each student has exactly one
+reachable crown achievement — matching the titles in FR-7.2 without giving
+anyone two achievements for one accomplishment.
 
-## 4. Leaderboard
+### 4.3 Evaluation
 
-### 4.1 Why Snapshots, Not Live Ranking
-Computing `RANK() OVER (ORDER BY total_xp DESC)` live on every leaderboard page view does not scale with learner count and produces a ranking that shifts mid-session in a way that feels arbitrary to users. Instead, `leaderboard_snapshots` (see [02-database-schema.md](./02-database-schema.md) §5.4) materializes rankings on a fixed cadence.
-
-### 4.2 Computation Strategy
-
-```mermaid
-graph LR
-    Cron[Scheduled Job] -->|every N minutes/hours| Compute[Compute XP-in-period per user]
-    Compute --> Rank[Assign rank via window function]
-    Rank --> Write[Upsert leaderboard_snapshots]
-    Write --> Cache[Invalidate Redis cache for period]
-```
-
-- A scheduled job (not a request-triggered computation) aggregates `xp_events` within each period window (`daily`, `weekly`, `all_time`) and writes ranked rows to `leaderboard_snapshots`.
-- `GET /gamification/leaderboard` ([04-api-design.md](./04-api-design.md) §3.7) reads the latest snapshot for the requested period, optionally cached in Redis for the snapshot's validity window, rather than querying `xp_events` directly.
-- **Refresh cadence** balances freshness against cost: `daily`/`weekly` snapshots refresh every few minutes; `all_time` refreshes less frequently since a single submission rarely reorders the full-history top ranks.
-
-### 4.3 Ranking Windows
-| Period | `period_start` granularity | Use case |
-|---|---|---|
-| `daily` | Calendar day | Short-term competitive motivation |
-| `weekly` | ISO week start | Primary leaderboard view, resets engagement weekly |
-| `all_time` | Fixed epoch (e.g., product launch date) | Long-term recognition |
+Rules are evaluated once per scoring, immediately after XP is awarded, since
+every rule type derives from submission history, streaks or scores.
+`UNIQUE (user_id, achievement_id)` guarantees single award (FR-8.8) at the
+database level, so a concurrent double-submission cannot double-unlock.
 
 ## 5. Streaks
 
-- `users.current_streak_days` increments when a qualifying submission (one that reaches `status = scored`) occurs on a calendar day following `users.last_activity_date`; it resets to 1 if a day is skipped.
-- `users.longest_streak_days` is updated whenever `current_streak_days` exceeds it, preserved even after a streak breaks, for profile/achievement display.
-- Streak evaluation uses the learner's recorded timezone (or a platform-default UTC day boundary if unset) to avoid ambiguous day-boundary edge cases; this is a configuration decision to be finalized during implementation, noted here as an open consideration.
+- A streak extends when a submission reaches `scored` on the calendar day after
+  `last_activity_date`.
+- Same-day submissions do not extend it — the 50 XP bonus is once per day
+  (§3.2), so a student cannot farm it by submitting repeatedly.
+- A skipped day resets `current_streak_days` to 1.
+- `longest_streak_days` is preserved permanently for the profile even after a
+  streak breaks.
+- Day boundaries use the platform timezone, configured once, so that a single
+  cohort's students all roll over together.
 
-## 6. Anti-Abuse Considerations
+## 6. Leaderboards
+
+### 6.1 Scopes (FR-9.1 – FR-9.3)
+
+| Scope | Window | Population |
+|---|---|---|
+| `global` | All time | Every active student |
+| `class` | All time | One class |
+| `weekly` | ISO week, Monday start | Every active student |
+| `monthly` | Calendar month | Every active student |
+
+### 6.2 Ranking (FR-9.4)
+
+Ordered by XP within the period, then average score, then achievement count:
+
+```sql
+RANK() OVER (
+  ORDER BY period_xp DESC,
+           average_score DESC,
+           achievement_count DESC
+)
+```
+
+Two tie-breakers are used because XP ties are common in a class of 40 — most
+students submit a similar number of times — and an arbitrary order would make
+the ranking look broken to the students it is meant to motivate.
+
+### 6.3 Materialisation (NFR-1.4)
+
+Rankings are computed into `leaderboard_entries` on a schedule rather than
+ranked per request. Ranking the full user set on every page view is a
+full-table scan of the XP ledger, and a live ranking also shifts under a
+student's feet mid-session in a way that reads as a bug rather than as
+competition.
+
+`GET /leaderboard/me` (FR-9.5) reads the caller's stored row directly, so a
+student ranked 240th sees their own position without paginating to find it.
+
+### 6.4 Teachers and admins are excluded
+
+Leaderboards rank students only. A teacher who tries the exercise should not
+appear above their own class.
+
+## 7. Award flow
+
+```mermaid
+sequenceDiagram
+    participant SS as SubmissionService
+    participant GS as GamificationService
+    participant DB as PostgreSQL
+
+    SS->>GS: on_submission_scored(submission, score)
+    GS->>DB: INSERT xp_events (submission, 20)
+    alt final_score >= 80
+        GS->>DB: INSERT xp_events (high_score_bonus, 30)
+    end
+    GS->>GS: Evaluate streak against last_activity_date
+    alt streak continues and no bonus today
+        GS->>DB: INSERT xp_events (streak_bonus, 50)
+        GS->>DB: UPDATE users streak counters
+    end
+    GS->>DB: INSERT user_badges (tier badge for this submission)
+    GS->>GS: Evaluate achievement rules
+    loop each newly satisfied achievement
+        GS->>DB: INSERT user_achievements
+        GS->>DB: INSERT xp_events (achievement, xp_reward)
+    end
+    GS->>DB: UPDATE users total_xp, current_level, last_activity_date
+    GS-->>SS: GamificationResult
+```
+
+The entire flow runs in **one transaction** with the score insert. A partial
+commit would leave a scored submission with no XP, or XP with no badge — states
+the student would see as the system losing their work.
+
+## 8. Anti-abuse
 
 | Risk | Mitigation |
 |---|---|
-| Spamming low-effort submissions for `submission_scored` XP | XP is scaled by `overall_score`, so low-quality/gibberish text earns minimal XP; rate limiting on `POST /submissions` ([04-api-design.md](./04-api-design.md) §7) caps volume |
-| Streak gaming via multiple trivial submissions per day | Streak XP is awarded once per calendar day regardless of submission count that day |
-| Achievement replay | `user_achievements` unique constraint on `(user_id, achievement_id)` prevents re-awarding |
-| Leaderboard manipulation via burst submissions right before snapshot | Snapshot refresh cadence (§4.2) combined with per-submission rate limiting bounds the maximum XP achievable in any short window |
-| Retroactive correction (e.g., a scoring bug over-awarded XP) | Handled via `manual_adjustment` ledger entries (§2.2), never by deleting/editing historical `xp_events` rows, preserving audit integrity |
+| Spamming empty submissions for 20 XP each | Rate limit of 60 analyses per hour per user; a low score earns no bonus, and XP without score improvement does not move the leaderboard's tie-breakers |
+| Farming the daily streak bonus | Partial unique index makes a second same-day award impossible (§3.2) |
+| Re-unlocking achievements | `UNIQUE (user_id, achievement_id)` |
+| Burst submissions before a snapshot | Rate limiting bounds XP per window; period XP comes from the ledger, so a burst is visible and auditable |
+| Correcting an over-award | Offsetting `manual_adjustment` entries, never editing history |
