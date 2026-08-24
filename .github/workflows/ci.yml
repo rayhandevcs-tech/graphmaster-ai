@@ -13,6 +13,7 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
 
 defaults:
   run:
@@ -236,6 +237,104 @@ jobs:
       # runs it twice.
       - name: Seed again
         run: python -m app.db.seed.cli
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `ci` rather than `install`: it installs exactly the lockfile and fails
+      # if the lockfile and the manifest disagree, which is the difference
+      # between building what was reviewed and building whatever resolved
+      # today.
+      - name: Install
+        run: npm ci
+
+      - name: Prettier
+        run: npx prettier --check .
+
+      - name: ESLint
+        run: npm run lint
+
+      # Before the typecheck: `next build` generates `next-env.d.ts`, which is
+      # what declares the ambient types for CSS imports and `next/font`. It
+      # also type-checks the whole project itself, so a type error fails here
+      # first with the better message.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+  contract:
+    name: Generated types match the API
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+
+    env:
+      ENVIRONMENT: test
+      SECRET_KEY: ci-openapi-dump-key-at-least-32-characters
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # No database, no language model, no OCR: building the OpenAPI document
+      # only needs the application to import.
+      - name: Install the backend
+        run: pip install -e "./backend"
+
+      # Written by Python rather than redirected, so anything the import
+      # happens to log cannot end up inside the JSON.
+      - name: Publish the OpenAPI document
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import json
+          from app.main import app
+          with open("/tmp/openapi.json", "w") as handle:
+              json.dump(app.openapi(), handle, indent=1)
+          PY
+
+      # The generator uses only Node builtins, so the frontend's dependencies
+      # are not needed here.
+      - name: Regenerate the types
+        working-directory: frontend
+        run: node scripts/generate-api-types.mjs /tmp/openapi.json
+
+      - name: They are unchanged
+        working-directory: frontend
+        run: |
+          if ! git diff --exit-code types/api.ts; then
+            echo "::error::frontend/types/api.ts is out of date with the API schemas. Run: npm run api:types"
+            exit 1
+          fi
 
   compose:
     name: Compose file

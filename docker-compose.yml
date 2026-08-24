@@ -48,18 +48,18 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # A build argument, not an environment variable: Next inlines
+        # NEXT_PUBLIC_* into the browser bundle when the image is built. Set at
+        # runtime instead, it is simply absent, and every browser falls back to
+        # talking to its own localhost.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
     container_name: graphmaster-web
     depends_on:
       - api
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
     ports:
       - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped
-    profiles:
-      # The frontend arrives in sprint 10. Until then `docker compose up`
-      # brings up db + api without failing on a missing frontend/Dockerfile.
-      - frontend
 
 volumes:
   postgres_data:

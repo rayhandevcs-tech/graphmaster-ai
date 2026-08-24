@@ -1,0 +1,8 @@
+# The application is behind a login; only the landing page is worth indexing.
+User-agent: *
+Disallow: /dashboard
+Disallow: /practice
+Disallow: /teacher
+Disallow: /admin
+Disallow: /profile
+Allow: /

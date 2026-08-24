@@ -177,13 +177,55 @@ Framer Motion · Lottie · Chart.js · TanStack Query
     under fifty concurrent callers, which is what actually catches an N+1 or a
     lock held across I/O.
 
+48. **`frontend/types/api.ts` is generated, never edited.** It is rendered from
+    the backend's OpenAPI document by `scripts/generate-api-types.mjs`; run
+    `make api-types` against a running API. CI regenerates it and fails on any
+    diff, so a hand-edit is reverted by the next build.
+49. **`NEXT_PUBLIC_*` is inlined when the frontend is *built*.** The browser has
+    no `process.env`. In Docker it is a build argument; set only on the running
+    container it is silently absent, and every user's browser falls back to
+    talking to its own localhost.
+50. **The access token lives in memory in the browser.** Not `localStorage`,
+    not a readable cookie — both turn one XSS bug into a stolen token — and
+    never in server-side module state, which is shared by every request the
+    Node process handles. A hard refresh legitimately starts with none; the
+    bootstrap refresh is what recovers the session.
+51. **One refresh at a time, and exactly one retry.** Concurrent 401s must
+    share a single refresh: rotating the refresh token twice looks like theft
+    to the backend, which revokes the whole session family. And a refresh that
+    fails only signs someone out if they *had* a session — a visitor who never
+    signed in must not be bounced off the landing page.
+52. **Gold is reserved for the crown tier, XP and level-ups.** It is a separate
+    token from shadcn's `--accent`, which is the neutral hover surface;
+    mapping the two together puts gold on every menu item and spends the one
+    colour that makes a crown feel earned. `tests/design-tokens.test.ts`
+    enforces it with an allowlist.
+53. **Every colour is a token defined for both themes**, and there is no
+    hardcoded hex outside `app/globals.css` — the same test fails the build.
+    There is no `tailwind.config`; Tailwind 4 keeps the theme in the
+    stylesheet under `@theme`.
+54. **Route protection in the browser is UX, not a security boundary.** The API
+    checks every token and every role, and the surface test proves it. The
+    guard cannot run in middleware because neither credential reaches a Next
+    server: the access token is in the tab's memory and the refresh cookie
+    belongs to the API's origin.
+55. **A wrong role is a dead end, not a redirect.** Bouncing a student off a
+    teacher URL leaves them wondering whether they mistyped; the page says so
+    and offers the way back.
+56. **`next build` runs before `tsc --noEmit`.** The build generates
+    `next-env.d.ts`, which declares the ambient types for CSS imports and
+    `next/font`. Typechecking a clean checkout without it fails on imports
+    that are fine.
+
 ## Conventions
 
 - **Python** — Black, Ruff, full type hints. Routers → services → repositories;
   each layer calls only the one below it. Services raise domain exceptions,
   never `HTTPException`.
 - **TypeScript** — strict mode, no `any` in application code. Components never
-  call `fetch` directly; use `lib/api/`.
+  call `fetch` directly; use `lib/api/`, one module per resource over the
+  shared client. Prettier and ESLint (`next/core-web-vitals` +
+  `next/typescript`) are enforced by CI, as is a production build.
 - **Commits** — Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`,
   `test:`, `chore:`).
 - **Migrations** — Alembic, forward-only, hand-reviewed after autogeneration

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -156,7 +156,12 @@ class GraphDetail(GraphSummary):
     """
 
     prompt: str
-    chart_data: dict[str, Any]
+    # Typed rather than ``dict[str, Any]``: the client renders Chart.js
+    # straight from this, and an untyped blob there forces a cast in the one
+    # place the shape actually matters. Every stored value was validated by
+    # this same model on the way in, and ``extra="allow"`` keeps the styling
+    # keys a teacher added.
+    chart_data: ChartData
 
 
 class GraphAuthoringDetail(GraphDetail):

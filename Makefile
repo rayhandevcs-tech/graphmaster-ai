@@ -1,4 +1,5 @@
-.PHONY: help install migrate seed dev test perf lint format check up down logs reset-db
+.PHONY: help install migrate seed dev test perf lint format check up down logs reset-db \
+        web-install web-dev web-build web-test web-check api-types
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -35,7 +36,31 @@ lint:  ## Check formatting and lint rules
 format:  ## Apply formatting and auto-fixable lint rules
 	cd backend && .venv/bin/black --target-version py311 app tests alembic && .venv/bin/ruff check --fix app tests alembic
 
-check: lint test  ## Lint and test
+check: lint test web-check  ## Lint and test both halves of the project
+
+# ── Frontend ─────────────────────────────────────────────────────────────────
+
+web-install:  ## Install the frontend dependencies from the lockfile
+	cd frontend && npm ci
+
+web-dev:  ## Run the frontend with hot reload on :3000
+	cd frontend && npm run dev
+
+web-build:  ## Production build
+	cd frontend && npm run build
+
+web-test:  ## Frontend unit tests
+	cd frontend && npm test
+
+web-check:  ## Everything CI runs for the frontend, in the same order
+	# The build comes before the typecheck because it generates
+	# `next-env.d.ts`, which declares the ambient types for CSS imports and
+	# `next/font`.
+	cd frontend && npx prettier --check . && npm run lint && npm run build && \
+		npm run typecheck && npm test
+
+api-types:  ## Regenerate frontend/types/api.ts from a running API
+	cd frontend && npm run api:types
 
 up:  ## Start the stack with Docker Compose
 	docker compose up -d --build
