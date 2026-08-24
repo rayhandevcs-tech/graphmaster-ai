@@ -1,26 +1,26 @@
 # GraphMaster — Project Plan
 
-**Version:** 1.1
-**Status:** In progress — backend sprints 1–7 delivered, frontend not started
+**Version:** 1.2
+**Status:** In progress — backend sprints 1–8 delivered, frontend not started
 **Branch:** `claude/graphmaster-platform-9aba5t`
 
 ---
 
 ## 1. Delivery status
 
-**Last updated:** end of Sprint 7 (gamification engine).
+**Last updated:** end of Sprint 8 (analytics and exports).
 
 ### 1.1 Snapshot
 
 | Item | State |
 |---|---|
-| Backend sprints complete | **7 of 9** (Sprints 1–7) |
+| Backend sprints complete | **8 of 9** (Sprints 1–8) |
 | Frontend sprints complete | **0 of 5** (Sprints 10–14) |
-| API endpoints | 64 operations across 50 paths |
-| Application modules | 106 Python files |
-| Tests | **791 passing**, 40 test modules |
+| API endpoints | 75 operations across 59 paths |
+| Application modules | 120 Python files |
+| Tests | **871 passing**, 44 test modules |
 | Coverage | **95%** (target 80%, NFR-5.2) |
-| Migrations | 2, forward-only, applied cleanly |
+| Migrations | 3, forward-only, applied cleanly |
 | Lint / format | `ruff` and `black` clean |
 
 At the start of this plan the repository held nothing but documentation. The
@@ -34,28 +34,29 @@ schema looks the way it does.
 |---|---|---|
 | **0** | This plan, the SRS, all 9 architecture docs realigned to the specification | — |
 | **1** | FastAPI skeleton, layered architecture, typed settings, full SQLAlchemy 2.0 schema, Alembic, seed data, Dockerfile, compose, health checks | — |
-| ✅ | **2** | JWT access + rotating refresh tokens, bcrypt hashing, RBAC dependencies, registration with gender→avatar assignment, profile endpoints, rate limiting | Refresh-token families revoked on replay |
-| ✅ | **3** | Vocabulary CRUD (7 categories, 25+ seeded terms), graph CRUD with Chart.js data, per-graph target curation, class management | Publishing requires ≥1 required target |
-| ✅ | **4** | Storage abstraction, magic-byte upload validation, OCR provider chain (Vision → EasyOCR → Tesseract), preprocessing, editable extraction preview | Confidence and warnings surfaced, never blocking |
-| ✅ | **5** | spaCy engine: normalisation with index mapping, lemma **and** surface matching, phrase matching, missing-term detection, 70/30 scoring, tiering, feedback generator | `engine_version` fingerprints the rubric, not just the code |
-| ✅ | **6** | Submission pipeline: typed and handwriting routes, `draft→scored` state machine, exactly-once scoring under a row lock, recoverable `failed` state, authenticated image streaming, history endpoints | A 503 never consumes an attempt |
-| ✅ | **7** | XP ledger, level curve, declarative achievement rules, tier badges, streaks, four materialised leaderboard scopes, administrative XP corrections | Scoring and awarding share one transaction |
+| **2** | JWT access + rotating refresh tokens, bcrypt hashing, RBAC dependencies, registration with gender→avatar assignment, profile endpoints, rate limiting | Refresh-token families revoked on replay |
+| **3** | Vocabulary CRUD (7 categories, 25+ seeded terms), graph CRUD with Chart.js data, per-graph target curation, class management | Publishing requires ≥1 required target |
+| **4** | Storage abstraction, magic-byte upload validation, OCR provider chain (Vision → EasyOCR → Tesseract), preprocessing, editable extraction preview | Confidence and warnings surfaced, never blocking |
+| **5** | spaCy engine: normalisation with index mapping, lemma **and** surface matching, phrase matching, missing-term detection, 70/30 scoring, tiering, feedback generator | `engine_version` fingerprints the rubric, not just the code |
+| **6** | Submission pipeline: typed and handwriting routes, `draft→scored` state machine, exactly-once scoring under a row lock, recoverable `failed` state, authenticated image streaming, history endpoints | A 503 never consumes an attempt |
+| **7** | XP ledger, level curve, declarative achievement rules, tier badges, streaks, four materialised leaderboard scopes, administrative XP corrections | Scoring and awarding share one transaction |
+| **8** | Class and platform analytics, vocabulary usage, score trends, student dashboard, four report types in CSV / Excel / PDF | Computed live; exports carry the screens' access rules |
 
 ### 1.3 What remains
 
 | Sprint | Still to build | Depends on |
 |---|---|---|
-| ☐ | **8** | Analytics service, student and teacher dashboard aggregates (`/users/me/dashboard`, `/analytics/*`), CSV / Excel / PDF export | 7 |
-| ☐ | **9** | Coverage gap closure, CI pipeline, load and edge-case passes | 8 |
-| ☐ | **10** | Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui, purple/blue/gold tokens, dark mode, typed API client, auth context and route protection | 9 |
-| ☐ | **11** | Landing, login, register (gender + avatar), student dashboard, practice page with live Chart.js, typed editor, handwriting upload with OCR preview, result page, profile, settings | 10 |
-| ☐ | **12** | Framer Motion reward sequences (crown + confetti / flower / hammer bonk-dizzy-fall-**recovery**), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal | 11 |
-| ☐ | **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management | 12 |
-| ☐ | **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit | 13 |
+| **9** | Coverage gap closure, CI pipeline, load and edge-case passes | 8 |
+| **10** | Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui, purple/blue/gold tokens, dark mode, typed API client, auth context and route protection | 9 |
+| **11** | Landing, login, register (gender + avatar), student dashboard, practice page with live Chart.js, typed editor, handwriting upload with OCR preview, result page, profile, settings | 10 |
+| **12** | Framer Motion reward sequences (crown + confetti / flower / hammer bonk-dizzy-fall-**recovery**), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal | 11 |
+| **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management | 12 |
+| **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit | 13 |
 
-Roughly: **the backend is close to finished and the frontend has not started.**
-Everything a student does is reachable over the API today; none of it has a
-screen yet.
+Roughly: **the backend is feature-complete and the frontend has not started.**
+Every function in the specification — practising, marking, rewards, ranking,
+analytics and exports — is reachable over the API today. None of it has a
+screen. Sprint 9 hardens what exists; Sprints 10–14 build the interface.
 
 ### 1.4 Decisions still open
 
@@ -65,10 +66,12 @@ place; say the word and it changes.
 | # | Question | Current default |
 |---|---|---|
 | 1 | Should `/analysis/*` be readable by students, or stay teacher-only? | Teacher and admin only |
-| 2 | NLTK is declared in `pyproject.toml` but unused since Sprint 5 — drop it, or keep it for Sprint 8 analytics? | Kept, unused |
+| 2 | NLTK is declared in `pyproject.toml` but unused since Sprint 5. Sprint 8 did not need it either — drop it? | Kept, unused |
 | 3 | Editing a graph is open to any teacher; deleting it is owner-scoped. Should editing be owner-scoped too? | Any teacher may edit |
 | 4 | Superseded handwriting uploads are retained when a student re-uploads, to avoid data loss on rollback. Orphan cleanup is unscheduled. | Left as an operational task for Sprint 14 |
 | 5 | Publishing enforces "at least one required target", so a single-target graph makes the vocabulary percentage binary — 0% or 100%, hammer or crown. Enforce a minimum? | One target is enough |
+| 6 | `analytics_snapshots` is deliberately unwritten — analytics are computed live. Archive periodic snapshots for the research record, or drop the table? | Kept, unused |
+| 7 | A raw submission export is capped at 20,000 rows. Paginate a larger one, or leave date filters as the answer? | Capped, with the ceiling published on `/reports/capabilities` |
 
 ---
 
@@ -246,7 +249,7 @@ conventional commit.
 | ✅ | **5** | spaCy + NLTK engine: normalisation, lemma matching, multi-word phrase matching, missing-vocabulary detection, scoring, feedback generator, report generator |
 | ✅ | **6** | Submission pipeline: typed and handwriting flows, draft→extracted→scored state machine, preview-before-analysis, history endpoints |
 | ✅ | **7** | Gamification: XP ledger, level curve, achievement rule engine, badge awards, streaks, four leaderboard scopes |
-| ☐ | **8** | Analytics service, student/teacher dashboard aggregates, CSV/Excel/PDF export |
+| ✅ | **8** | Analytics service, student/teacher dashboard aggregates, CSV/Excel/PDF export |
 | ☐ | **9** | Pytest suite — unit, integration, API — targeting 80%+ coverage, plus CI |
 
 ### Phase C — Frontend (Phases 4 & 5 of the brief)

@@ -473,19 +473,91 @@ period total cannot be derived from a lifetime one.
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| GET | `/analytics/vocabulary-usage` | Most and least used terms; `scope=platform\|class`, `class_id`, date range | T A |
-| GET | `/analytics/class/{id}` | Average score, tier distribution, engagement | T A |
-| GET | `/analytics/trends` | Score and vocabulary trends over time | T A |
+| GET | `/analytics/vocabulary-usage` | Most and least used terms; optional `class_id`, date range | T A |
+| GET | `/analytics/class/{id}` | Averages, tier distribution, engagement, per-student roster | T A |
+| GET | `/analytics/trends` | Score and vocabulary trends; `granularity=day\|week\|month` | T A |
 | GET | `/analytics/platform` | Platform-wide metrics | A |
+
+The student's own equivalent is `GET /users/me/dashboard` (§3.2).
+
+#### 3.10a Behaviour a client must account for
+
+**Computed live, not cached.** These are small aggregates over an indexed date
+range, and a cached figure would be stale exactly when a teacher most wants it
+— in the minutes after a lesson.
+
+**A class the caller does not teach is refused, not emptied.** An empty report
+and a forbidden one look identical to a reader, and the first is a lie
+(FR-11.6). An unknown class is `404`; someone else's is `403`.
+
+**The roster includes students who never started.** Their averages come back
+`null`, never `0` — a student who has not begun is not the same as one scoring
+nothing, and a zero would sort them below someone genuinely struggling.
+
+**Engagement is measured against enrolment.** `inactive_student_count` and
+`participation_rate` count everyone on the register, so "half the class never
+started" cannot hide behind "everyone who practised, practised a lot".
+`submissions_per_active_student` deliberately divides by the active few.
+
+**`least_used` includes terms with zero uses.** That is usually the interesting
+answer: a term nobody has reached for is invisible to any report built only
+from what students did write, and it is the one to teach next. Ask for more
+terms than the library holds and both ends return the same set, reversed.
+
+**Vocabulary counts come from `scores.detected_terms`** — what the engine
+actually matched when it marked the work. Recounting the answer text for the
+report would mean a second, subtly different detector, and two detectors that
+disagree make the analytics unusable as evidence.
+
+**A gap in a trend is a period nobody practised**, not a period everyone scored
+zero: buckets with no marked work produce no point at all. Buckets are cut in
+the platform timezone, so they line up with the days a cohort actually worked.
 
 ### 3.11 Reports
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| POST | `/reports` | Request a report: `report_type`, `format`, `class_id`, filters | T A |
+| GET | `/reports/capabilities` | Formats and types this deployment can produce | T A |
+| POST | `/reports` | Request a report: `report_type`, `format`, `class_id`, `student_id`, date range | T A |
 | GET | `/reports` | List the caller's generated reports | T A |
 | GET | `/reports/{id}` | Report status | T A |
 | GET | `/reports/{id}/download` | Stream the generated file | T A |
+| DELETE | `/reports/{id}` | Remove a report and its file | T A |
+
+#### 3.11a Behaviour a client must account for
+
+**Generation is synchronous**, so a `POST` returns a finished report — but the
+record still moves through `pending`, and a failure is stored as `failed` with
+a reason rather than vanishing into a 500. That is both what a teacher needs to
+see and what an asynchronous runner would leave behind if one were ever
+attached at the `JobRunner` seam.
+
+**Read `/reports/capabilities` before offering a format.** CSV needs nothing
+beyond the standard library and is always available; Excel and PDF rest on
+optional dependencies, and a server without them answers `503`. A client should
+hide a button that would only ever apologise.
+
+**Exports carry the same access rules as the screens.** `class_summary` needs a
+`class_id` unless the caller is an administrator; `student_detail` needs a
+`student_id` in one of the caller's own classes. A report is the easiest place
+to leak another teacher's class, precisely because nobody reads a spreadsheet
+the way they read a page.
+
+**A submission export is scores and metadata, never the answers.** The full
+text is one screen away for a teacher who wants it; a file circulated by email
+should not carry every student's writing verbatim.
+
+**Downloads are authenticated and uncacheable.** `Cache-Control: private,
+no-store`, served as an attachment — a shared cache holding a class's scores
+would defeat the access check. A browser will not attach a bearer token to an
+`<a href>`, so clients fetch the blob.
+
+**Someone else's report reads as missing, not forbidden**, so the endpoint
+cannot confirm that a guessed id names a real export.
+
+**Timestamps render in the platform timezone**, named in every report's header
+block. The workbook drops the offset after converting, because Excel has no
+concept of one.
 
 ### 3.12 Health
 

@@ -38,7 +38,7 @@ backend/
 │   ├── nlp/                     # Analysis engine (08-nlp-architecture.md)
 │   ├── gamification/            # Pure rules: periods, streaks, achievements
 │   ├── storage/                 # Storage backend abstraction
-│   └── reports/                 # CSV / XLSX / PDF generators
+│   └── reports/                 # One document description, three writers
 ├── alembic/versions/            # Migrations
 ├── tests/{unit,integration,api}/
 ├── pyproject.toml
@@ -127,6 +127,7 @@ needs it.
 | OCR | `OCR_PROVIDER_ORDER`, `GOOGLE_APPLICATION_CREDENTIALS`, `EASYOCR_MODEL_DIR`, `TESSERACT_CMD` |
 | Scoring | `VOCABULARY_WEIGHT`, `WRITING_WEIGHT`, tier thresholds |
 | Gamification | `XP_PER_SUBMISSION`, `XP_HIGH_SCORE_BONUS`, `XP_STREAK_BONUS`, `HIGH_SCORE_THRESHOLD`, `MAX_LEVEL`, `PLATFORM_TIMEZONE`, `LEADERBOARD_CACHE_MINUTES` |
+| Reports | Optional `openpyxl` and `reportlab`; absence answers 503, never 500 |
 | Rate limits | Per-group limits from [04-api-design.md](./04-api-design.md) §5.3 |
 
 Scoring weights and XP values are configuration rather than constants
@@ -160,10 +161,9 @@ makes this matter: score insert, XP events, badge, achievements and user counter
 updates all commit together or not at all. A partial commit would show the
 student a score with no XP, which reads as lost work.
 
-### 8.1 The one deliberate exception
+### 8.1 The deliberate exceptions
 
-`SubmissionService._record_extraction_failure` commits inside a service. It has
-to. The rule above rolls back on *any* exception, and a recognition failure is
+Two services commit. `SubmissionService._record_extraction_failure` has to. The rule above rolls back on *any* exception, and a recognition failure is
 reported by raising one — so a `failed` status written the ordinary way would be
 erased by the very error reporting it, and the student would get a 422 against a
 submission still sitting in `extracting` with no record of what went wrong.
@@ -177,14 +177,24 @@ commit releases a savepoint rather than publishing anything —
 regression there would silently leak rows between every test after a failed
 upload.
 
+`ReportService._record_failure` commits for exactly the same reason: an export
+whose generation fell over must leave a `failed` row carrying the reason, and
+the teacher must get that instead of a bare 500 with no trace of what they
+asked for. Only that report's own columns are pending at the point of the
+commit.
+
+The shape of the rule: a service may commit only to record *its own* failure,
+only when the alternative is a status the schema declares and the code can
+never reach, and only where nothing else is pending in the transaction.
+
 ### 8.2 Exactly-once scoring
 
 `analyze` locks the submission row (`SELECT … FOR UPDATE`) before reading its
 status, so two concurrent calls serialise rather than both observing a
 not-yet-scored row. Without the lock both would run the engine and both would
-insert a score — one dying on the unique constraint with a 500 — and once Sprint
-7 lands, both would award XP for a single piece of work, which is a
-straightforward way to farm the leaderboard.
+insert a score — one dying on the unique constraint with a 500 — and both would
+award XP for a single piece of work, which is a straightforward way to farm the
+leaderboard.
 
 The `analyzing` status is written inside that lock. It is transient by
 construction today: nothing commits between it and `scored`, so a failure rolls
@@ -197,6 +207,16 @@ executed on the event loop while holding that row lock. Acceptable for a
 single-instance deployment; the natural fix is a worker queue rather than a
 thread pool, since spaCy's `Vocab` is mutated during parsing and is not safe to
 share across threads.
+
+### 8.3 Savepoints around writes a constraint may refuse
+
+Several writes can legitimately be rejected by a constraint doing its job: the
+daily streak bonus, an achievement unlock, a badge already attached to a
+submission, and a leaderboard rebuild that lost a race. Each runs inside
+`begin_nested()`, because in PostgreSQL a failed statement poisons the whole
+transaction — and the transaction in question is holding the student's score.
+Losing a submission over a bonus they simply did not qualify for would be a far
+worse failure than a missing badge.
 
 ## 9. Security implementation
 

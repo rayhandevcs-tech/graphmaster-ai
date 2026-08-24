@@ -36,6 +36,11 @@ reports = [
     "reportlab>=4.2.5",
 ]
 dev = [
+    # The export libraries are optional in production but not in the suite:
+    # `test_reports.py` renders every format, and a run without them would
+    # skip the paths most likely to break rather than exercising them.
+    "openpyxl>=3.1.5",
+    "reportlab>=4.2.5",
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
