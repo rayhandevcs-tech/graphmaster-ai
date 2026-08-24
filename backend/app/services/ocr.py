@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.core.config import get_settings
-from app.core.exceptions import OCRError
+from app.core.exceptions import OCRError, OCRUnreadableError
 from app.core.logging import get_logger
 from app.models.enums import OCRProviderName
 from app.ocr.chain import ChainAttempt, OCRChain
@@ -94,13 +94,18 @@ class OCRService:
 
         try:
             outcome = self.chain.extract(recognition_input)
-        except OCRError:
+        except OCRError as exc:
             # Deliberately no cleanup: the stored original is what lets the
-            # student retry without re-photographing the page.
+            # student retry without re-photographing the page. Where it landed
+            # is re-raised with the error so a caller can record it against the
+            # submission — otherwise the retained image is unreachable and the
+            # retry FR-4.9 promises is not actually available.
             logger.warning(
                 "OCR failed for %s; original retained at %s", filename or "upload", storage_key
             )
-            raise
+            raise OCRUnreadableError(
+                exc.message, storage_key=storage_key, image_url=image_url
+            ) from exc
 
         result = outcome.result
         cleaned = clean(result.text)

@@ -72,7 +72,21 @@ Framer Motion · Lottie · Chart.js · TanStack Query
 17. **Feedback must never claim something the student did not do**, in either
     direction: no praise for unused vocabulary, and no "you used no X language"
     for a category they did use.
-18. **After a flush, re-read before serialising.** Columns with a server-side
+18. **Scoring is exactly-once.** `analyze` locks the submission row before
+    reading its status. Two racing calls otherwise both score, one dies on the
+    score's unique constraint, and both award XP for one piece of work.
+19. **A scored submission is frozen**, and a *new* submission is how a student
+    re-attempts a graph. Nothing is overwritten — improvement across attempts is
+    the data the evaluation depends on.
+20. **`failed` is recoverable, and `input_method` never flips.** A student can
+    type into a submission whose recognition failed; the record must still show
+    that handwriting was attempted and did not read.
+21. **A 503 never consumes an attempt.** A missing language model or absent OCR
+    engine is a deployment fault — nothing is written, and the same request
+    works once the server is provisioned.
+22. **Handwriting is streamed through an authenticated endpoint**, never a
+    static path. Storage keys never appear in a response body.
+23. **After a flush, re-read before serialising.** Columns with a server-side
     `onupdate` (`updated_at`) are expired by the flush, and relationships set
     by foreign key alone go stale in the identity map. Both surface as a lazy
     load that the async driver cannot service.

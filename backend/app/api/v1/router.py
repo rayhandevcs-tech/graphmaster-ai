@@ -15,6 +15,7 @@ from app.api.v1 import (
     graphs,
     health,
     ocr,
+    submissions,
     users,
     vocabulary,
 )
@@ -30,3 +31,4 @@ api_router.include_router(graphs.router, prefix="/graphs")
 api_router.include_router(ocr.router, prefix="/ocr")
 api_router.include_router(vocabulary.router, prefix="/vocabulary")
 api_router.include_router(analysis.router, prefix="/analysis")
+api_router.include_router(submissions.router, prefix="/submissions")
