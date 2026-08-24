@@ -327,12 +327,24 @@ issued as offsetting entries.
 | submission_id | UUID | FK → submissions.id, NULL | |
 | achievement_id | UUID | FK → achievements.id, NULL | |
 | note | TEXT | NULL | Required for `manual_adjustment` |
-| created_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | |
+| event_date | DATE | NOT NULL | The platform-timezone day this belongs to |
+| created_at | TIMESTAMPTZ | NOT NULL, DEFAULT clock_timestamp() | |
 
 Indexes: `INDEX (user_id, created_at DESC)`, `INDEX (reason)`.
 
 Partial unique index preventing a duplicate daily streak award (FR-8.3):
-`CREATE UNIQUE INDEX ON xp_events (user_id, (created_at::date)) WHERE reason = 'streak_bonus'`.
+`CREATE UNIQUE INDEX ON xp_events (user_id, event_date) WHERE reason = 'streak_bonus'`.
+
+`event_date` is stored rather than derived from `created_at` in the index
+expression: casting a `TIMESTAMPTZ` to a date depends on the session's
+`TimeZone`, so PostgreSQL rejects it as non-`IMMUTABLE`, and hardcoding
+`AT TIME ZONE 'UTC'` would quietly ignore `PLATFORM_TIMEZONE`.
+
+`created_at` defaults to **`clock_timestamp()`, not `now()`**. `now()` is the
+*transaction* timestamp, so the four entries one scoring can append — base
+award, high score bonus, streak bonus, achievement reward — would share a single
+value and their order would fall back to a random UUID. An append-only ledger
+that cannot be read back in the order it was written is not much of a ledger.
 
 ### 5.2 `achievements`
 
@@ -413,7 +425,15 @@ Materialised rankings (NFR-1.4), covering the four scopes of FR-9.1 – FR-9.3.
 | generated_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | |
 
 Indexes: `UNIQUE (scope, class_id, period_start, user_id)`,
+`UNIQUE (scope, period_start, user_id) WHERE class_id IS NULL`,
 `INDEX (scope, class_id, period_start, rank)`.
+
+**Both unique indexes are required.** The first covers the class scope only:
+`class_id` is NULL for `global`, `weekly` and `monthly`, and PostgreSQL treats
+NULLs as distinct in a unique index, so it constrains nothing for them. Without
+the partial second index a period rebuilt twice concurrently left every student
+ranked twice — silently, with no error to notice. A duplicated ranking is worse
+than a failed one.
 
 A `CHECK` constraint enforces the scope/class relationship:
 `CHECK ((scope = 'class') = (class_id IS NOT NULL))`.

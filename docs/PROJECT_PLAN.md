@@ -1,24 +1,74 @@
 # GraphMaster — Project Plan
 
-**Version:** 1.0
-**Status:** Approved for implementation
+**Version:** 1.1
+**Status:** In progress — backend sprints 1–7 delivered, frontend not started
 **Branch:** `claude/graphmaster-platform-9aba5t`
 
 ---
 
-## 1. Where the repository stands today
+## 1. Delivery status
+
+**Last updated:** end of Sprint 7 (gamification engine).
+
+### 1.1 Snapshot
 
 | Item | State |
 |---|---|
-| Commits | 3 (`Initial project setup`, `chore: create project structure`, `docs: add architecture documentation set`) |
-| Open PRs | 0 |
-| Open issues | 0 |
-| Code | None. `backend/`, `frontend/`, `database/`, `assets/`, `research/` contain only `.gitkeep` |
-| Docs | 9 architecture documents under `docs/architecture/` |
-| `README.md` | 19-line stub |
-| `CLAUDE.md`, `.gitignore` | Empty files |
+| Backend sprints complete | **7 of 9** (Sprints 1–7) |
+| Frontend sprints complete | **0 of 5** (Sprints 10–14) |
+| API endpoints | 64 operations across 50 paths |
+| Application modules | 106 Python files |
+| Tests | **791 passing**, 40 test modules |
+| Coverage | **95%** (target 80%, NFR-5.2) |
+| Migrations | 2, forward-only, applied cleanly |
+| Lint / format | `ruff` and `black` clean |
 
-So: **the architecture is partly written, and none of the product is built.**
+At the start of this plan the repository held nothing but documentation. The
+gap analysis in §2 below describes that starting point and the conflicts
+resolved before any code was written; it is kept as the record of *why* the
+schema looks the way it does.
+
+### 1.2 What is built
+
+| Sprint | Delivered | Notes |
+|---|---|---|
+| **0** | This plan, the SRS, all 9 architecture docs realigned to the specification | — |
+| **1** | FastAPI skeleton, layered architecture, typed settings, full SQLAlchemy 2.0 schema, Alembic, seed data, Dockerfile, compose, health checks | — |
+| ✅ | **2** | JWT access + rotating refresh tokens, bcrypt hashing, RBAC dependencies, registration with gender→avatar assignment, profile endpoints, rate limiting | Refresh-token families revoked on replay |
+| ✅ | **3** | Vocabulary CRUD (7 categories, 25+ seeded terms), graph CRUD with Chart.js data, per-graph target curation, class management | Publishing requires ≥1 required target |
+| ✅ | **4** | Storage abstraction, magic-byte upload validation, OCR provider chain (Vision → EasyOCR → Tesseract), preprocessing, editable extraction preview | Confidence and warnings surfaced, never blocking |
+| ✅ | **5** | spaCy engine: normalisation with index mapping, lemma **and** surface matching, phrase matching, missing-term detection, 70/30 scoring, tiering, feedback generator | `engine_version` fingerprints the rubric, not just the code |
+| ✅ | **6** | Submission pipeline: typed and handwriting routes, `draft→scored` state machine, exactly-once scoring under a row lock, recoverable `failed` state, authenticated image streaming, history endpoints | A 503 never consumes an attempt |
+| ✅ | **7** | XP ledger, level curve, declarative achievement rules, tier badges, streaks, four materialised leaderboard scopes, administrative XP corrections | Scoring and awarding share one transaction |
+
+### 1.3 What remains
+
+| Sprint | Still to build | Depends on |
+|---|---|---|
+| ☐ | **8** | Analytics service, student and teacher dashboard aggregates (`/users/me/dashboard`, `/analytics/*`), CSV / Excel / PDF export | 7 |
+| ☐ | **9** | Coverage gap closure, CI pipeline, load and edge-case passes | 8 |
+| ☐ | **10** | Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui, purple/blue/gold tokens, dark mode, typed API client, auth context and route protection | 9 |
+| ☐ | **11** | Landing, login, register (gender + avatar), student dashboard, practice page with live Chart.js, typed editor, handwriting upload with OCR preview, result page, profile, settings | 10 |
+| ☐ | **12** | Framer Motion reward sequences (crown + confetti / flower / hammer bonk-dizzy-fall-**recovery**), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal | 11 |
+| ☐ | **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management | 12 |
+| ☐ | **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit | 13 |
+
+Roughly: **the backend is close to finished and the frontend has not started.**
+Everything a student does is reachable over the API today; none of it has a
+screen yet.
+
+### 1.4 Decisions still open
+
+These are product calls, not technical blockers. Each has a working default in
+place; say the word and it changes.
+
+| # | Question | Current default |
+|---|---|---|
+| 1 | Should `/analysis/*` be readable by students, or stay teacher-only? | Teacher and admin only |
+| 2 | NLTK is declared in `pyproject.toml` but unused since Sprint 5 — drop it, or keep it for Sprint 8 analytics? | Kept, unused |
+| 3 | Editing a graph is open to any teacher; deleting it is owner-scoped. Should editing be owner-scoped too? | Any teacher may edit |
+| 4 | Superseded handwriting uploads are retained when a student re-uploads, to avoid data loss on rollback. Orphan cleanup is unscheduled. | Left as an operational task for Sprint 14 |
+| 5 | Publishing enforces "at least one required target", so a single-target graph makes the vocabulary percentage binary — 0% or 100%, hammer or crown. Enforce a minimum? | One target is enough |
 
 ---
 
@@ -182,31 +232,31 @@ Fifteen sprints in dependency order. Each ends with a green build and a
 conventional commit.
 
 ### Phase A — Design
-| Sprint | Deliverable |
-|---|---|
-| **0** | This plan · SRS with functional/non-functional requirements · all 9 architecture docs realigned to §2 and §3 |
+| ✔ | Sprint | Deliverable |
+|---|---|---|
+| ✅ | **0** | This plan · SRS with functional/non-functional requirements · all 9 architecture docs realigned to §2 and §3 |
 
 ### Phase B — Backend (Phases 2 & 3 of the brief)
-| Sprint | Deliverable |
-|---|---|
-| **1** | FastAPI skeleton, clean architecture layers, typed settings, SQLAlchemy 2.0 models, Alembic migrations, seed data, Dockerfile, Postgres compose, health checks |
-| **2** | JWT access + rotating refresh tokens, password hashing, RBAC dependencies, registration with gender→avatar assignment, profile endpoints, rate limiting |
-| **3** | Vocabulary CRUD (teacher-editable, 25+ seeded terms across 7 categories), graph CRUD with Chart.js data, per-graph target curation, class management |
-| **4** | Storage abstraction (local, S3-ready), upload validation with magic-byte checks, OCR provider chain, image preprocessing, extraction-preview endpoint |
-| **5** | spaCy + NLTK engine: normalisation, lemma matching, multi-word phrase matching, missing-vocabulary detection, scoring, feedback generator, report generator |
-| **6** | Submission pipeline: typed and handwriting flows, draft→extracted→scored state machine, preview-before-analysis, history endpoints |
-| **7** | Gamification: XP ledger, level curve, achievement rule engine, badge awards, streaks, four leaderboard scopes |
-| **8** | Analytics service, student/teacher dashboard aggregates, CSV/Excel/PDF export |
-| **9** | Pytest suite — unit, integration, API — targeting 80%+ coverage, plus CI |
+| ✔ | Sprint | Deliverable |
+|---|---|---|
+| ✅ | **1** | FastAPI skeleton, clean architecture layers, typed settings, SQLAlchemy 2.0 models, Alembic migrations, seed data, Dockerfile, Postgres compose, health checks |
+| ✅ | **2** | JWT access + rotating refresh tokens, password hashing, RBAC dependencies, registration with gender→avatar assignment, profile endpoints, rate limiting |
+| ✅ | **3** | Vocabulary CRUD (teacher-editable, 25+ seeded terms across 7 categories), graph CRUD with Chart.js data, per-graph target curation, class management |
+| ✅ | **4** | Storage abstraction (local, S3-ready), upload validation with magic-byte checks, OCR provider chain, image preprocessing, extraction-preview endpoint |
+| ✅ | **5** | spaCy + NLTK engine: normalisation, lemma matching, multi-word phrase matching, missing-vocabulary detection, scoring, feedback generator, report generator |
+| ✅ | **6** | Submission pipeline: typed and handwriting flows, draft→extracted→scored state machine, preview-before-analysis, history endpoints |
+| ✅ | **7** | Gamification: XP ledger, level curve, achievement rule engine, badge awards, streaks, four leaderboard scopes |
+| ☐ | **8** | Analytics service, student/teacher dashboard aggregates, CSV/Excel/PDF export |
+| ☐ | **9** | Pytest suite — unit, integration, API — targeting 80%+ coverage, plus CI |
 
 ### Phase C — Frontend (Phases 4 & 5 of the brief)
-| Sprint | Deliverable |
-|---|---|
-| **10** | Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui, purple/blue/gold tokens, dark mode, typed API client, auth context and route protection |
-| **11** | Landing, login, register (gender + avatar), student dashboard, practice page with live Chart.js rendering, typed editor, handwriting upload with OCR preview, result page, profile, settings |
-| **12** | Framer Motion reward sequences (crown+confetti / flower / hammer bonk-dizzy-fall-recovery), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal |
-| **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management |
-| **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit |
+| ✔ | Sprint | Deliverable |
+|---|---|---|
+| ☐ | **10** | Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui, purple/blue/gold tokens, dark mode, typed API client, auth context and route protection |
+| ☐ | **11** | Landing, login, register (gender + avatar), student dashboard, practice page with live Chart.js rendering, typed editor, handwriting upload with OCR preview, result page, profile, settings |
+| ☐ | **12** | Framer Motion reward sequences (crown+confetti / flower / hammer bonk-dizzy-fall-recovery), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal |
+| ☐ | **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management |
+| ☐ | **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit |
 
 ---
 

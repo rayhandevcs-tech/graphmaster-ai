@@ -80,6 +80,13 @@ This matters concretely for the **weekly and monthly leaderboards**: XP within a
 period simply cannot be derived from a lifetime total. Without the ledger,
 FR-9.3 would be unimplementable.
 
+Ledger entries carry `clock_timestamp()` rather than `now()`. `now()` is the
+*transaction* timestamp, so the four entries one scoring can append — base
+award, high score bonus, streak bonus, achievement reward — would all share a
+single value and their order would fall back to a random UUID. An append-only
+ledger that cannot be read back in the order it was written is not much of a
+ledger.
+
 The once-per-day streak rule is enforced by a partial unique index rather than
 by an application check:
 
@@ -172,6 +179,16 @@ database level, so a concurrent double-submission cannot double-unlock.
 - Day boundaries use the platform timezone, configured once, so that a single
   cohort's students all roll over together.
 
+### 5.1 The bonus is paid for continuing, not for turning up
+
+`streak_bonus` requires a streak of **at least two days**. A first submission,
+and a submission that restarts a broken streak, both earn nothing extra.
+
+Paying it on a reset day would reward breaking a streak exactly as much as
+keeping one, and would hand 50 XP to a student who practises once a week — the
+opposite of what the mechanic is for. The counters still advance in both cases;
+only the payment is withheld.
+
 ## 6. Leaderboards
 
 ### 6.1 Scopes (FR-9.1 – FR-9.3)
@@ -201,19 +218,60 @@ the ranking look broken to the students it is meant to motivate.
 
 ### 6.3 Materialisation (NFR-1.4)
 
-Rankings are computed into `leaderboard_entries` on a schedule rather than
-ranked per request. Ranking the full user set on every page view is a
-full-table scan of the XP ledger, and a live ranking also shifts under a
-student's feet mid-session in a way that reads as a bug rather than as
-competition.
+Rankings are computed into `leaderboard_entries` rather than ranked per
+request. Ranking the full user set on every page view is a full-table scan of
+the XP ledger, and a live ranking also shifts under a student's feet
+mid-session in a way that reads as a bug rather than as competition.
+
+Nothing schedules that computation in a single-container deployment, so **a
+stale period is rebuilt by the read that notices it** — `LEADERBOARD_CACHE_MINUTES`
+decides how stale is stale. That keeps the board correct without a cron daemon,
+at the cost of one slow request per period per window. `POST /leaderboard/refresh`
+forces it for every scope plus one board per active class.
+
+A rebuild is delete-then-insert, so two of them running together would both
+clear the period. Two things stop that going wrong:
+
+- A **PostgreSQL advisory lock** held for the rest of the transaction, so
+  readers who all find the period stale at once produce one rebuild rather than
+  a pile-up. The second re-checks staleness once it holds the lock and skips.
+- A **partial unique index** on `(scope, period_start, user_id) WHERE class_id
+  IS NULL`. `uq_leaderboard_entry` includes `class_id`, which is NULL for every
+  scope except `class`, and NULLs do not compare equal — so it constrains the
+  class board and nothing else. Without the partial index a duplicated rebuild
+  listed every student twice, silently, with no error to notice.
+
+Where no advisory lock is available the rebuild runs inside a savepoint, so
+losing the race abandons it and serves the rankings already on disk rather than
+failing the request.
 
 `GET /leaderboard/me` (FR-9.5) reads the caller's stored row directly, so a
 student ranked 240th sees their own position without paginating to find it.
+
+Three aggregates — period XP, average score, achievements unlocked — are each
+computed in their own grouped subquery and joined in. Joining the tables
+directly would multiply the rows: a student with 5 XP events and 3 submissions
+would have their average taken over 15, producing numbers that are silently
+wrong rather than an error.
+
+Only students with activity **in the period** are ranked. A weekly board
+listing every enrolled student on zero buries the handful who actually worked.
 
 ### 6.4 Teachers and admins are excluded
 
 Leaderboards rank students only. A teacher who tries the exercise should not
 appear above their own class.
+
+### 6.5 Class boards are not browsable
+
+A class board names identifiable classmates, so students are pinned to their
+own class and a `class_id` they supply is ignored rather than honoured.
+Teachers may read boards for classes they own; administrators, any.
+
+An entry carries rank, name, avatar, level, XP, average score, submission count
+and achievement count — and **never a reward tier**. A hammer count is a
+private detail of one student's own results screen; publishing it to their
+cohort is exactly the humiliation FR-7.6 rules out.
 
 ## 7. Award flow
 
@@ -256,3 +314,10 @@ the student would see as the system losing their work.
 | Re-unlocking achievements | `UNIQUE (user_id, achievement_id)` |
 | Burst submissions before a snapshot | Rate limiting bounds XP per window; period XP comes from the ledger, so a burst is visible and auditable |
 | Correcting an over-award | Offsetting `manual_adjustment` entries, never editing history |
+| Double-awarding one submission | `analyze` locks the submission row before reading its status, so two racing calls serialise and only one pays out |
+
+`POST /gamification/adjustments` is the only endpoint that writes XP outside
+scoring. It is administrator-only, appends rather than edits, requires a note —
+an unexplained correction is indistinguishable from tampering once the ledger is
+research evidence — and refuses an adjustment that would take a student below
+zero, which `users.total_xp`'s CHECK would otherwise reject as an opaque 500.

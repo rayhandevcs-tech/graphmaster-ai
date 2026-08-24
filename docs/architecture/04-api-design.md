@@ -394,6 +394,12 @@ and administrators.
 **`total_target_count` is frozen at the time of scoring.** A teacher adding a
 target term next week does not move any historical percentage.
 
+**Scoring and awarding are one transaction.** The `gamification` block is
+populated by the same call that writes the score, and the two commit together —
+a student is never shown a score with no XP beside it. `streak_days` is the
+streak *after* this submission; `badge` is null only if the badge catalogue is
+unseeded, since every score has a tier.
+
 ### 3.8 Gamification
 
 | Method | Path | Description | Roles |
@@ -402,13 +408,66 @@ target term next week does not move any historical percentage.
 | GET | `/gamification/achievements` | Full catalogue with unlock state and progress | S T A |
 | GET | `/gamification/badges` | Badge catalogue with the caller's earned counts | S T A |
 | GET | `/gamification/level` | Current level, XP into level, XP to next | S T A |
+| POST | `/gamification/adjustments` | Append a signed correction to a student's ledger | A |
+
+#### 3.8a Behaviour a client must account for
+
+**Nothing here awards anything.** XP is granted in exactly one place — while a
+submission is being marked — so there is no endpoint a client can call to earn
+it. The single exception is the administrative adjustment, which *appends* a
+signed entry; the ledger is never edited or deleted, so a correction appears
+beside the award it offsets rather than replacing it.
+
+**Each student is offered one crown achievement.** Graph King and Graph Queen
+are gender-gated, and the unreachable one is **absent** from
+`/gamification/achievements` rather than listed as locked — showing a goal a
+student can never meet misrepresents how much of the catalogue is open to them.
+
+**Locked achievements carry progress.** `progress` / `target` /
+`progress_percent` are what let a client show "7 / 10" instead of a padlock. An
+unlocked achievement always reads as complete even if the statistic behind it
+has since fallen: a broken streak does not un-earn Consistency Champion.
+
+**Badges tally, achievements flag.** One badge is attached to every scored
+submission according to its tier, so `earned_count` counts up; an achievement
+unlocks once and stays unlocked.
+
+**`xp_for_next_level` is a span, not a total.** It is the width of the current
+level, which is what an XP bar needs as its maximum. It is `0` at the cap.
 
 ### 3.9 Leaderboard
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| GET | `/leaderboard` | Ranked entries; `scope=global\|class\|weekly\|monthly`, optional `class_id`, `limit`, `offset` | S T A |
+| GET | `/leaderboard` | Ranked entries; `scope=global\|class\|weekly\|monthly`, optional `class_id`, `page`, `page_size` | S T A |
 | GET | `/leaderboard/me` | The caller's rank in a given scope, even when outside the visible page (FR-9.5) | S |
+| POST | `/leaderboard/refresh` | Rebuild every scope plus one board per active class | A |
+
+#### 3.9a Behaviour a client must account for
+
+**Rankings are materialised, so a board can be minutes old.** `period.generated_at`
+says how old. A read that finds the period stale rebuilds it, which is why a
+`GET` here is occasionally slow — and occasionally writes.
+
+**Only students who practised in the period are ranked.** A weekly board listing
+every enrolled student on zero buries the few who worked. A student with no
+activity gets `entry: null` from `/leaderboard/me`, not an error.
+
+**Teachers and administrators are never ranked**, even if they have scored work
+of their own.
+
+**Class boards are not browsable.** A student is pinned to their own class and a
+`class_id` they pass is ignored; a teacher must name a class they own, and
+naming someone else's returns 403. An unenrolled student asking for
+`scope=class` gets 422 explaining they need a class code, not an empty board.
+
+**An entry never carries a reward tier.** Rank, name, avatar, level, XP, average
+score, submission count and achievement count only — a hammer count is private
+to the student's own results screen (FR-7.6).
+
+**`xp` is period XP, not lifetime.** For `weekly` and `monthly` it is what the
+ledger recorded inside the window, which is the reason the ledger exists: a
+period total cannot be derived from a lifetime one.
 
 ### 3.10 Analytics
 
