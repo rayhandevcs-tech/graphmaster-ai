@@ -20,6 +20,7 @@ from app.db.session import get_db
 from app.models.enums import UserRole
 from app.models.identity import User
 from app.ocr.factory import get_ocr_chain
+from app.repositories.analytics import AnalyticsRepository
 from app.repositories.auth_session import AuthSessionRepository
 from app.repositories.avatar import AvatarRepository
 from app.repositories.class_ import ClassRepository
@@ -30,6 +31,7 @@ from app.repositories.gamification import (
     XPRepository,
 )
 from app.repositories.graph import GraphRepository
+from app.repositories.report import ReportRepository
 from app.repositories.submission import SubmissionRepository
 from app.repositories.user import UserRepository
 from app.repositories.vocabulary import (
@@ -37,12 +39,14 @@ from app.repositories.vocabulary import (
     VocabularyItemRepository,
 )
 from app.services.analysis import AnalysisService
+from app.services.analytics import AnalyticsService
 from app.services.auth import AuthService
 from app.services.class_ import ClassService
 from app.services.gamification import GamificationService
 from app.services.graph import GraphService
 from app.services.leaderboard import LeaderboardService
 from app.services.ocr import OCRService
+from app.services.report import ReportService
 from app.services.submission import SubmissionService
 from app.services.user import UserService
 from app.services.vocabulary import VocabularyService
@@ -106,6 +110,14 @@ def get_leaderboard_repository(db: DbSession) -> LeaderboardRepository:
     return LeaderboardRepository(db)
 
 
+def get_analytics_repository(db: DbSession) -> AnalyticsRepository:
+    return AnalyticsRepository(db)
+
+
+def get_report_repository(db: DbSession) -> ReportRepository:
+    return ReportRepository(db)
+
+
 UserRepo = Annotated[UserRepository, Depends(get_user_repository)]
 AvatarRepo = Annotated[AvatarRepository, Depends(get_avatar_repository)]
 SessionRepo = Annotated[AuthSessionRepository, Depends(get_auth_session_repository)]
@@ -120,6 +132,8 @@ XPRepo = Annotated[XPRepository, Depends(get_xp_repository)]
 AchievementRepo = Annotated[AchievementRepository, Depends(get_achievement_repository)]
 BadgeRepo = Annotated[BadgeRepository, Depends(get_badge_repository)]
 LeaderboardRepo = Annotated[LeaderboardRepository, Depends(get_leaderboard_repository)]
+AnalyticsRepo = Annotated[AnalyticsRepository, Depends(get_analytics_repository)]
+ReportRepo = Annotated[ReportRepository, Depends(get_report_repository)]
 
 
 # ── Services ─────────────────────────────────────────────────────────────────
@@ -167,6 +181,21 @@ def get_leaderboard_service(leaderboard: LeaderboardRepo, classes: ClassRepo) ->
     return LeaderboardService(leaderboard, classes)
 
 
+def get_analytics_service(
+    analytics: AnalyticsRepo, classes: ClassRepo, gamification: GamificationSvc
+) -> AnalyticsService:
+    return AnalyticsService(analytics, classes, gamification)
+
+
+def get_report_service(
+    analytics_service: AnalyticsSvc,
+    analytics: AnalyticsRepo,
+    reports: ReportRepo,
+    users: UserRepo,
+) -> ReportService:
+    return ReportService(analytics_service, analytics, reports, users, get_storage())
+
+
 def get_submission_service(
     submissions: SubmissionRepo,
     graph_service: GraphSvc,
@@ -193,6 +222,8 @@ OCRSvc = Annotated[OCRService, Depends(get_ocr_service)]
 AnalysisSvc = Annotated[AnalysisService, Depends(get_analysis_service)]
 GamificationSvc = Annotated[GamificationService, Depends(get_gamification_service)]
 LeaderboardSvc = Annotated[LeaderboardService, Depends(get_leaderboard_service)]
+AnalyticsSvc = Annotated[AnalyticsService, Depends(get_analytics_service)]
+ReportSvc = Annotated[ReportService, Depends(get_report_service)]
 SubmissionSvc = Annotated[SubmissionService, Depends(get_submission_service)]
 
 

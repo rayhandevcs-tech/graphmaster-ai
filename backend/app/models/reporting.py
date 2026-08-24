@@ -14,7 +14,6 @@ from sqlalchemy import (
     Index,
     String,
     Text,
-    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -62,8 +61,20 @@ class AnalyticsSnapshot(Base, UUIDPrimaryKeyMixin):
             f"scope IN ({', '.join(repr(v) for v in values(AnalyticsScope))})",
             name="scope_valid",
         ),
-        UniqueConstraint(
-            "scope", "class_id", "user_id", "period_start", name="uq_analytics_snapshot"
+        # NULLS NOT DISTINCT, because `class_id` and `user_id` are NULL for the
+        # platform scope and `user_id` is NULL for a class — and under the
+        # default rule NULLs never compare equal, so a plain unique constraint
+        # over these four columns would permit unlimited duplicate snapshots
+        # for every scope except `student`. The leaderboard table had the same
+        # hole and it silently listed each student twice.
+        Index(
+            "uq_analytics_snapshot",
+            "scope",
+            "class_id",
+            "user_id",
+            "period_start",
+            unique=True,
+            postgresql_nulls_not_distinct=True,
         ),
         Index("ix_analytics_snapshots_scope_period", "scope", "period_start"),
     )

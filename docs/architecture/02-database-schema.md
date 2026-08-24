@@ -457,7 +457,22 @@ Precomputed metrics backing FR-12.1 – FR-12.5.
 | metrics | JSONB | NOT NULL | See §6.2 |
 | generated_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | |
 
-Index: `UNIQUE (scope, class_id, user_id, period_start)`.
+Index: `UNIQUE (scope, class_id, user_id, period_start) NULLS NOT DISTINCT`.
+
+**`NULLS NOT DISTINCT` is load-bearing.** `class_id` and `user_id` are both
+NULL for the platform scope and `user_id` is NULL for a class, and under
+PostgreSQL's default rule NULLs never compare equal — so a plain unique
+constraint over these four columns would permit unlimited duplicate snapshots
+for every scope except `student`. `leaderboard_entries` had the same hole and
+was silently listing every student twice.
+
+**Nothing writes to this table yet.** Analytics are computed live from the
+submission and score tables: at classroom scale they are small aggregates over
+an indexed date range, and a cached figure would be stale exactly when a
+teacher most wants it — in the minutes after a lesson. The table is reserved
+for permanently archiving a period, which is a different job from serving a
+dashboard, and it is constrained correctly now rather than after it starts
+holding rows.
 
 ### 6.2 `metrics` payload shape
 
@@ -492,12 +507,18 @@ Generated export records (FR-11.5).
 | format | TEXT | NOT NULL, CHECK IN (`'csv'`,`'xlsx'`,`'pdf'`) | |
 | parameters | JSONB | NOT NULL, DEFAULT `'{}'` | Date range, filters |
 | file_path | TEXT | NULL | Storage reference once generated |
-| status | TEXT | NOT NULL, DEFAULT `'pending'`, CHECK IN (`'pending'`,`'ready'`,`'failed'`) | |
+| status | TEXT | NOT NULL, DEFAULT `'pending'`, CHECK IN (`'pending'`,`'ready'`,`'failed'`) | All three are reachable — see below |
 | error_message | TEXT | NULL | |
 | created_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | |
 | completed_at | TIMESTAMPTZ | NULL | |
 
 Index: `INDEX (teacher_id, created_at DESC)`.
+
+Generation is synchronous, but the record still moves through `pending` on its
+way to `ready`, and a failure is committed as `failed` with a reason rather
+than being rolled back by the error that caused it. That keeps all three
+statuses states the code actually reaches, and means attaching a queue at the
+`JobRunner` seam changes nothing about this table.
 
 ---
 

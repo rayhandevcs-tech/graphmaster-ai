@@ -242,6 +242,8 @@ def scored_submission_factory(db: AsyncSession):
         vocabulary_percentage: float = 70.0,
         reward_tier: str = "flower",
         scored_at: datetime | None = None,
+        detected_terms: list | None = None,
+        word_count: int = 7,
     ) -> Submission:
         moment = scored_at or datetime.now(UTC)
         submission = Submission(
@@ -249,7 +251,7 @@ def scored_submission_factory(db: AsyncSession):
             graph_id=graph.id,
             input_method=InputMethod.TYPED.value,
             answer_text="A description written for a test.",
-            word_count=7,
+            word_count=word_count,
             status=SubmissionStatus.SCORED.value,
             submitted_at=moment,
             scored_at=moment,
@@ -266,7 +268,7 @@ def scored_submission_factory(db: AsyncSession):
             detected_count=3,
             unique_detected_count=3,
             total_target_count=5,
-            detected_terms=[],
+            detected_terms=detected_terms or [],
             missing_terms=[],
             category_breakdown={},
             writing_breakdown={},

@@ -120,6 +120,30 @@ Framer Motion · Lottie · Chart.js · TanStack Query
 31. **Leaderboards rank students only, and never publish a reward tier.** A
     hammer count belongs to one student's own results screen; on a board it is
     the humiliation FR-7.6 rules out.
+32. **A missing average is `None`, never `0`.** A student who has not started
+    is not one scoring nothing, and a zero sorts them below someone genuinely
+    struggling.
+33. **A class the caller does not teach is refused, not returned empty.** An
+    empty report and a forbidden one look identical, and the first is a lie
+    (FR-11.6).
+34. **Vocabulary analytics count `scores.detected_terms`**, never a re-scan of
+    the answer text. A second detector that disagrees with the first makes the
+    figures unusable as evidence.
+35. **Engagement is measured against enrolment**, so "half the class never
+    started" cannot hide behind "everyone who practised, practised a lot".
+36. **Analytics are computed live.** `analytics_snapshots` is unused on
+    purpose — a cached figure is stale exactly when a teacher wants it, in the
+    minutes after a lesson.
+37. **A `UNIQUE` over nullable columns constrains nothing.** NULLs never
+    compare equal, so use `NULLS NOT DISTINCT` or a partial index. Both
+    `leaderboard_entries` and `analytics_snapshots` were wrong this way.
+38. **CSV is always available; Excel and PDF are optional.** A missing library
+    is a 503 and a `failed` report row, never a 500 — the same rule the OCR
+    chain and the language model follow.
+39. **A submission export carries scores and metadata, never the answers.** A
+    file circulated by email should not hold every student's writing verbatim.
+40. **Excel cannot store a timezone.** Convert to `PLATFORM_TIMEZONE`, drop the
+    offset, and name the zone in the report header.
 
 ## Conventions
 

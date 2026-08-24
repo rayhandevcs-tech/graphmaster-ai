@@ -6,8 +6,9 @@ import uuid
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import AdminUser, CurrentUser, UserRepo, UserSvc
+from app.api.deps import AdminUser, AnalyticsSvc, CurrentUser, StudentUser, UserRepo, UserSvc
 from app.models.enums import UserRole
+from app.schemas.analytics import StudentDashboard
 from app.schemas.common import Page
 from app.schemas.user import (
     AdminUserUpdateRequest,
@@ -34,6 +35,26 @@ async def update_me(payload: UserUpdateRequest, user: CurrentUser, users: UserSv
 @router.get("/me/level", response_model=LevelProgress, summary="Your level progress")
 async def get_my_level(user: CurrentUser, users: UserSvc) -> LevelProgress:
     return LevelProgress.model_validate(users.level_progress(user))
+
+
+@router.get(
+    "/me/dashboard",
+    response_model=StudentDashboard,
+    summary="Your dashboard",
+    description=(
+        "Everything the student's home screen renders (FR-10.1 to FR-10.5): attempt "
+        "totals and averages, XP and level progress, the practice streak, unlocked "
+        "achievements, badge counts, recent attempts and a score trend.\n\n"
+        "Delivered as one payload rather than six, because it paints as a single "
+        "screen — six requests would show the XP bar, the streak and the chart "
+        "arriving at different moments, which reads as the page being broken rather "
+        "than loading.\n\n"
+        "Students only. Teachers and administrators have `/analytics/*`, which answers "
+        "a different question about other people."
+    ),
+)
+async def get_my_dashboard(student: StudentUser, analytics: AnalyticsSvc) -> StudentDashboard:
+    return StudentDashboard.model_validate(await analytics.student_dashboard(student))
 
 
 @router.get(
