@@ -159,6 +159,44 @@ makes this matter: score insert, XP events, badge, achievements and user counter
 updates all commit together or not at all. A partial commit would show the
 student a score with no XP, which reads as lost work.
 
+### 8.1 The one deliberate exception
+
+`SubmissionService._record_extraction_failure` commits inside a service. It has
+to. The rule above rolls back on *any* exception, and a recognition failure is
+reported by raising one — so a `failed` status written the ordinary way would be
+erased by the very error reporting it, and the student would get a 422 against a
+submission still sitting in `extracting` with no record of what went wrong.
+`failed` would be a status the schema declares and the code can never reach.
+
+Only that submission's own columns are pending at the point of the commit, so it
+cannot smuggle out an unrelated half-finished write. The test suite's isolation
+survives it because the test session joins an already-open transaction, where a
+commit releases a savepoint rather than publishing anything —
+`tests/integration/test_submission_concurrency.py` asserts exactly that, since a
+regression there would silently leak rows between every test after a failed
+upload.
+
+### 8.2 Exactly-once scoring
+
+`analyze` locks the submission row (`SELECT … FOR UPDATE`) before reading its
+status, so two concurrent calls serialise rather than both observing a
+not-yet-scored row. Without the lock both would run the engine and both would
+insert a score — one dying on the unique constraint with a 500 — and once Sprint
+7 lands, both would award XP for a single piece of work, which is a
+straightforward way to farm the leaderboard.
+
+The `analyzing` status is written inside that lock. It is transient by
+construction today: nothing commits between it and `scored`, so a failure rolls
+it back and the attempt stays retryable. It is written anyway because it is the
+honest description of the state, and because moving analysis to a background
+worker later needs the guard to already be correct.
+
+The engine call is synchronous CPU work — a few hundred milliseconds of spaCy —
+executed on the event loop while holding that row lock. Acceptable for a
+single-instance deployment; the natural fix is a worker queue rather than a
+thread pool, since spaCy's `Vocab` is mutated during parsing and is not safe to
+share across threads.
+
 ## 9. Security implementation
 
 | Control | Implementation |

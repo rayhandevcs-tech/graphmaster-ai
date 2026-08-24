@@ -348,6 +348,52 @@ result screen needs both simultaneously to sequence its animation — splitting
 them across two calls would make the reward render before the XP bar knows what
 to animate to.
 
+#### 3.7a Behaviour a client must account for
+
+**Opening is idempotent while a draft is untouched.** `POST /submissions` for a
+graph the student already has a *pristine* draft on (no text, no image) returns
+that draft rather than creating a second one, so a double-tapped "Start
+practice" does not litter the table. A draft with any work in it is never
+reused.
+
+**Scoring is exactly once.** The submission row is locked before its status is
+read, so two `analyze` calls racing on one submission serialise: one scores it,
+the other gets `409 SUBMISSION_ALREADY_SCORED`. This matters beyond tidiness —
+without it both callers would run the engine, one would die on the score's
+unique constraint, and from Sprint 7 both would award XP for one piece of work.
+
+**Scoring is final.** Afterwards the text is frozen (`PATCH /text` returns 409)
+and the attempt cannot be discarded (`DELETE` returns 409), because the score
+carries awarded XP and counts towards achievements and the leaderboard.
+Re-attempting a graph means opening a **new** submission; nothing is
+overwritten, so improvement across attempts stays visible.
+
+**A failed reading is a recoverable state, not a dead end.** When every engine
+fails the submission is left in `failed` with the uploaded image retained and
+its path recorded. The student can upload a different photograph, or type the
+answer into the same attempt with `PATCH /text` — which returns it to `draft`.
+`input_method` deliberately stays `handwriting`: the record should show that
+handwriting was attempted and recognition did not work, not that the answer was
+typed all along.
+
+**A 503 never consumes the attempt.** If the language model is missing, or no
+OCR engine is configured, nothing is written — the same request succeeds once
+the server is provisioned. Only a failed *reading* marks the submission, because
+only that produced an artifact worth recording.
+
+**`GET /submissions/{id}/image` is authenticated, not static.** A browser will
+not attach a bearer token to an `<img src>`, so clients fetch the image as a
+blob and render the object URL. That inconvenience is the point: serving
+handwriting from a guessable static path would let one student read another's
+page. Responses carry `Cache-Control: private, no-store`.
+
+**The model answer is released on marking.** `reference_description` is absent
+from a submission until it reaches `scored`, and is always present for teachers
+and administrators.
+
+**`total_target_count` is frozen at the time of scoring.** A teacher adding a
+target term next week does not move any historical percentage.
+
 ### 3.8 Gamification
 
 | Method | Path | Description | Roles |
@@ -467,6 +513,7 @@ Selected error codes:
 | `UNSUPPORTED_FILE_TYPE` | 415 | Not JPG/JPEG/PNG/WEBP |
 | `FILE_TOO_LARGE` | 413 | Over the configured limit |
 | `NO_TARGET_VOCABULARY` | 409 | Graph has no target set and no type default |
+| `SERVICE_UNAVAILABLE` | 503 | Handwriting upload with no recognition engine configured |
 | `CLASS_CODE_INVALID` | 404 | Unknown or inactive join code |
 
 ### 5.3 Rate limits (NFR-2.5, NFR-2.6)

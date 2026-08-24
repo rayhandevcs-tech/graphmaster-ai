@@ -24,6 +24,7 @@ from app.repositories.auth_session import AuthSessionRepository
 from app.repositories.avatar import AvatarRepository
 from app.repositories.class_ import ClassRepository
 from app.repositories.graph import GraphRepository
+from app.repositories.submission import SubmissionRepository
 from app.repositories.user import UserRepository
 from app.repositories.vocabulary import (
     VocabularyCategoryRepository,
@@ -34,6 +35,7 @@ from app.services.auth import AuthService
 from app.services.class_ import ClassService
 from app.services.graph import GraphService
 from app.services.ocr import OCRService
+from app.services.submission import SubmissionService
 from app.services.user import UserService
 from app.services.vocabulary import VocabularyService
 from app.storage.factory import get_storage
@@ -76,6 +78,10 @@ def get_class_repository(db: DbSession) -> ClassRepository:
     return ClassRepository(db)
 
 
+def get_submission_repository(db: DbSession) -> SubmissionRepository:
+    return SubmissionRepository(db)
+
+
 UserRepo = Annotated[UserRepository, Depends(get_user_repository)]
 AvatarRepo = Annotated[AvatarRepository, Depends(get_avatar_repository)]
 SessionRepo = Annotated[AuthSessionRepository, Depends(get_auth_session_repository)]
@@ -85,6 +91,7 @@ VocabCategoryRepo = Annotated[
 VocabItemRepo = Annotated[VocabularyItemRepository, Depends(get_vocabulary_item_repository)]
 GraphRepo = Annotated[GraphRepository, Depends(get_graph_repository)]
 ClassRepo = Annotated[ClassRepository, Depends(get_class_repository)]
+SubmissionRepo = Annotated[SubmissionRepository, Depends(get_submission_repository)]
 
 
 # ── Services ─────────────────────────────────────────────────────────────────
@@ -118,6 +125,15 @@ def get_analysis_service(
     return AnalysisService(graphs, items, graph_service)
 
 
+def get_submission_service(
+    submissions: SubmissionRepo,
+    graph_service: GraphSvc,
+    analysis: AnalysisSvc,
+    ocr: OCRSvc,
+) -> SubmissionService:
+    return SubmissionService(submissions, graph_service, analysis, ocr)
+
+
 def get_ocr_service() -> OCRService:
     # Both dependencies are process-wide singletons: the chain holds the
     # loaded recognition models, and rebuilding either per request would add
@@ -132,6 +148,7 @@ GraphSvc = Annotated[GraphService, Depends(get_graph_service)]
 ClassSvc = Annotated[ClassService, Depends(get_class_service)]
 OCRSvc = Annotated[OCRService, Depends(get_ocr_service)]
 AnalysisSvc = Annotated[AnalysisService, Depends(get_analysis_service)]
+SubmissionSvc = Annotated[SubmissionService, Depends(get_submission_service)]
 
 
 # ── Authentication ───────────────────────────────────────────────────────────

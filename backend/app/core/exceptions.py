@@ -191,6 +191,33 @@ class OCRError(ValidationError):
     message = "Text could not be extracted from the image."
 
 
+class OCRUnreadableError(OCRError):
+    """Every provider failed on an image that was nonetheless stored.
+
+    Carries where the image landed so the caller can record it against the
+    submission. Without that, the upload FR-4.9 promises to retain becomes an
+    orphan on disk that no endpoint can reach and the student cannot retry
+    from — they would have to photograph the page again, which is exactly what
+    the requirement exists to avoid.
+
+    The location travels as attributes rather than in ``details`` because
+    ``details`` is serialised into the response body, and a storage key is
+    internal structure that no client needs.
+    """
+
+    def __init__(
+        self,
+        message: str | None = None,
+        *,
+        storage_key: str | None = None,
+        image_url: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(message, **kwargs)
+        self.storage_key = storage_key
+        self.image_url = image_url
+
+
 class AnalysisError(ValidationError):
     code = "ANALYSIS_FAILED"
     message = "The response could not be analysed."
