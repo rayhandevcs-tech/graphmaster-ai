@@ -80,3 +80,23 @@ class TestLevelProgress:
     def test_percent_always_in_range(self):
         for xp in (0, 1, 49, 50, 51, 2_249, 2_250, 100_000, 247_500, 999_999):
             assert 0.0 <= level_progress(xp).progress_percent <= 100.0
+
+
+class TestTheCurveAgreesWithItself:
+    def test_every_level_boundary_is_exact(self):
+        """The level shown and the threshold published must be the same curve.
+
+        `level_for_xp` inverts the threshold formula with a square root, and a
+        float error of one part in a billion at a boundary would show a
+        student level 6 while the progress bar said they needed one more point
+        to reach it. The two corrective loops in `level_for_xp` exist for
+        this; this is what proves they are doing their job.
+        """
+        for level in range(2, 101):
+            threshold = xp_required_for_level(level)
+            assert level_for_xp(threshold) == level, f"at exactly {threshold} XP"
+            assert level_for_xp(threshold - 1) == level - 1, f"one XP short of level {level}"
+
+    def test_it_never_reports_a_level_above_the_configured_maximum(self):
+        assert level_for_xp(10_000_000, max_level=100) == 100
+        assert level_for_xp(10_000_000, max_level=20) == 20

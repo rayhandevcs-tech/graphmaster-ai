@@ -117,3 +117,44 @@ class TestRefreshTokens:
     def test_hash_does_not_contain_token(self):
         token = generate_refresh_token()
         assert token not in hash_refresh_token(token)
+
+
+class TestTokenClaims:
+    def test_a_token_with_no_subject_is_refused(self):
+        """A signed token still has to say who it is for.
+
+        The subject is what the request handler turns into a user; a token
+        without one that reached `decode_token`'s caller would become a
+        lookup for `None`.
+        """
+        from jose import jwt
+
+        from app.core.config import get_settings
+        from app.core.exceptions import InvalidTokenError
+        from app.core.security import decode_token
+
+        settings = get_settings()
+        token = jwt.encode(
+            {"type": "access", "role": "student", "exp": 9_999_999_999},
+            settings.SECRET_KEY,
+            algorithm=settings.JWT_ALGORITHM,
+        )
+
+        with pytest.raises(InvalidTokenError, match="subject"):
+            decode_token(token)
+
+    def test_a_token_signed_with_another_key_is_refused(self):
+        """The whole scheme rests on this one check."""
+        from jose import jwt
+
+        from app.core.exceptions import InvalidTokenError
+        from app.core.security import decode_token
+
+        token = jwt.encode(
+            {"sub": "abc", "type": "access", "exp": 9_999_999_999},
+            "a-different-secret-key-that-is-long-enough",
+            algorithm="HS256",
+        )
+
+        with pytest.raises(InvalidTokenError):
+            decode_token(token)

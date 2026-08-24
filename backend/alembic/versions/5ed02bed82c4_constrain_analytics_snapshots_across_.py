@@ -22,6 +22,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "5ed02bed82c4"

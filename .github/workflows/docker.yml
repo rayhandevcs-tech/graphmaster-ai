@@ -1,0 +1,164 @@
+name: Docker image
+
+# The build bakes in the language model and the EasyOCR weights, so it takes
+# minutes rather than seconds. Running it on every push would slow the loop
+# down for changes that cannot affect the image; these paths are the ones
+# that can.
+on:
+  push:
+    paths:
+      - "backend/Dockerfile"
+      - "backend/pyproject.toml"
+      - "backend/scripts/**"
+      - "frontend/Dockerfile"
+      - "frontend/package-lock.json"
+      - "frontend/next.config.ts"
+      - "docker-compose.yml"
+      - ".github/workflows/docker.yml"
+  pull_request:
+    paths:
+      - "backend/Dockerfile"
+      - "backend/pyproject.toml"
+      - "backend/scripts/**"
+      - "frontend/Dockerfile"
+      - "frontend/package-lock.json"
+      - "frontend/next.config.ts"
+      - "docker-compose.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: Build and boot the API image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: graphmaster
+          POSTGRES_PASSWORD: graphmaster
+          POSTGRES_DB: graphmaster
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U graphmaster -d graphmaster"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          load: true
+          tags: graphmaster-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # NFR-6.1/6.2. A built image is not a working one: the entrypoint
+      # migrates before it serves, and a missing model or an unrunnable
+      # migration only shows up on boot.
+      - name: Boot it against a real database
+        run: |
+          docker run -d --name api --network host \
+            -e ENVIRONMENT=production \
+            -e "SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')" \
+            -e DATABASE_URL=postgresql+asyncpg://graphmaster:graphmaster@localhost:5432/graphmaster \
+            --entrypoint /app/scripts/entrypoint.sh \
+            graphmaster-api:ci \
+            uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:8000/api/v1/health/ready > /dev/null; then
+              echo "Ready."
+              curl -fsS http://localhost:8000/api/v1/health/ready
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "::error::The API never became ready."
+          docker logs api
+          exit 1
+
+      - name: Container logs
+        if: always()
+        run: docker logs api || true
+
+      # The image runs unprivileged by design; a base-image change that
+      # dropped the USER line would go unnoticed otherwise.
+      - name: It does not run as root
+        run: |
+          user=$(docker exec api whoami)
+          echo "Running as: $user"
+          [ "$user" = "graphmaster" ]
+
+  web:
+    name: Build and boot the web image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          load: true
+          tags: graphmaster-web:ci
+          # The URL is baked into the browser bundle at build time, so it is a
+          # build argument here rather than a variable on the container. This
+          # value is the deployment's, not a default worth shipping.
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://api.example.test/api/v1
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # `output: "standalone"` copies a traced subset of the dependency tree
+      # into the image. A module the tracer missed is invisible until the
+      # server tries to start.
+      - name: Boot it
+        run: |
+          docker run -d --name web -p 3000:3000 graphmaster-web:ci
+
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/ > /dev/null; then
+              echo "Serving."
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "::error::The web server never answered."
+          docker logs web
+          exit 1
+
+      - name: The API URL was baked in, not left at the default
+        run: |
+          if ! docker exec web sh -c "grep -rqs 'api.example.test' /app/.next"; then
+            echo "::error::NEXT_PUBLIC_API_URL did not reach the client bundle."
+            exit 1
+          fi
+
+      - name: Container logs
+        if: always()
+        run: docker logs web || true
+
+      - name: It does not run as root
+        run: |
+          user=$(docker exec web whoami)
+          echo "Running as: $user"
+          [ "$user" = "graphmaster" ]

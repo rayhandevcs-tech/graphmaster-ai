@@ -1,0 +1,209 @@
+@import "tailwindcss";
+
+/* next-themes writes `class="dark"` on <html>; Tailwind 4 has no `darkMode`
+   config key, so the variant is declared here. */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * The palette (06-frontend-architecture §4).
+ *
+ * Every colour is a custom property with a light and a dark value, and no
+ * component hardcodes a hex (NFR-4.2). Values are OKLCH so a light and dark
+ * pair can be tuned for equal perceived lightness rather than by eye.
+ *
+ * `--gold` is deliberately NOT shadcn's `--accent`. shadcn spends `accent` on
+ * hover and focus surfaces, which would put gold on every menu item — and the
+ * crown reward is only special because gold appears nowhere else. Gold is used
+ * by the crown tier, the XP bar and the level-up modal, and nothing else.
+ */
+:root {
+  --radius: 0.75rem;
+
+  --background: oklch(0.99 0.004 285);
+  --foreground: oklch(0.21 0.02 285);
+
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+
+  /* Purple — the product's primary. */
+  --primary: oklch(0.52 0.22 295);
+  --primary-foreground: oklch(0.99 0.005 285);
+
+  /* Blue — secondary actions and informational surfaces. */
+  --secondary: oklch(0.55 0.19 262);
+  --secondary-foreground: oklch(0.99 0.005 285);
+
+  /* Subtle surfaces. Neutral on purpose: see the note about gold above. */
+  --muted: oklch(0.96 0.008 285);
+  --muted-foreground: oklch(0.48 0.02 285);
+  --accent: oklch(0.95 0.02 295);
+  --accent-foreground: oklch(0.3 0.1 295);
+
+  --destructive: oklch(0.55 0.22 27);
+  --destructive-foreground: oklch(0.99 0.005 285);
+  --success: oklch(0.55 0.15 150);
+  --success-foreground: oklch(0.99 0.005 285);
+
+  --border: oklch(0.91 0.01 285);
+  --input: oklch(0.91 0.01 285);
+  --ring: oklch(0.52 0.22 295);
+
+  /* Gold. Reserved. */
+  --gold: oklch(0.76 0.15 85);
+  --gold-foreground: oklch(0.26 0.06 85);
+
+  /* Reward tiers. Each is paired with an icon and a label in the UI, never
+     used as the only signal — a colour-blind student must still read the
+     tier (NFR-4.6). */
+  --tier-crown: oklch(0.76 0.15 85);
+  --tier-crown-foreground: oklch(0.26 0.06 85);
+  --tier-flower: oklch(0.65 0.19 15);
+  --tier-flower-foreground: oklch(0.99 0.005 285);
+  --tier-steady: oklch(0.62 0.13 232);
+  --tier-steady-foreground: oklch(0.99 0.005 285);
+  --tier-hammer: oklch(0.68 0.16 62);
+  --tier-hammer-foreground: oklch(0.25 0.06 62);
+
+  /* Chart series, in the order Chart.js consumes them. */
+  --chart-1: oklch(0.52 0.22 295);
+  --chart-2: oklch(0.55 0.19 262);
+  --chart-3: oklch(0.65 0.19 15);
+  --chart-4: oklch(0.62 0.13 232);
+  --chart-5: oklch(0.76 0.15 85);
+  --chart-6: oklch(0.58 0.15 150);
+}
+
+.dark {
+  --background: oklch(0.17 0.015 285);
+  --foreground: oklch(0.96 0.005 285);
+
+  --card: oklch(0.22 0.018 285);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.22 0.018 285);
+  --popover-foreground: var(--foreground);
+
+  /* Lifted and desaturated: the light-theme purple on a dark ground is both
+     too dim to read and too saturated to sit still. */
+  --primary: oklch(0.7 0.17 295);
+  --primary-foreground: oklch(0.18 0.03 295);
+
+  --secondary: oklch(0.68 0.15 262);
+  --secondary-foreground: oklch(0.18 0.03 262);
+
+  --muted: oklch(0.26 0.018 285);
+  --muted-foreground: oklch(0.72 0.02 285);
+  --accent: oklch(0.3 0.04 295);
+  --accent-foreground: oklch(0.92 0.02 295);
+
+  --destructive: oklch(0.7 0.19 25);
+  --destructive-foreground: oklch(0.18 0.03 25);
+  --success: oklch(0.72 0.15 152);
+  --success-foreground: oklch(0.18 0.03 152);
+
+  --border: oklch(0.32 0.02 285);
+  --input: oklch(0.32 0.02 285);
+  --ring: oklch(0.7 0.17 295);
+
+  --gold: oklch(0.82 0.15 85);
+  --gold-foreground: oklch(0.24 0.06 85);
+
+  --tier-crown: oklch(0.82 0.15 85);
+  --tier-crown-foreground: oklch(0.24 0.06 85);
+  --tier-flower: oklch(0.72 0.17 15);
+  --tier-flower-foreground: oklch(0.2 0.04 15);
+  --tier-steady: oklch(0.72 0.12 232);
+  --tier-steady-foreground: oklch(0.2 0.04 232);
+  --tier-hammer: oklch(0.78 0.15 62);
+  --tier-hammer-foreground: oklch(0.24 0.05 62);
+
+  --chart-1: oklch(0.7 0.17 295);
+  --chart-2: oklch(0.68 0.15 262);
+  --chart-3: oklch(0.72 0.17 15);
+  --chart-4: oklch(0.72 0.12 232);
+  --chart-5: oklch(0.82 0.15 85);
+  --chart-6: oklch(0.72 0.14 152);
+}
+
+/* `inline` resolves the custom properties at build time, so `bg-primary`
+   emits `var(--primary)` and both themes flow from the block above. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+
+  --color-tier-crown: var(--tier-crown);
+  --color-tier-crown-foreground: var(--tier-crown-foreground);
+  --color-tier-flower: var(--tier-flower);
+  --color-tier-flower-foreground: var(--tier-flower-foreground);
+  --color-tier-steady: var(--tier-steady);
+  --color-tier-steady-foreground: var(--tier-steady-foreground);
+  --color-tier-hammer: var(--tier-hammer);
+  --color-tier-hammer-foreground: var(--tier-hammer-foreground);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  /* NFR-4.4: focus must be visible, and visible on a dark ground too. */
+  :focus-visible {
+    @apply outline-ring outline-2 outline-offset-2;
+  }
+
+  /* FR-7.10 / NFR-4.x. A student who has asked their operating system to stop
+     animating gets a still interface, including the reward sequences — those
+     components also check the same query in JavaScript, because a transform
+     that never runs is not the same as a sequence that never starts. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

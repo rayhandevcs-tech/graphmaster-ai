@@ -266,23 +266,6 @@ async def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-async def get_optional_user(
-    request: Request,
-    users: UserRepo,
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)] = None,
-) -> User | None:
-    """The caller if a valid token was supplied, otherwise None."""
-    if credentials is None or not credentials.credentials:
-        return None
-    try:
-        return await get_current_user(request, users, credentials)
-    except (InvalidTokenError, AccountInactiveError):
-        return None
-
-
-OptionalUser = Annotated[User | None, Depends(get_optional_user)]
-
-
 # ── Authorisation ────────────────────────────────────────────────────────────
 
 

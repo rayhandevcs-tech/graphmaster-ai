@@ -82,3 +82,27 @@ class TestDerivedProperties:
         # Alembic and the seeding CLI are synchronous and cannot use asyncpg.
         s = make(DATABASE_URL="postgresql+asyncpg://u:p@h:5432/db")
         assert s.sync_database_url == "postgresql://u:p@h:5432/db"
+
+
+class TestPlatformTimezone:
+    def test_an_unknown_timezone_is_refused_at_boot(self):
+        """Every gamification date derives from this.
+
+        A typo would otherwise surface days later as a cohort whose streaks
+        rolled over at the wrong hour — long after whoever deployed it had
+        stopped watching.
+        """
+        with pytest.raises(ValidationError, match="not a known IANA timezone"):
+            make(PLATFORM_TIMEZONE="Asia/Dacca-typo")
+
+    def test_a_real_timezone_is_accepted(self):
+        assert make(PLATFORM_TIMEZONE="Asia/Dhaka").PLATFORM_TIMEZONE == "Asia/Dhaka"
+
+
+class TestOptionalEngineSettings:
+    def test_easyocr_languages_are_parsed_into_a_list(self):
+        """EasyOCR takes a list; the environment can only carry a string."""
+        assert make(EASYOCR_LANGUAGES="en, bn").easyocr_languages == ["en", "bn"]
+
+    def test_a_trailing_separator_does_not_produce_an_empty_language(self):
+        assert make(EASYOCR_LANGUAGES="en,").easyocr_languages == ["en"]

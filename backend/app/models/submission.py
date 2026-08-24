@@ -109,10 +109,6 @@ class Submission(Base, UUIDPrimaryKeyMixin):
         Index("ix_submissions_status", "status"),
     )
 
-    @property
-    def is_scored(self) -> bool:
-        return self.status == SubmissionStatus.SCORED.value
-
     def __repr__(self) -> str:
         return f"<Submission {self.id} status={self.status}>"
 

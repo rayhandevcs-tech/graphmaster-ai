@@ -57,6 +57,64 @@ CSV / Excel / PDF export
 No paid service is required. EasyOCR is the default OCR path; Google Vision
 activates automatically if credentials are present.
 
+## Development
+
+**Backend**
+
+```bash
+make install     # virtualenv, dependencies and the spaCy model
+make migrate     # apply migrations
+make seed        # reference data (idempotent)
+make dev         # run the API with auto-reload on :8000
+make test        # the suite with coverage
+make perf        # the SRS performance budgets, excluded from `make test`
+```
+
+**Frontend**
+
+```bash
+make web-install # npm ci
+make web-dev     # Next.js with hot reload on :3000
+make web-check   # prettier, eslint, build, typecheck and tests
+make api-types   # regenerate types/api.ts from a running API
+```
+
+`make check` runs both halves.
+
+The API needs PostgreSQL 16 and a `SECRET_KEY`; copy `backend/.env.example` to
+`backend/.env` and fill it in. The frontend needs `NEXT_PUBLIC_API_URL` —
+`frontend/.env.example` to `frontend/.env.local`. `docker compose up` brings up
+the database, the API and the web app together instead.
+
+`NEXT_PUBLIC_*` is inlined into the browser bundle when the frontend is
+**built**, not read from the environment at runtime, so in Docker it is a build
+argument. Setting it only on the running container leaves every browser talking
+to its own localhost.
+
+### The typed API client
+
+`frontend/types/api.ts` is generated from the backend's OpenAPI document, and
+CI regenerates it and fails if the committed copy has drifted. Components never
+call `fetch`: every request goes through `frontend/lib/api/`, which is where the
+base URL, the bearer token, the error envelope and the refresh-and-retry live.
+
+### Continuous integration
+
+Every push runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+
+| Job | What it proves |
+|---|---|
+| Format and lint | `black` and `ruff` are clean |
+| No committed secrets | No env or credential file is tracked, and no example file carries a real-looking value |
+| Tests and coverage | The suite against a real PostgreSQL, with an 80% floor |
+| Migrations | Upgrades from empty, matches the models, and round-trips a downgrade |
+| Frontend | Prettier, ESLint, a production build, `tsc --noEmit` and the frontend tests |
+| Generated types match the API | `types/api.ts` regenerated from the live OpenAPI document is unchanged |
+| Compose file | `docker compose config` resolves |
+
+`docker.yml` builds both images and boots them whenever the image inputs
+change.
+
 ## Documentation
 
 | Document | Contents |
@@ -72,6 +130,9 @@ activates automatically if credentials are present.
 | [OCR](docs/architecture/07-ocr-architecture.md) | Provider chain, preprocessing |
 | [NLP](docs/architecture/08-nlp-architecture.md) | Detection, scoring, feedback |
 | [Gamification](docs/architecture/09-gamification-architecture.md) | XP, tiers, achievements |
+
+Testing strategy, the API-surface invariants and the CI pipeline are described
+in [Backend §10](docs/architecture/05-backend-architecture.md#10-testing).
 
 ## Licence
 

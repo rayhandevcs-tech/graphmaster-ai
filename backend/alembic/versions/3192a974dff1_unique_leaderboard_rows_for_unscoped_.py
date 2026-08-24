@@ -27,6 +27,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "3192a974dff1"
@@ -42,9 +43,7 @@ def upgrade() -> None:
     # built. The highest-numbered row of each duplicate group is dropped; they
     # are copies of one another, so which survives does not matter, and the
     # next rebuild replaces the period wholesale in any case.
-    op.execute(
-        sa.text(
-            """
+    op.execute(sa.text("""
             DELETE FROM leaderboard_entries a
             USING leaderboard_entries b
             WHERE a.class_id IS NULL
@@ -53,9 +52,7 @@ def upgrade() -> None:
               AND a.period_start = b.period_start
               AND a.user_id = b.user_id
               AND a.id > b.id
-            """
-        )
-    )
+            """))
     op.create_index(
         INDEX_NAME,
         "leaderboard_entries",

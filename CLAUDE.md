@@ -145,13 +145,87 @@ Framer Motion · Lottie · Chart.js · TanStack Query
 40. **Excel cannot store a timezone.** Convert to `PLATFORM_TIMEZONE`, drop the
     offset, and name the zone in the report header.
 
+41. **A new route is guarded until the allowlist says otherwise.**
+    `tests/api/test_api_surface.py` walks the published OpenAPI document and
+    requires every operation to refuse an unauthenticated caller — and to
+    refuse it *for want of a token*, not merely to answer 401 for reasons of
+    its own. Making a route public means adding a line, with a reason, to
+    `PUBLIC` in that file.
+42. **An optional dependency gets a fake, never a mock.** `boto3`,
+    `google-cloud-vision` and `easyocr` are not installed by default. A mock
+    agrees with whatever the code does, including calling `get_object` with
+    the wrong keyword; a fake with the real signatures disagrees.
+43. **Coverage of code nobody calls is a false signal.** Dead code is deleted,
+    not tested, and `__repr__` is excluded in `pyproject.toml` rather than
+    asserted on. A number lifted by exercising something no caller reaches
+    measures nothing.
+44. **`configure_logging()` clears the root handlers**, pytest's capture
+    handler included. A test that triggers it reads stdout rather than
+    `caplog`, and puts the handlers back — otherwise every later test in the
+    session logs into nothing.
+45. **`app.db.session.engine` pools connections across event loops.** Each
+    test gets its own loop, so a test that uses the process-wide engine must
+    `await engine.dispose(close=False)` around itself. Closing them instead
+    fails from the wrong loop.
+46. **One pytest session at a time.** The session-scoped `database_schema`
+    fixture drops and recreates every table, so a second run started against
+    the same database pulls the schema out from under the first — and the
+    resulting errors point at the tests, not at the collision.
+47. **NFR-1.1's fifty concurrent users describes a deployment**, not the test
+    harness: one worker sharing a core with the client cannot reproduce it.
+    The 500 ms budget is asserted per request, plus a service-time ceiling
+    under fifty concurrent callers, which is what actually catches an N+1 or a
+    lock held across I/O.
+
+48. **`frontend/types/api.ts` is generated, never edited.** It is rendered from
+    the backend's OpenAPI document by `scripts/generate-api-types.mjs`; run
+    `make api-types` against a running API. CI regenerates it and fails on any
+    diff, so a hand-edit is reverted by the next build.
+49. **`NEXT_PUBLIC_*` is inlined when the frontend is *built*.** The browser has
+    no `process.env`. In Docker it is a build argument; set only on the running
+    container it is silently absent, and every user's browser falls back to
+    talking to its own localhost.
+50. **The access token lives in memory in the browser.** Not `localStorage`,
+    not a readable cookie — both turn one XSS bug into a stolen token — and
+    never in server-side module state, which is shared by every request the
+    Node process handles. A hard refresh legitimately starts with none; the
+    bootstrap refresh is what recovers the session.
+51. **One refresh at a time, and exactly one retry.** Concurrent 401s must
+    share a single refresh: rotating the refresh token twice looks like theft
+    to the backend, which revokes the whole session family. And a refresh that
+    fails only signs someone out if they *had* a session — a visitor who never
+    signed in must not be bounced off the landing page.
+52. **Gold is reserved for the crown tier, XP and level-ups.** It is a separate
+    token from shadcn's `--accent`, which is the neutral hover surface;
+    mapping the two together puts gold on every menu item and spends the one
+    colour that makes a crown feel earned. `tests/design-tokens.test.ts`
+    enforces it with an allowlist.
+53. **Every colour is a token defined for both themes**, and there is no
+    hardcoded hex outside `app/globals.css` — the same test fails the build.
+    There is no `tailwind.config`; Tailwind 4 keeps the theme in the
+    stylesheet under `@theme`.
+54. **Route protection in the browser is UX, not a security boundary.** The API
+    checks every token and every role, and the surface test proves it. The
+    guard cannot run in middleware because neither credential reaches a Next
+    server: the access token is in the tab's memory and the refresh cookie
+    belongs to the API's origin.
+55. **A wrong role is a dead end, not a redirect.** Bouncing a student off a
+    teacher URL leaves them wondering whether they mistyped; the page says so
+    and offers the way back.
+56. **`next build` runs before `tsc --noEmit`.** The build generates
+    `next-env.d.ts`, which declares the ambient types for CSS imports and
+    `next/font`. Typechecking a clean checkout without it fails on imports
+    that are fine.
+
 ## Conventions
 
 - **Python** — Black, Ruff, full type hints. Routers → services → repositories;
   each layer calls only the one below it. Services raise domain exceptions,
   never `HTTPException`.
 - **TypeScript** — strict mode, no `any` in application code. Components never
-  call `fetch` directly; use `lib/api/`.
+  call `fetch` directly; use `lib/api/`, one module per resource over the
+  shared client. Prettier and ESLint (`next/core-web-vitals` +
+  `next/typescript`) are enforced by CI, as is a production build.
 - **Commits** — Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`,
   `test:`, `chore:`).
 - **Migrations** — Alembic, forward-only, hand-reviewed after autogeneration

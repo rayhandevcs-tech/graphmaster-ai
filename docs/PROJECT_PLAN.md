@@ -1,27 +1,28 @@
 # GraphMaster — Project Plan
 
-**Version:** 1.2
-**Status:** In progress — backend sprints 1–8 delivered, frontend not started
+**Version:** 1.3
+**Status:** In progress — backend complete, frontend foundation delivered
 **Branch:** `claude/graphmaster-platform-9aba5t`
 
 ---
 
 ## 1. Delivery status
 
-**Last updated:** end of Sprint 8 (analytics and exports).
+**Last updated:** end of Sprint 10 (frontend foundation).
 
 ### 1.1 Snapshot
 
 | Item | State |
 |---|---|
-| Backend sprints complete | **8 of 9** (Sprints 1–8) |
-| Frontend sprints complete | **0 of 5** (Sprints 10–14) |
+| Backend sprints complete | **9 of 9** (Sprints 1–9) |
+| Frontend sprints complete | **1 of 5** (Sprint 10) |
 | API endpoints | 75 operations across 59 paths |
-| Application modules | 120 Python files |
-| Tests | **871 passing**, 44 test modules |
-| Coverage | **95%** (target 80%, NFR-5.2) |
-| Migrations | 3, forward-only, applied cleanly |
-| Lint / format | `ruff` and `black` clean |
+| Application modules | 120 Python files · 60 TypeScript modules |
+| Tests | **1,048 passing** — 990 backend (986 in the default run, 4 performance budgets behind a marker) and 58 frontend |
+| Coverage | **99%** (target 80%, NFR-5.2) |
+| Migrations | 3, forward-only, upgraded from empty and round-tripped in CI |
+| Lint / format | `ruff` and `black` clean, enforced by CI |
+| CI | 7 jobs on every push: lint, secret scan, backend tests with an 80% floor, migrations, frontend build and tests, generated-type drift, compose |
 
 At the start of this plan the repository held nothing but documentation. The
 gap analysis in §2 below describes that starting point and the conflicts
@@ -41,22 +42,24 @@ schema looks the way it does.
 | **6** | Submission pipeline: typed and handwriting routes, `draft→scored` state machine, exactly-once scoring under a row lock, recoverable `failed` state, authenticated image streaming, history endpoints | A 503 never consumes an attempt |
 | **7** | XP ledger, level curve, declarative achievement rules, tier badges, streaks, four materialised leaderboard scopes, administrative XP corrections | Scoring and awarding share one transaction |
 | **8** | Class and platform analytics, vocabulary usage, score trends, student dashboard, four report types in CSV / Excel / PDF | Computed live; exports carry the screens' access rules |
+| **9** | API-surface invariants, the optional S3 and OCR backends tested against fakes, session-management endpoints, the request transaction, performance budgets, five-job CI | Every endpoint is proved to demand a token, by the same test |
+| **10** | Next.js 15 App Router, Tailwind 4 palette with dark mode, shadcn primitives, the generated API types and typed client for all 75 operations, the in-memory token store, auth context, route guard, Docker image and two more CI jobs | The types are generated from the OpenAPI document, and CI fails if the committed copy has drifted |
 
 ### 1.3 What remains
 
 | Sprint | Still to build | Depends on |
 |---|---|---|
-| **9** | Coverage gap closure, CI pipeline, load and edge-case passes | 8 |
-| **10** | Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui, purple/blue/gold tokens, dark mode, typed API client, auth context and route protection | 9 |
-| **11** | Landing, login, register (gender + avatar), student dashboard, practice page with live Chart.js, typed editor, handwriting upload with OCR preview, result page, profile, settings | 10 |
+| **11** | Registration with gender and avatar selection, the designed landing and auth pages, student dashboard, practice page with live Chart.js, typed editor, handwriting upload with OCR preview, result page, profile, settings | 10 |
 | **12** | Framer Motion reward sequences (crown + confetti / flower / hammer bonk-dizzy-fall-**recovery**), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal | 11 |
 | **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management | 12 |
 | **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit | 13 |
 
-Roughly: **the backend is feature-complete and the frontend has not started.**
-Every function in the specification — practising, marking, rewards, ranking,
-analytics and exports — is reachable over the API today. None of it has a
-screen. Sprint 9 hardens what exists; Sprints 10–14 build the interface.
+Roughly: **the backend is complete and the frontend has a foundation.** Every
+function in the specification — practising, marking, rewards, ranking,
+analytics and exports — is reachable over the API today, tested, and built by
+CI on every push. A student can now sign in, and the interface knows who they
+are; what they cannot yet do is practise. Sprints 11–14 build the screens on
+top of a client that already covers all 75 operations.
 
 ### 1.4 Decisions still open
 
@@ -66,12 +69,14 @@ place; say the word and it changes.
 | # | Question | Current default |
 |---|---|---|
 | 1 | Should `/analysis/*` be readable by students, or stay teacher-only? | Teacher and admin only |
-| 2 | NLTK is declared in `pyproject.toml` but unused since Sprint 5. Sprint 8 did not need it either — drop it? | Kept, unused |
+| 2 | NLTK is declared in `pyproject.toml` but unused since Sprint 5. Sprints 8 and 9 did not need it either, and it costs a corpus download in every image build — drop it in Sprint 14's deployment pass? | Kept, unused |
 | 3 | Editing a graph is open to any teacher; deleting it is owner-scoped. Should editing be owner-scoped too? | Any teacher may edit |
-| 4 | Superseded handwriting uploads are retained when a student re-uploads, to avoid data loss on rollback. Orphan cleanup is unscheduled. | Left as an operational task for Sprint 14 |
+| 4 | Two housekeeping jobs have no scheduler: superseded handwriting uploads are retained when a student re-uploads (deliberately, to avoid data loss on rollback), and `AuthSessionRepository.delete_expired` is never called. Both need a cron or a startup task. | Left as an operational task for Sprint 14 |
 | 5 | Publishing enforces "at least one required target", so a single-target graph makes the vocabulary percentage binary — 0% or 100%, hammer or crown. Enforce a minimum? | One target is enough |
 | 6 | `analytics_snapshots` is deliberately unwritten — analytics are computed live. Archive periodic snapshots for the research record, or drop the table? | Kept, unused |
 | 7 | A raw submission export is capped at 20,000 rows. Paginate a larger one, or leave date filters as the answer? | Capped, with the ceiling published on `/reports/capabilities` |
+| 8 | The performance budgets run in CI as an advisory step, because a shared runner cannot certify a latency figure. Should they instead be measured on the deployment host during Sprint 14 and recorded as the project's evidence for NFR-1.1? | Advisory in CI; `make perf` on real hardware |
+| 9 | The browser talks to the API directly, so the refresh cookie belongs to the API's origin. Serving both behind one origin (a Next rewrite, or one reverse proxy) would make it first-party, allow server-side data fetching, and let route protection move into middleware — at the cost of a hop on every request. Decide in Sprint 14's deployment pass? | Direct, with the guard in the browser |
 
 ---
 
@@ -250,12 +255,12 @@ conventional commit.
 | ✅ | **6** | Submission pipeline: typed and handwriting flows, draft→extracted→scored state machine, preview-before-analysis, history endpoints |
 | ✅ | **7** | Gamification: XP ledger, level curve, achievement rule engine, badge awards, streaks, four leaderboard scopes |
 | ✅ | **8** | Analytics service, student/teacher dashboard aggregates, CSV/Excel/PDF export |
-| ☐ | **9** | Pytest suite — unit, integration, API — targeting 80%+ coverage, plus CI |
+| ✅ | **9** | Coverage closed on the optional backends and the session-management endpoints, API-surface invariants, performance budgets, GitHub Actions CI |
 
 ### Phase C — Frontend (Phases 4 & 5 of the brief)
 | ✔ | Sprint | Deliverable |
 |---|---|---|
-| ☐ | **10** | Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui, purple/blue/gold tokens, dark mode, typed API client, auth context and route protection |
+| ✅ | **10** | Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui, purple/blue/gold tokens, dark mode, typed API client, auth context and route protection |
 | ☐ | **11** | Landing, login, register (gender + avatar), student dashboard, practice page with live Chart.js rendering, typed editor, handwriting upload with OCR preview, result page, profile, settings |
 | ☐ | **12** | Framer Motion reward sequences (crown+confetti / flower / hammer bonk-dizzy-fall-recovery), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal |
 | ☐ | **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management |

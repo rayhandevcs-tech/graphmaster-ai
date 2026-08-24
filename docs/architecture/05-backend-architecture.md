@@ -246,3 +246,84 @@ worse failure than a missing badge.
 Overall target 80%+ (NFR-5.2). Tests are written alongside each sprint rather
 than deferred to sprint 9, which exists to close gaps and wire CI, not to write
 the suite from scratch.
+
+### 10.1 Surface invariants
+
+Most tests assert what one endpoint does. A handful assert what *every*
+endpoint does, and they live in `tests/api/test_api_surface.py`. They read the
+published OpenAPI document — the same contract the frontend is written
+against — and check each operation in turn:
+
+- every route outside a hand-written public allowlist refuses an
+  unauthenticated request, *and refuses it for want of a token* rather than
+  incidentally;
+- every allowlisted route is one that still exists and is genuinely reachable;
+- every path is versioned (NFR-5.5), carries a summary and a tag, and has a
+  unique operation ID;
+- an unknown path, a wrong method, malformed JSON and an unhandled fault all
+  produce the one error envelope, and the fault leaks no stack trace.
+
+A route added without its authentication dependency is not a failing test
+anywhere else in the suite — every other test passes a token. This is the one
+that fails.
+
+### 10.2 What a fake stands in for
+
+Three dependencies are optional extras the default environment does not
+install: `boto3`, `google-cloud-vision` and `easyocr`. Left alone, they would
+be code nobody had ever executed — and they are not the marginal paths. S3 is
+the storage backend a cloud deployment uses, and the two OCR engines are the
+first two links of the chain, with Tesseract only the fallback.
+
+Each is replaced by a fake module shaped like the real SDK, injected through
+`sys.modules`. A fake rather than a mock, deliberately: a mock agrees with
+whatever the code does, including calling `get_object` with the wrong keyword,
+while a fake with the real signatures disagrees. The storage tests go one step
+further and run the same behavioural assertions against both backends, which
+is what NFR-6.4's "swap the backend without touching business logic" actually
+claims.
+
+### 10.3 The performance budgets
+
+NFR-1.1 and NFR-1.2 are numbers, so `tests/perf/` measures them. They carry a
+`perf` marker and are deselected from the default run (`make perf` runs them):
+they are the only tests whose result depends on the machine.
+
+NFR-1.1's "500 ms at the p95 under 50 concurrent users" describes a
+deployment — several uvicorn workers across several cores behind a proxy. The
+test harness runs one worker in one event loop with the client sharing its
+core, so fifty simultaneous callers queue by construction and the number that
+falls out says more about the runner's core count than about the code. So the
+500 ms budget is asserted per request, where it is measurable and where the
+regressions it exists to catch — an N+1 query, a dropped index — actually
+show; and the concurrent run asserts that all fifty callers are served and
+that per-request service time stays inside 100 ms under that contention. A
+cost that climbs when callers queue is the signature of a lock held across
+I/O, which looks perfect in every single-user test.
+
+### 10.4 Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request:
+
+| Job | What it proves |
+|---|---|
+| `lint` | Black and Ruff pass (NFR-5.3). Installs neither the application nor its dependencies, so it answers in seconds |
+| `secrets` | No `.env`, credential file or private key is tracked, and no example file carries a real-looking value (NFR-2.9) |
+| `test` | The suite passes against a real PostgreSQL 16 with Tesseract and the language model installed, and coverage is at least 80% (NFR-5.2) |
+| `migrations` | `alembic upgrade head` works from an empty database, `alembic check` finds no drift between models and migrations, a downgrade-and-upgrade round trip succeeds, and seeding twice is idempotent (NFR-5.4) |
+| `compose` | `docker-compose.yml` is valid (NFR-6.2) |
+
+`docker.yml` builds the API image, boots it against a real database and
+checks it serves `/health/ready` as an unprivileged user (NFR-6.1). It is
+gated on the paths that can affect the image, because the build bakes in the
+language model and the EasyOCR weights and takes minutes rather than seconds.
+
+Two details are deliberate. The signing key each run uses is generated inside
+the job rather than written into the workflow — a key committed to a workflow
+file is a key someone eventually copies into a deployment. And the language
+model is installed from a cached wheel: without it every analysis test would
+*skip*, and a green run that checked nothing is worse than a red one.
+
+The performance budgets run in CI too, as an advisory step that cannot fail
+the build. A shared runner cannot certify a latency figure; it can still show
+a regression that turns 20 ms into 200.
