@@ -90,6 +90,36 @@ Framer Motion · Lottie · Chart.js · TanStack Query
     `onupdate` (`updated_at`) are expired by the flush, and relationships set
     by foreign key alone go stale in the identity map. Both surface as a lazy
     load that the async driver cannot service.
+24. **`users.total_xp` is a cache and the ledger is the truth.** It is
+    *recomputed* from `xp_events` after every award, never incremented — an
+    award can be refused (the daily streak index, a lost achievement race), and
+    a cache that adds up what it tried to award drifts a little further every
+    time, with nothing to correct it.
+25. **The streak bonus needs a streak of two.** A first submission and a
+    submission that restarts a broken streak both earn nothing extra. Paying it
+    on a reset day would reward breaking a streak as much as keeping one.
+26. **Awards that a constraint may refuse run inside a savepoint.** The daily
+    streak bonus, an achievement unlock and a badge award are each wrapped in
+    `begin_nested()`. In PostgreSQL a failed statement poisons the whole
+    transaction — and that transaction holds the student's score.
+27. **A malformed achievement rule is inert, never fatal.** An unknown `type`
+    unlocks nothing and is logged. A typo in a seed row must not cost a student
+    the submission that happened to hit it.
+28. **`class_id` is NULL for three of the four leaderboard scopes**, and NULLs
+    do not compare equal — so `uq_leaderboard_entry` constrains the class board
+    and nothing else. The partial index on `(scope, period_start, user_id)
+    WHERE class_id IS NULL` is what stops a duplicated rebuild silently listing
+    every student twice.
+29. **`xp_events.created_at` uses `clock_timestamp()`, not `now()`.** One
+    scoring appends up to four entries, and `now()` is the transaction
+    timestamp — they would share a value and the ledger's order would fall back
+    to a random UUID.
+30. **Every gamification date comes from `PLATFORM_TIMEZONE`**, never the
+    server's locale and never UTC unless that is what was configured. A cohort
+    must roll over together.
+31. **Leaderboards rank students only, and never publish a reward tier.** A
+    hammer count belongs to one student's own results screen; on a board it is
+    the humiliation FR-7.6 rules out.
 
 ## Conventions
 

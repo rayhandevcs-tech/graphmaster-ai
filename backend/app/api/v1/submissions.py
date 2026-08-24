@@ -3,8 +3,8 @@
 A student opens a submission, gets text into it — by typing, or by
 photographing handwriting and correcting what was read — and then asks for it
 to be marked. Scoring is the point of no return: once a submission is scored
-its text is frozen, because from Sprint 7 the score carries XP that has already
-been awarded and counts towards achievements and the leaderboard.
+its text is frozen, because the score carries XP that has already been awarded
+and counts towards achievements and the leaderboard.
 
 Re-attempting a graph means opening a *new* submission. Nothing is overwritten,
 so a student's improvement across attempts stays visible — which is the
@@ -23,9 +23,9 @@ from app.core.exceptions import FileTooLargeError
 from app.core.rate_limit import ANALYZE_LIMIT, UPLOAD_LIMIT, enforce
 from app.models.enums import RewardTier, SubmissionStatus
 from app.schemas.common import Page
+from app.schemas.gamification import GamificationOut
 from app.schemas.submission import (
     ExtractionResult,
-    GamificationOut,
     ScoreOut,
     SubmissionCreate,
     SubmissionDetail,
@@ -133,7 +133,11 @@ async def set_answer_text(
         "Returns 409 when there is no answer text yet or the submission is already "
         "scored, and 503 when the language model is not installed on this server — in "
         "which case nothing is consumed and the same request will succeed once the "
-        "server is provisioned."
+        "server is provisioned.\n\n"
+        "The response carries the score **and** what it earned — XP, level, tier badge, "
+        "any achievements unlocked and the practice streak — in one payload, because "
+        "the result screen sequences a single animation from both: the tier decides "
+        "which one plays and the XP total decides what the bar counts up to."
     ),
 )
 async def analyze_submission(
@@ -144,15 +148,13 @@ async def analyze_submission(
 ) -> SubmissionResult:
     enforce(request, ANALYZE_LIMIT)
 
-    submission, _ = await submissions.analyse(submission_id, student=student)
+    submission, _, awards = await submissions.analyse(submission_id, student=student)
     payload = submissions.detail_payload(submission, viewer=student)
 
     return SubmissionResult(
         submission=SubmissionDetail.model_validate(payload),
         score=ScoreOut.model_validate(payload["score"]),
-        # Sprint 7 replaces this with the awarded ledger. The field is present
-        # now so the result screen's contract does not change when it lands.
-        gamification=GamificationOut(),
+        gamification=GamificationOut.model_validate(awards, from_attributes=True),
         reference_description=payload.get("reference_description"),
     )
 

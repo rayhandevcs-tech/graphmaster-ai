@@ -113,6 +113,21 @@ async def seeded(db: AsyncSession):
 
 
 @pytest.fixture
+async def seeded_gamification(db: AsyncSession):
+    """The badge and achievement catalogues.
+
+    Kept opt-in rather than autouse so the unseeded path stays exercised: a
+    database without a badge catalogue must still mark a submission, and only a
+    test that never seeds one can prove it.
+    """
+    from app.db.seed.runner import seed_achievements, seed_badges
+
+    await seed_badges(db)
+    await seed_achievements(db)
+    return db
+
+
+@pytest.fixture
 async def seeded_vocabulary(db: AsyncSession):
     """The seven categories and the full term library.
 
@@ -201,6 +216,67 @@ def graph_factory(db: AsyncSession, chart_payload):
             )
         await db.flush()
         return graph
+
+    return make
+
+
+@pytest.fixture
+def scored_submission_factory(db: AsyncSession):
+    """Persist an already-marked submission and its score.
+
+    Written directly rather than driven through the analysis endpoint: these
+    tests are about what a *history* of scores earns, and building one through
+    the real engine would mean a spaCy parse per attempt and would tie
+    assertions about XP to whatever the rubric happens to award today.
+    """
+    from datetime import UTC, datetime
+
+    from app.models.enums import InputMethod, SubmissionStatus
+    from app.models.submission import Score, Submission
+
+    async def make(
+        *,
+        user,
+        graph,
+        final_score: float = 75.0,
+        vocabulary_percentage: float = 70.0,
+        reward_tier: str = "flower",
+        scored_at: datetime | None = None,
+    ) -> Submission:
+        moment = scored_at or datetime.now(UTC)
+        submission = Submission(
+            user_id=user.id,
+            graph_id=graph.id,
+            input_method=InputMethod.TYPED.value,
+            answer_text="A description written for a test.",
+            word_count=7,
+            status=SubmissionStatus.SCORED.value,
+            submitted_at=moment,
+            scored_at=moment,
+        )
+        db.add(submission)
+        await db.flush()
+
+        score = Score(
+            submission_id=submission.id,
+            vocabulary_score=vocabulary_percentage,
+            writing_score=final_score,
+            final_score=final_score,
+            vocabulary_percentage=vocabulary_percentage,
+            detected_count=3,
+            unique_detected_count=3,
+            total_target_count=5,
+            detected_terms=[],
+            missing_terms=[],
+            category_breakdown={},
+            writing_breakdown={},
+            reward_tier=reward_tier,
+            feedback={},
+            engine_version="test-1",
+        )
+        db.add(score)
+        await db.flush()
+        return submission
 
     return make
 

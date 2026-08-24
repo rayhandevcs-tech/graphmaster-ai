@@ -12,8 +12,10 @@ from app.api.v1 import (
     auth,
     avatars,
     classes,
+    gamification,
     graphs,
     health,
+    leaderboard,
     ocr,
     submissions,
     users,
@@ -32,3 +34,5 @@ api_router.include_router(ocr.router, prefix="/ocr")
 api_router.include_router(vocabulary.router, prefix="/vocabulary")
 api_router.include_router(analysis.router, prefix="/analysis")
 api_router.include_router(submissions.router, prefix="/submissions")
+api_router.include_router(gamification.router, prefix="/gamification")
+api_router.include_router(leaderboard.router, prefix="/leaderboard")

@@ -3,15 +3,34 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import selectinload
 
+from app.models.content import Graph
 from app.models.enums import InputMethod, RewardTier, SubmissionStatus, UserRole
 from app.models.identity import Class, User
 from app.models.submission import Score, Submission
 from app.repositories.base import BaseRepository
+
+
+@dataclass(frozen=True)
+class ScoringStats:
+    """A student's scoring history, aggregated for the achievement rules.
+
+    Read as one batch per scoring rather than once per achievement: the
+    catalogue is evaluated in full on every submission, and ten achievements
+    each running their own count would make marking ten times as expensive for
+    no additional information.
+    """
+
+    scored_submissions: int = 0
+    tier_counts: dict[str, int] = field(default_factory=dict)
+    best_final_score: float = 0.0
+    distinct_graph_types: int = 0
+    recent_vocabulary_percentages: tuple[float, ...] = ()
 
 
 class SubmissionRepository(BaseRepository[Submission]):
@@ -142,6 +161,57 @@ class SubmissionRepository(BaseRepository[Submission]):
             enrolled = select(User.id).where(User.class_id.in_(taught))
             return stmt.where(Submission.user_id.in_(enrolled))
         return stmt.where(Submission.user_id == viewer.id)
+
+    # ── Aggregates ───────────────────────────────────────────────────────────
+
+    async def scoring_stats(self, user_id: uuid.UUID, *, recent_window: int = 3) -> ScoringStats:
+        """Everything the achievement catalogue asks about one student.
+
+        ``recent_window`` is how far back the "N in a row" rules need to look;
+        it comes from the catalogue rather than being fixed here, so adding a
+        five-in-a-row achievement does not leave this reading three.
+        """
+        scored = Submission.status == SubmissionStatus.SCORED.value
+
+        totals = (
+            select(
+                func.count(Score.id),
+                func.coalesce(func.max(Score.final_score), 0),
+                func.count(func.distinct(Graph.graph_type)),
+            )
+            .select_from(Submission)
+            .join(Score, Score.submission_id == Submission.id)
+            .join(Graph, Graph.id == Submission.graph_id)
+            .where(Submission.user_id == user_id, scored)
+        )
+        count, best, graph_types = (await self.db.execute(totals)).one()
+
+        tiers = (
+            select(Score.reward_tier, func.count(Score.id))
+            .select_from(Submission)
+            .join(Score, Score.submission_id == Submission.id)
+            .where(Submission.user_id == user_id, scored)
+            .group_by(Score.reward_tier)
+        )
+        tier_counts = {tier: int(n) for tier, n in (await self.db.execute(tiers)).all()}
+
+        recent = (
+            select(Score.vocabulary_percentage)
+            .select_from(Submission)
+            .join(Score, Score.submission_id == Submission.id)
+            .where(Submission.user_id == user_id, scored)
+            .order_by(Submission.scored_at.desc(), Submission.id.desc())
+            .limit(max(1, recent_window))
+        )
+        percentages = tuple(float(p) for p in (await self.db.execute(recent)).scalars().all())
+
+        return ScoringStats(
+            scored_submissions=int(count),
+            tier_counts=tier_counts,
+            best_final_score=float(best),
+            distinct_graph_types=int(graph_types),
+            recent_vocabulary_percentages=percentages,
+        )
 
     async def visible_to(self, submission: Submission, viewer: User) -> bool:
         """Whether ``viewer`` may read one already-loaded submission."""

@@ -27,12 +27,20 @@ from app.core.exceptions import SubmissionAlreadyScoredError
 from app.core.security import hash_password
 from app.models.content import Graph, GraphTargetVocabulary, VocabularyItem
 from app.models.enums import Gender, InputMethod, SubmissionStatus, UserRole
+from app.models.gamification import UserAchievement, UserBadge, XPEvent
 from app.models.identity import User
 from app.models.submission import Score, Submission
+from app.repositories.gamification import (
+    AchievementRepository,
+    BadgeRepository,
+    XPRepository,
+)
 from app.repositories.graph import GraphRepository
 from app.repositories.submission import SubmissionRepository
+from app.repositories.user import UserRepository
 from app.repositories.vocabulary import VocabularyItemRepository
 from app.services.analysis import AnalysisService
+from app.services.gamification import GamificationService
 from app.services.graph import GraphService
 from app.services.submission import SubmissionService
 
@@ -55,12 +63,21 @@ def build_service(session: AsyncSession) -> SubmissionService:
     """
     graphs = GraphRepository(session)
     vocabulary = VocabularyItemRepository(session)
+    submissions = SubmissionRepository(session)
     graph_service = GraphService(graphs, vocabulary)
+    gamification = GamificationService(
+        XPRepository(session),
+        AchievementRepository(session),
+        BadgeRepository(session),
+        submissions,
+        UserRepository(session),
+    )
     return SubmissionService(
-        SubmissionRepository(session),
+        submissions,
         graph_service,
         AnalysisService(graphs, vocabulary, graph_service),
         ocr=None,  # type: ignore[arg-type]
+        gamification=gamification,
     )
 
 
@@ -176,6 +193,16 @@ async def committed_attempt() -> AsyncGenerator[tuple[uuid.UUID, uuid.UUID], Non
     finally:
         if ids:
             async with factory() as session:
+                # The gamification rows go first. `xp_events.user_id` is
+                # ON DELETE RESTRICT — deliberately, so a ledger entry cannot be
+                # orphaned — which means the users cannot be removed until the
+                # XP they earned in the race has been.
+                people = [ids["student"], ids["teacher"]]
+                await session.execute(delete(XPEvent).where(XPEvent.user_id.in_(people)))
+                await session.execute(delete(UserBadge).where(UserBadge.user_id.in_(people)))
+                await session.execute(
+                    delete(UserAchievement).where(UserAchievement.user_id.in_(people))
+                )
                 await session.execute(delete(Score).where(Score.submission_id == ids["submission"]))
                 await session.execute(delete(Submission).where(Submission.id == ids["submission"]))
                 await session.execute(
@@ -195,9 +222,10 @@ async def test_two_racing_analyze_calls_produce_exactly_one_score(committed_atte
     """The row lock is what makes marking exactly-once.
 
     Without it both callers read a not-yet-scored row, both run the engine, and
-    both insert a score — one dying on the unique constraint with a 500. From
-    Sprint 7 onwards it would also be two XP awards for one piece of work,
-    which is a straightforward way to farm the leaderboard.
+    both insert a score — one dying on the unique constraint with a 500, and
+    both paying out XP for one piece of work, which is a straightforward way to
+    farm the leaderboard. So the XP ledger is asserted here too: one score and
+    one award, from two simultaneous requests.
     """
     student_id, submission_id = committed_attempt
     engine = create_async_engine(get_settings().DATABASE_URL, poolclass=NullPool)
@@ -231,9 +259,28 @@ async def test_two_racing_analyze_calls_produce_exactly_one_score(committed_atte
                     select(Submission.status).where(Submission.id == submission_id)
                 )
             ).scalar_one()
+            awards = (
+                await session.execute(
+                    select(func.count())
+                    .select_from(XPEvent)
+                    .where(XPEvent.submission_id == submission_id)
+                )
+            ).scalar_one()
+            paid = (
+                await session.execute(
+                    select(func.coalesce(func.sum(XPEvent.amount), 0)).where(
+                        XPEvent.user_id == student_id
+                    )
+                )
+            ).scalar_one()
     finally:
         await engine.dispose()
 
     assert sorted(outcomes) == ["refused", "scored"]
     assert scores == 1
     assert status == SubmissionStatus.SCORED.value
+    # One submission's worth of XP, not two. The badge and achievement
+    # catalogues are unseeded on this ad-hoc database, so the only awards are
+    # the base 20 and — if the answer scored well — the 30-point bonus.
+    assert awards >= 1
+    assert paid in (20, 50)

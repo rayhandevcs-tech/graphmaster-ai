@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -23,6 +22,7 @@ from app.schemas.analysis import (
     MissingTermOut,
     WritingBreakdownOut,
 )
+from app.schemas.gamification import GamificationOut
 
 
 class SubmissionCreate(BaseModel):
@@ -155,29 +155,6 @@ class ExtractionResult(BaseModel):
         default=None,
         description="Set for an empty or low-confidence read; never blocks the flow",
     )
-
-
-class GamificationOut(BaseModel):
-    """XP, level, badge and achievements awarded for one submission.
-
-    Delivered in the same payload as the score because the result screen
-    sequences one animation from both: the reward tier decides which animation
-    plays and the XP total decides what the bar counts up to, so splitting them
-    across two calls would render the reward before the bar knew its target.
-
-    Populated by the gamification engine in Sprint 7; until then the fields
-    carry their neutral values rather than being absent, so the client contract
-    does not change when the engine lands.
-    """
-
-    xp_awarded: int = 0
-    xp_breakdown: list[dict[str, Any]] = Field(default_factory=list)
-    level_before: int = 1
-    level_after: int = 1
-    leveled_up: bool = False
-    badge: dict[str, Any] | None = None
-    new_achievements: list[dict[str, Any]] = Field(default_factory=list)
-    streak_days: int = 0
 
 
 class SubmissionResult(BaseModel):

@@ -56,6 +56,18 @@ class XPEvent(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Overrides CreatedAtMixin's `now()`, which is the *transaction* timestamp
+    # and is therefore identical for every row written by one request. Scoring
+    # a submission can append four entries at once — the base award, a high
+    # score bonus, a streak bonus and an achievement reward — and with one
+    # shared timestamp their order in the ledger falls back to a random UUID.
+    # `clock_timestamp()` advances within the transaction, so the ledger can
+    # still be read back in the order it was written, which is the whole point
+    # of keeping one.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.clock_timestamp()
+    )
+
     # The calendar day this event belongs to, in the configured platform
     # timezone. Stored explicitly rather than derived from `created_at` in the
     # index: casting a timestamptz to date depends on the session TimeZone, so
@@ -247,8 +259,24 @@ class LeaderboardEntry(Base, UUIDPrimaryKeyMixin):
             name="class_scope_consistent",
         ),
         CheckConstraint("rank >= 1", name="rank_positive"),
+        # One row per student per period. This covers the class scope only:
+        # `class_id` is NULL for every other scope, and NULLs do not compare
+        # equal, so this constraint enforces nothing at all for them.
         UniqueConstraint(
             "scope", "class_id", "period_start", "user_id", name="uq_leaderboard_entry"
+        ),
+        # ...which is what this covers. Without it a rebuild that ran twice
+        # over the global, weekly or monthly board would silently leave every
+        # student listed twice rather than being rejected — a duplicated
+        # ranking is worse than a failed one, because nothing reports it.
+        Index(
+            "uq_leaderboard_entry_unscoped",
+            "scope",
+            "period_start",
+            "user_id",
+            unique=True,
+            postgresql_where=text("class_id IS NULL"),
+            sqlite_where=text("class_id IS NULL"),
         ),
         Index("ix_leaderboard_lookup", "scope", "class_id", "period_start", "rank"),
     )

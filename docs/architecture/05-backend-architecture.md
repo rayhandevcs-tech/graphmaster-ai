@@ -36,6 +36,7 @@ backend/
 │   │   └── v1/                  # Routers, one module per resource
 │   ├── ocr/                     # Provider chain (07-ocr-architecture.md)
 │   ├── nlp/                     # Analysis engine (08-nlp-architecture.md)
+│   ├── gamification/            # Pure rules: periods, streaks, achievements
 │   ├── storage/                 # Storage backend abstraction
 │   └── reports/                 # CSV / XLSX / PDF generators
 ├── alembic/versions/            # Migrations
@@ -125,7 +126,7 @@ needs it.
 | Uploads | `MAX_UPLOAD_SIZE_MB`, `ALLOWED_IMAGE_TYPES` |
 | OCR | `OCR_PROVIDER_ORDER`, `GOOGLE_APPLICATION_CREDENTIALS`, `EASYOCR_MODEL_DIR`, `TESSERACT_CMD` |
 | Scoring | `VOCABULARY_WEIGHT`, `WRITING_WEIGHT`, tier thresholds |
-| Gamification | `XP_PER_SUBMISSION`, `XP_HIGH_SCORE_BONUS`, `XP_STREAK_BONUS`, `HIGH_SCORE_THRESHOLD` |
+| Gamification | `XP_PER_SUBMISSION`, `XP_HIGH_SCORE_BONUS`, `XP_STREAK_BONUS`, `HIGH_SCORE_THRESHOLD`, `MAX_LEVEL`, `PLATFORM_TIMEZONE`, `LEADERBOARD_CACHE_MINUTES` |
 | Rate limits | Per-group limits from [04-api-design.md](./04-api-design.md) §5.3 |
 
 Scoring weights and XP values are configuration rather than constants

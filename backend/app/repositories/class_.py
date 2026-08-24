@@ -46,6 +46,16 @@ class ClassRepository(BaseRepository[Class]):
             stmt = stmt.where(Class.is_active == is_active)
         return stmt.order_by(Class.created_at.desc())
 
+    async def active_ids(self) -> list[uuid.UUID]:
+        """Every class that still needs a leaderboard built for it.
+
+        Archived classes are skipped: their rankings can no longer change, so
+        rebuilding them on every refresh is work whose result is already on
+        disk.
+        """
+        stmt = select(Class.id).where(Class.is_active.is_(True)).order_by(Class.created_at)
+        return list((await self.db.execute(stmt)).scalars().all())
+
     async def student_counts(self, class_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, int]:
         """Enrolment counts keyed by class, in one query rather than per row."""
         if not class_ids:

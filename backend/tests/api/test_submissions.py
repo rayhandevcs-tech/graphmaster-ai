@@ -544,8 +544,10 @@ async def test_analyzing_someone_elses_submission_reads_as_missing(
     assert response.status_code == 404
 
 
-async def test_the_gamification_block_is_present_before_the_engine_lands(client, student, graph):
-    """The result screen's contract must not change when Sprint 7 fills this in."""
+async def test_marking_returns_the_score_and_what_it_earned_together(
+    client, student, graph, seeded_gamification
+):
+    """One payload, because the result screen sequences one animation from both."""
     _, headers = student
     submission = await open_submission(client, headers, graph)
     await client.patch(
@@ -553,16 +555,39 @@ async def test_the_gamification_block_is_present_before_the_engine_lands(client,
     )
 
     body = (await client.post(f"{SUBMISSIONS}/{submission['id']}/analyze", headers=headers)).json()
-    assert body["gamification"] == {
-        "xp_awarded": 0,
-        "xp_breakdown": [],
-        "level_before": 1,
-        "level_after": 1,
-        "leveled_up": False,
-        "badge": None,
-        "new_achievements": [],
-        "streak_days": 0,
-    }
+    awards = body["gamification"]
+
+    assert awards["xp_awarded"] >= 20
+    assert {"reason": "submission", "amount": 20} in awards["xp_breakdown"]
+    assert awards["badge"]["reward_tier"] == body["score"]["reward_tier"]
+    assert awards["streak_days"] == 1
+    # The very first submission unlocks First Steps, which requires the
+    # aggregates behind the rule to already count the submission that triggered
+    # it — the reason the score is flushed before the engine runs.
+    assert "first_submission" in {a["code"] for a in awards["new_achievements"]}
+
+
+async def test_an_unseeded_badge_catalogue_does_not_cost_a_student_their_score(
+    client, student, graph
+):
+    """Missing reference data is an operator's problem, not the student's.
+
+    No badges are seeded here. The submission must still be marked and still
+    earn its XP; only the badge is absent from the response.
+    """
+    _, headers = student
+    submission = await open_submission(client, headers, graph)
+    await client.patch(
+        f"{SUBMISSIONS}/{submission['id']}/text", headers=headers, json={"text": HANDWRITTEN}
+    )
+
+    response = await client.post(f"{SUBMISSIONS}/{submission['id']}/analyze", headers=headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["score"]["final_score"] > 0
+    assert body["gamification"]["xp_awarded"] >= 20
+    assert body["gamification"]["badge"] is None
 
 
 # ── Reading ──────────────────────────────────────────────────────────────────

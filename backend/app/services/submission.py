@@ -17,7 +17,7 @@ Two properties this module is responsible for:
 
 * **Scoring happens at most once per submission.** The row is locked before the
   status is read, so two concurrent ``analyze`` calls cannot both produce a
-  score — and, from Sprint 7, cannot both award XP for one piece of work.
+  score, and cannot both award XP for one piece of work.
 * **A recognition failure survives the error that reports it.** See
   :meth:`SubmissionService._record_extraction_failure`.
 """
@@ -48,6 +48,7 @@ from app.nlp.analyzer import AnalysisResult
 from app.ocr.postprocess import word_count as count_words
 from app.repositories.submission import SubmissionRepository
 from app.services.analysis import AnalysisService
+from app.services.gamification import AwardResult, GamificationService
 from app.services.graph import GraphService
 from app.services.ocr import OCRService
 
@@ -81,12 +82,14 @@ class SubmissionService:
         graph_service: GraphService,
         analysis: AnalysisService,
         ocr: OCRService,
+        gamification: GamificationService,
         settings: Settings | None = None,
     ) -> None:
         self.submissions = submissions
         self.graph_service = graph_service
         self.analysis = analysis
         self.ocr = ocr
+        self.gamification = gamification
         self.settings = settings or get_settings()
 
     # ── Opening an attempt ───────────────────────────────────────────────────
@@ -246,13 +249,19 @@ class SubmissionService:
 
     async def analyse(
         self, submission_id: uuid.UUID, *, student: User
-    ) -> tuple[Submission, AnalysisResult]:
-        """Score the submission and persist the result.
+    ) -> tuple[Submission, AnalysisResult, AwardResult]:
+        """Score the submission, award what it earns, and persist both.
 
         The row is locked before its status is read. Two ``analyze`` requests
         racing on one submission therefore serialise: the first scores it, and
         the second — which waits on the lock rather than reading stale state —
-        finds it already scored and is refused.
+        finds it already scored and is refused. That lock is what makes the XP
+        award safe as well as the score: without it both callers would run the
+        engine and both would pay out for one piece of work.
+
+        Scoring and awarding share this one transaction. Committing them
+        separately would leave a window in which a student has a score and no
+        XP, which reads as the system having lost their work.
         """
         locked = await self.submissions.lock(submission_id)
         if locked is None or locked.user_id != student.id:
@@ -293,6 +302,13 @@ class SubmissionService:
         locked.word_count = result.word_count
         locked.error_message = None
 
+        # Flushed before awarding, so the aggregates behind the achievement
+        # rules count this submission. Without it "First Steps" would not
+        # unlock until the student's *second* attempt.
+        await self.submissions.db.flush()
+
+        awards = await self.gamification.on_submission_scored(locked, score, student=student)
+
         await self.submissions.db.flush()
         logger.info(
             "Submission %s scored %.2f (%s) for %s",
@@ -301,7 +317,7 @@ class SubmissionService:
             result.score.reward_tier.value,
             student.id,
         )
-        return await self._reload(locked.id), result
+        return await self._reload(locked.id), result, awards
 
     # ── Reads ────────────────────────────────────────────────────────────────
 

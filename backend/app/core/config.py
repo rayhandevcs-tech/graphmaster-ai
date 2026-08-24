@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -83,6 +84,7 @@ class Settings(BaseSettings):
     HIGH_SCORE_THRESHOLD: float = 80.0
     MAX_LEVEL: int = 100
     PLATFORM_TIMEZONE: str = "UTC"
+    LEADERBOARD_CACHE_MINUTES: int = 15
 
     # ── Rate limiting ────────────────────────────────────────────────────────
     RATE_LIMIT_ENABLED: bool = True
@@ -124,6 +126,21 @@ class Settings(BaseSettings):
                 "SECRET_KEY is still the placeholder from .env.example. "
                 'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(48))"'
             )
+        return v
+
+    @field_validator("PLATFORM_TIMEZONE")
+    @classmethod
+    def _known_timezone(cls, v: str) -> str:
+        """Reject an unknown zone at boot rather than at the first scoring.
+
+        Every streak boundary and leaderboard window is derived from this, so a
+        typo would otherwise surface as a 500 on a student's submission — long
+        after whoever deployed it had stopped watching.
+        """
+        try:
+            ZoneInfo(v)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(f"PLATFORM_TIMEZONE {v!r} is not a known IANA timezone.") from exc
         return v
 
     @model_validator(mode="after")
