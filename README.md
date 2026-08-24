@@ -57,6 +57,30 @@ CSV / Excel / PDF export
 No paid service is required. EasyOCR is the default OCR path; Google Vision
 activates automatically if credentials are present.
 
+## Development
+
+```bash
+make install     # backend virtualenv, dependencies and the spaCy model
+make migrate     # apply migrations
+make seed        # reference data (idempotent)
+make dev         # run the API with auto-reload on :8000
+make check       # lint and the full test suite with coverage
+make perf        # the SRS performance budgets, excluded from `make check`
+```
+
+The API needs PostgreSQL 16 and a `SECRET_KEY`; copy `backend/.env.example` to
+`backend/.env` and fill it in. `docker compose up` brings up the database and
+the API together instead.
+
+### Continuous integration
+
+Every push runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+formatting and lint, a scan for committed secrets, the test suite against a
+real PostgreSQL with an 80% coverage floor, and a migration job that upgrades
+from an empty database, checks the models have not drifted from the
+migrations, and round-trips a downgrade. `docker.yml` builds the API image and
+boots it against a database whenever the image's inputs change.
+
 ## Documentation
 
 | Document | Contents |
@@ -72,6 +96,9 @@ activates automatically if credentials are present.
 | [OCR](docs/architecture/07-ocr-architecture.md) | Provider chain, preprocessing |
 | [NLP](docs/architecture/08-nlp-architecture.md) | Detection, scoring, feedback |
 | [Gamification](docs/architecture/09-gamification-architecture.md) | XP, tiers, achievements |
+
+Testing strategy, the API-surface invariants and the CI pipeline are described
+in [Backend §10](docs/architecture/05-backend-architecture.md#10-testing).
 
 ## Licence
 

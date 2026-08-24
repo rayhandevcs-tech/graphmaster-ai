@@ -68,3 +68,27 @@ class TestLocalStorage:
         storage.save(b"x", key="t.png", content_type="image/png")
         leftovers = list(storage.root.rglob("*.tmp"))
         assert leftovers == []
+
+    def test_a_traversal_key_deletes_nothing(self, storage, tmp_path):
+        """Deletion refuses an escaping key without raising.
+
+        The caller is usually a rollback path, and a rollback that raises
+        leaves the transaction it was cleaning up after in a worse state than
+        the failure it was handling. Refusing quietly — and logging — is the
+        behaviour that keeps the outer failure the one reported.
+        """
+        outsider = tmp_path / "not-ours.txt"
+        outsider.write_text("someone else's file")
+
+        storage.delete(f"../{outsider.name}")
+
+        assert outsider.exists()
+
+    def test_clear_empties_the_root_but_keeps_it_usable(self, storage):
+        storage.save(b"x", key="a/b.png", content_type="image/png")
+        storage.clear()
+        assert storage.exists("a/b.png") is False
+        # Still writable afterwards: clear() recreates the root rather than
+        # leaving the next save to fail on a missing directory.
+        storage.save(b"y", key="a/c.png", content_type="image/png")
+        assert storage.read("a/c.png") == b"y"

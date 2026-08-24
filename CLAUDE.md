@@ -145,6 +145,38 @@ Framer Motion · Lottie · Chart.js · TanStack Query
 40. **Excel cannot store a timezone.** Convert to `PLATFORM_TIMEZONE`, drop the
     offset, and name the zone in the report header.
 
+41. **A new route is guarded until the allowlist says otherwise.**
+    `tests/api/test_api_surface.py` walks the published OpenAPI document and
+    requires every operation to refuse an unauthenticated caller — and to
+    refuse it *for want of a token*, not merely to answer 401 for reasons of
+    its own. Making a route public means adding a line, with a reason, to
+    `PUBLIC` in that file.
+42. **An optional dependency gets a fake, never a mock.** `boto3`,
+    `google-cloud-vision` and `easyocr` are not installed by default. A mock
+    agrees with whatever the code does, including calling `get_object` with
+    the wrong keyword; a fake with the real signatures disagrees.
+43. **Coverage of code nobody calls is a false signal.** Dead code is deleted,
+    not tested, and `__repr__` is excluded in `pyproject.toml` rather than
+    asserted on. A number lifted by exercising something no caller reaches
+    measures nothing.
+44. **`configure_logging()` clears the root handlers**, pytest's capture
+    handler included. A test that triggers it reads stdout rather than
+    `caplog`, and puts the handlers back — otherwise every later test in the
+    session logs into nothing.
+45. **`app.db.session.engine` pools connections across event loops.** Each
+    test gets its own loop, so a test that uses the process-wide engine must
+    `await engine.dispose(close=False)` around itself. Closing them instead
+    fails from the wrong loop.
+46. **One pytest session at a time.** The session-scoped `database_schema`
+    fixture drops and recreates every table, so a second run started against
+    the same database pulls the schema out from under the first — and the
+    resulting errors point at the tests, not at the collision.
+47. **NFR-1.1's fifty concurrent users describes a deployment**, not the test
+    harness: one worker sharing a core with the client cannot reproduce it.
+    The 500 ms budget is asserted per request, plus a service-time ceiling
+    under fifty concurrent callers, which is what actually catches an N+1 or a
+    lock held across I/O.
+
 ## Conventions
 
 - **Python** — Black, Ruff, full type hints. Routers → services → repositories;

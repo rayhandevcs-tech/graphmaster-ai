@@ -1,0 +1,252 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+# A second push to the same branch makes the first run's answer irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  lint:
+    name: Format and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      # Neither tool imports the application, so the heavy runtime
+      # dependencies are not installed here — this job answers in seconds and
+      # tells a contributor about a formatting slip before the slow jobs run.
+      - name: Install linters
+        run: pip install "black>=24.10.0" "ruff>=0.8.0"
+
+      - name: Black
+        run: black --check --target-version py311 app tests alembic
+
+      - name: Ruff
+        run: ruff check app tests alembic
+
+  secrets:
+    name: No committed secrets
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+
+      # NFR-2.9. `.gitignore` only stops an accidental `git add`; it says
+      # nothing about a file that was committed before the rule existed, and
+      # `git check-ignore` would report such a file as ignored while it sits
+      # in the tree.
+      - name: No environment file is tracked
+        run: |
+          tracked=$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$' || true)
+          if [ -n "$tracked" ]; then
+            echo "::error::Environment files are tracked in git:"
+            echo "$tracked"
+            exit 1
+          fi
+
+      - name: No credential files are tracked
+        run: |
+          tracked=$(git ls-files | grep -E '(^|/)(credentials\.json|service-account.*\.json)$|\.(pem|key|p12)$' || true)
+          if [ -n "$tracked" ]; then
+            echo "::error::Credential files are tracked in git:"
+            echo "$tracked"
+            exit 1
+          fi
+
+      # An example file exists to name the variables, not to carry values. A
+      # filled-in SECRET_KEY here is the most likely way a real one reaches
+      # the repository.
+      - name: Example env files carry no values for secrets
+        run: |
+          filled=$(grep -rnE '^(SECRET_KEY|POSTGRES_PASSWORD|GOOGLE_[A-Z_]*KEY|.*_SECRET|.*_TOKEN)=.+' \
+            --include='.env.example' . || true)
+          filled=$(echo "$filled" | grep -viE '=(change[-_ ]?me|your[-_]|placeholder|example|dummy|graphmaster|<|[$][{])' || true)
+          if [ -n "$filled" ]; then
+            echo "::error::An example env file carries a real-looking value:"
+            echo "$filled"
+            exit 1
+          fi
+
+  test:
+    name: Tests and coverage
+    runs-on: ubuntu-latest
+    needs: [lint]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: graphmaster
+          POSTGRES_PASSWORD: graphmaster
+          POSTGRES_DB: graphmaster_test
+        ports:
+          - 5432:5432
+        # Without a healthcheck the job races the database's own
+        # initialisation and the first test connects to nothing.
+        options: >-
+          --health-cmd "pg_isready -U graphmaster -d graphmaster_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      ENVIRONMENT: test
+      DATABASE_URL: postgresql+asyncpg://graphmaster:graphmaster@localhost:5432/graphmaster_test
+      STORAGE_LOCAL_PATH: ./.test-storage
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      # The last-resort OCR provider. Without it `test_ocr_tesseract.py` skips
+      # itself, and the provider chain's real end would never be exercised.
+      - name: Install Tesseract
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr
+
+      - name: Install the package
+        run: pip install -e ".[dev,reports]"
+
+      # Scoring is unavailable without the model, and every analysis test
+      # would *skip* rather than fail — a green run that checked nothing is
+      # worse than a red one. Same command as `make install`, so CI and a
+      # developer's machine install the same model.
+      - name: Install the language model
+        run: python -m spacy download en_core_web_sm
+
+      # Generated per run: a key committed to the workflow is a key someone
+      # eventually copies into a deployment.
+      - name: Generate an ephemeral signing key
+        run: echo "SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" >> "$GITHUB_ENV"
+
+      - name: Run the suite
+        run: |
+          python -m pytest tests -q -p no:warnings \
+            --cov=app --cov-report=term-missing --cov-report=xml \
+            --cov-fail-under=80 \
+            --junitxml=junit.xml
+
+      # Advisory, not blocking. A shared runner's core count and neighbours
+      # decide these numbers as much as the code does, so a red here is a
+      # prompt to measure on real hardware (`make perf`) rather than a
+      # verdict. The step still runs on every push, because a budget nobody
+      # measures stops being true quietly.
+      - name: Performance budgets (advisory)
+        continue-on-error: true
+        run: python -m pytest tests -q -p no:warnings -m perf
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            backend/coverage.xml
+            backend/junit.xml
+          retention-days: 14
+
+  migrations:
+    name: Migrations
+    runs-on: ubuntu-latest
+    needs: [lint]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: graphmaster
+          POSTGRES_PASSWORD: graphmaster
+          POSTGRES_DB: graphmaster_migrations
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U graphmaster -d graphmaster_migrations"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      ENVIRONMENT: test
+      SECRET_KEY: ci-migrations-key-at-least-32-characters-long
+      DATABASE_URL: postgresql+asyncpg://graphmaster:graphmaster@localhost:5432/graphmaster_migrations
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install the package
+        run: pip install -e "."
+
+      # NFR-5.4. Run against an empty database, which is the case a developer
+      # with an up-to-date local database never exercises.
+      - name: Upgrade from empty
+        run: alembic upgrade head
+
+      # Forward-only does not mean unreviewed: this proves the migrations
+      # describe the models, and fails the moment someone edits a model
+      # without writing one.
+      - name: Migrations match the models
+        run: |
+          output=$(alembic check 2>&1) || {
+            echo "$output"
+            echo "::error::The models have drifted from the migrations. Run: make revision m=\"...\""
+            exit 1
+          }
+          echo "$output"
+
+      - name: Downgrade and upgrade again
+        run: |
+          alembic downgrade base
+          alembic upgrade head
+
+      - name: Seed reference data
+        run: python -m app.db.seed.cli
+
+      # Seeding is documented as idempotent, and a deployment that restarts
+      # runs it twice.
+      - name: Seed again
+        run: python -m app.db.seed.cli
+
+  compose:
+    name: Compose file
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+
+      # NFR-6.2. Cheap, and it catches a broken interpolation or a bad
+      # service reference without waiting for an image build.
+      - name: Validate docker-compose.yml
+        run: SECRET_KEY=ci-compose-validation docker compose config --quiet

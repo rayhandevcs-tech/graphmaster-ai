@@ -1,4 +1,4 @@
-.PHONY: help install migrate seed dev test lint format check up down logs reset-db
+.PHONY: help install migrate seed dev test perf lint format check up down logs reset-db
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -25,6 +25,9 @@ dev:  ## Run the API with auto-reload
 
 test:  ## Run the test suite with coverage
 	cd backend && .venv/bin/python -m pytest tests -q -p no:warnings --cov=app --cov-report=term-missing
+
+perf:  ## Run the performance budgets (NFR-1.1, NFR-1.2), excluded from `make test`
+	cd backend && .venv/bin/python -m pytest tests -q -p no:warnings -m perf
 
 lint:  ## Check formatting and lint rules
 	cd backend && .venv/bin/black --check --target-version py311 app tests alembic && .venv/bin/ruff check app tests alembic

@@ -104,7 +104,14 @@ known-first-party = ["app"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-q --strict-markers"
+# The performance budgets are deselected by default: they are the only tests
+# whose result depends on the machine, and a laptop with a build running would
+# fail them for reasons that say nothing about the code. Run them with
+# `make perf`, or `pytest -m perf`.
+addopts = "-q --strict-markers -m 'not perf'"
+markers = [
+    "perf: measures a performance budget from the SRS (NFR-1.1, NFR-1.2)",
+]
 
 [tool.coverage.run]
 source = ["app"]
@@ -121,4 +128,8 @@ exclude_lines = [
     "raise NotImplementedError",
     "@abstractmethod",
     "class .*\\(Protocol\\):",
+    # Debugging aids. Asserting on their formatting would freeze a string
+    # nobody reads except in a traceback, and testing them to lift a number
+    # is the kind of coverage that measures nothing.
+    "def __repr__",
 ]
