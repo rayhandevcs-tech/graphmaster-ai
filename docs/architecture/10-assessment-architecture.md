@@ -1,8 +1,9 @@
 # Assessment Architecture
 
-> **Revision 1.1** — the framework (Sprint 15) plus the first three diagnostic
-> analyzers and their storage (Sprint 16). The API surface is proposed but not
-> yet built; no endpoint in this document exists.
+> **Revision 1.2** — the framework (Sprint 15), the first three diagnostic
+> analyzers and their storage (Sprint 16), and graph accuracy (Sprint 17). The
+> API surface is proposed but not yet built; no endpoint in this document
+> exists.
 
 ## 1. What this package is for
 
@@ -193,6 +194,76 @@ comparative or superlative is never informal. "The smallest contributor" is how
 a comparison between series is *correctly* expressed, and flagging it would
 penalise the structure the exercise teaches.
 
+### 6.4 Graph accuracy
+
+The analyzer with the most educational value and the most dangerous failure
+mode. Telling a student their reading of a trend is wrong, when it was right,
+is worse than saying nothing — so almost every rule in it is a reason *not* to
+reach a verdict.
+
+**Claims come from the vocabulary detector.** Every direction, peak and
+comparison term the student used has already been found and located; those
+occurrences *are* the claims. The analyzer does not look for direction words a
+second way, because two detectors disagreeing about one sentence would make the
+result indefensible to the student — the same reasoning as rule 34.
+
+The seven vocabulary categories map onto four kinds of claim:
+
+| Categories | Claim | Checked against |
+|---|---|---|
+| `increase`, `decrease`, `stability`, `fluctuation` | trend | The series' net movement and turning points |
+| `peak` | peak | The label of the maximum reading |
+| `lowest` | trough | The label of the minimum reading |
+| `comparison` | comparison | Whether one series is above the other at *every* reading |
+
+**Attribution comes first, and often fails.** A claim on a one-series chart
+needs no resolution — there is nothing else it could be about. Otherwise the
+sentence must name exactly one series through a *distinctive* word: one that
+appears in that series' label and no other. Two series in one sentence with a
+trend claim between them is a guess, and a guess is not worth telling a student
+they misread their chart.
+
+**Everything else is `unverified`.** No ordered axis (a pie chart is a
+snapshot; a bar chart's categories may be in any order); a peak with no year
+named ("numbers peaked" is true of every series that has a maximum); a range of
+years rather than a point; two lines that cross; a comparison with no
+direction. Each records *why*, so a teacher looking at a false negative can see
+whether the fault was the sentence or the data.
+
+**Correct claims are stored too.** "You read four trends and got three right"
+is the educational figure and cannot be recovered from the errors alone.
+
+#### What counts as movement
+
+Net change is measured against the series' **typical level**, not against its
+own range. Against the range, a genuinely flat series is the worst case:
+readings of 230, 240, 235, 250 span only 20, so a net rise of 20 reads as 100%
+movement — the flatter the line, the more confidently it is called a trend, and
+a student who correctly wrote "remained stable" is contradicted. Against the
+mean, that series moves 8% and is stable, while 5 to 410 moves 247% and is not.
+
+This was found by running the analyzer against a real chart, not by reasoning
+about it, and `test_a_nearly_level_series_is_stable` is what keeps it fixed.
+
+#### Comparisons are pairwise
+
+"Was hydroelectric higher than wind" is a question about two series. Asking
+whether either is above *everything else* answers a different question and, on
+a three-series chart where one line overtakes another, leaves every comparison
+unchecked. `ChartFacts.dominant(a, b)` compares the pair, and returns nothing
+where they cross.
+
+#### Severity
+
+Graph accuracy is the first analyzer to emit `HIGH`: a student who reports the
+opposite trend, or inverts a comparison, has described a different chart. A
+claim about a *level* series — "output increased" where it did not move much —
+is `MEDIUM`: wrong, but not an inversion, and there was less to see.
+
+Corrections are phrased as what the chart shows, never as an accusation. A
+misread trend is the most useful thing this platform can tell somebody, and it
+is only useful if they read it.
+
 ## 7. The supervisor
 
 Every call into an analyzer goes through `app/assessment/supervisor.py`, which:
@@ -317,7 +388,7 @@ Three tables, added by migration 4 and altering nothing that existed.
 |---|---|
 | `assessment_details` | One row per submission, mirroring `scores` |
 | `assessment_issues` | One row per finding, whichever analyzer found it |
-| `graph_accuracy_claims` | One row per claim about the chart (written from sprint 17) |
+| `graph_accuracy_claims` | One row per claim about the chart, correct ones included |
 
 `assessment_details` carries only the five categories the assessment engine
 introduces. The vocabulary and writing scores stay on `scores`: a second copy
@@ -329,10 +400,33 @@ fact from `0.0`, which means it ran and the work was poor. `analyzer_status`
 records what ran, how long it took and why it stopped, which is what makes "no
 grammar issues" distinguishable from "grammar was never installed".
 
+A contradicted claim is linked to the correction it produced; a correct or
+unverified one carries no issue, which a `CHECK` constraint enforces. The link
+is matched on the span and the claim type at write time rather than threaded
+through the engine as an object reference — the issue and the claim are
+separate frozen values, and an identity between them would exist only to
+survive this one write.
+
 Writes join the scoring transaction. The assessment and the score it
 accompanies land together or not at all — and when the assessment cannot be
 built, the score still lands alone, which is the same shape a submission
 marked before this feature existed has.
+
+### 11.1 Reading assessment data back
+
+Two rules govern every figure derived from these tables, both approved as
+product decisions rather than inferred:
+
+1. **Every assessment metric is reported with an `assessed_count`.** No
+   submission scored before sprint 16 carries an assessment, and there is no
+   backfill, so any average is over a subset.
+2. **A trend line breaks where `assessed_count` is zero. It is never
+   interpolated.** Silently averaging over "the ones that have data" puts a
+   step change on the day the engine was enabled, which reads as a sudden
+   improvement in the cohort.
+
+Missing assessment data is rendered as **unavailable**, never as zero. A
+student who was marked before this existed did not score nothing.
 
 ## 12. What is built
 
@@ -343,10 +437,9 @@ fact in the API twice and double-count it in the teacher analytics. Their job
 is to put the existing scores into the assessment's shape so a consumer sees
 one complete picture.
 
-`spelling`, `sentence` and `word_usage` are the first analyzers that find
-something. All five run in roughly three milliseconds on a warmed process,
-because they share the parse that has already happened.
+`spelling`, `sentence`, `word_usage` and `graph_accuracy` are the analyzers
+that find something. All six run in roughly three milliseconds on a warmed
+process, because they share the parse that has already happened.
 
-Still to come: the grammar provider and the graph-accuracy analyzer
-(sprints 17–18), the integrity engine (sprint 19), and the API and analytics
-surfaces that read any of it.
+Still to come: the grammar provider (sprint 18), the integrity engine
+(sprint 19), and the API and analytics surfaces that read any of it.

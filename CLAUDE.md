@@ -274,6 +274,26 @@ Framer Motion · Lottie · Chart.js · TanStack Query
     since moved would retroactively reveal what was dark when the work was
     marked.
 
+69. **Movement is measured against a series' typical level, never its own
+    range.** Against the range a flat series is the worst case — readings of
+    230, 240, 235, 250 span 20, so a net rise of 20 reads as 100% movement and
+    the analyzer contradicts a student who correctly wrote "remained stable".
+    The flatter the line, the more confidently it would be called a trend.
+70. **A claim the engine cannot attribute is `unverified`, never a guess.**
+    One series on the chart, or exactly one named by a distinctive word in the
+    sentence. Two series and a trend claim between them is unattributable, and
+    telling a student they misread their chart on a guess is the worst failure
+    this analyzer has.
+71. **Comparisons are pairwise, and only where one series is above the other
+    at every reading.** Asking whether either is above everything else answers
+    a different question; where the lines cross, the claim depends on a period
+    the student may not have named.
+72. **Every assessment metric is reported with an `assessed_count`, and a
+    trend line breaks where it is zero.** There is no backfill, so any average
+    is over a subset — and interpolating across the gap puts a step change on
+    the day the engine was enabled, which reads as a sudden improvement in the
+    cohort. Missing assessment data is *unavailable*, never zero.
+
 ## Conventions
 
 - **Python** — Black, Ruff, full type hints. Routers → services → repositories;

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.assessment.claims import GraphClaim
 from app.assessment.issues import AssessmentIssue
 from app.assessment.protocol import AnalyzerOutput
 from app.models.enums import AnalyzerAudience, AnalyzerStatus, IssueCategory
@@ -32,6 +33,8 @@ class AssessmentResult:
     #: Categories where the per-submission cap dropped issues, so a truncated
     #: list can be shown as truncated instead of as complete.
     truncated_categories: tuple[str, ...] = ()
+    #: Every claim about the chart that was checked, correct ones included.
+    claims: tuple[GraphClaim, ...] = ()
     #: Who may see each analyzer's output. Recorded at assessment time rather
     #: than read at display time, so a rollout stage that changed since a
     #: submission was marked cannot retroactively reveal what was dark.
@@ -90,6 +93,7 @@ class AssessmentResult:
             version=self.version,
             analyzers={name: out for name, out in self.analyzers.items() if name in visible},
             issues=tuple(i for i in self.issues if i.analyzer in visible),
+            claims=self.claims if "graph_accuracy" in visible else (),
             # Counted over what was withheld too: the numbers describe the
             # assessment that ran, not the slice being shown.
             suppressed_count=self.suppressed_count,
@@ -124,6 +128,7 @@ class AssessmentResult:
             "suppressed_count": self.suppressed_count,
             "truncated_categories": list(self.truncated_categories),
             "counts_by_category": self.counts_by_category(),
+            "claims": [c.to_dict() for c in self.claims],
             "scores": self.scores(),
             "analyzers": {name: out.to_dict() for name, out in self.analyzers.items()},
             "issues": [i.to_dict() for i in self.issues],

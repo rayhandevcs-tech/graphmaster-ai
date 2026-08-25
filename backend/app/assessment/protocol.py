@@ -10,9 +10,10 @@ an offline research script.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+from app.assessment.claims import GraphClaim
 from app.assessment.issues import AssessmentIssue
 from app.models.enums import AnalyzerStatus, GraphType
 from app.nlp.detector import DetectionResult
@@ -81,6 +82,13 @@ class AnalyzerOutput:
     score: float | None = None
     #: Why, when the status is not ``OK``. Shown to an operator, not a student.
     detail: str | None = None
+    #: Statements about the chart that were checked against it.
+    #:
+    #: Specific to the graph-accuracy analyzer, and on the shared output
+    #: rather than in a channel of its own because the supervisor is the only
+    #: thing that collects analyzer results. A parallel route for one
+    #: analyzer's extra output would be a second thing to keep in step.
+    claims: tuple[GraphClaim, ...] = ()
     #: Wall-clock cost, filled in by the supervisor.
     duration_ms: float = 0.0
 
@@ -93,14 +101,7 @@ class AnalyzerOutput:
         return self.status is AnalyzerStatus.OK
 
     def with_duration(self, duration_ms: float) -> AnalyzerOutput:
-        return AnalyzerOutput(
-            status=self.status,
-            issues=self.issues,
-            metrics=self.metrics,
-            score=self.score,
-            detail=self.detail,
-            duration_ms=round(duration_ms, 3),
-        )
+        return replace(self, duration_ms=round(duration_ms, 3))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -109,6 +110,7 @@ class AnalyzerOutput:
             "score": self.score,
             "detail": self.detail,
             "duration_ms": self.duration_ms,
+            "claim_count": len(self.claims),
             "metrics": {k: round(v, 4) for k, v in self.metrics.items()},
         }
 

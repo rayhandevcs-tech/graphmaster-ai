@@ -140,13 +140,11 @@ async def test_every_issue_records_which_analyzer_found_it(client, student, seed
 
     # Without this an audit of a false positive has nowhere to start.
     assert all(i.source for i in detail.issues)
-    assert {i.source.split(":")[0] for i in detail.issues} <= {
-        "spelling",
-        "sentence",
-        "word_usage",
-        "vocabulary",
-        "writing",
-    }
+    from app.core.config import get_settings
+
+    assert {i.source.split(":")[0] for i in detail.issues} <= set(
+        get_settings().assessment_analyzers
+    )
 
 
 async def test_the_analyzer_status_records_what_ran(client, student, seeded_graph, db):
@@ -155,13 +153,11 @@ async def test_the_analyzer_status_records_what_ran(client, student, seeded_grap
 
     detail = await stored(db, submission_id)
 
-    assert set(detail.analyzer_status) == {
-        "vocabulary",
-        "writing",
-        "spelling",
-        "sentence",
-        "word_usage",
-    }
+    # The configured set, whatever it currently is — this asserts that every
+    # analyzer that ran is recorded, not which ones a given release ships.
+    from app.core.config import get_settings
+
+    assert set(detail.analyzer_status) == set(get_settings().assessment_analyzers)
     assert all(entry["status"] == "ok" for entry in detail.analyzer_status.values())
     assert set(detail.analyzer_audiences) == set(detail.analyzer_status)
 
@@ -398,3 +394,123 @@ class TestRepositoryReads:
         counts = await AssessmentRepository(db).issue_counts([])
 
         assert counts == {c.value: 0 for c in IssueCategory}
+
+
+# ── Graph-accuracy claims ────────────────────────────────────────────────────
+
+
+MISREAD = (
+    "Overall, solar output fell steadily across the whole of the period covered by "
+    "this graph. The figures reached their peak in 2020 and then declined again "
+    "towards the final year. Output was consistently lower at the end than it had "
+    "been at the start of the period, and the pattern was clear throughout the "
+    "years that the chart covers in this particular figure."
+)
+
+
+class TestGraphAccuracyClaims:
+    async def test_claims_are_stored_with_their_verdicts(self, client, student, seeded_graph, db):
+        from sqlalchemy.orm import selectinload
+
+        from app.models.assessment import GraphAccuracyClaim
+
+        _, headers = student
+        submission_id = await score_answer(client, headers, seeded_graph, MISREAD)
+
+        detail = (
+            await db.execute(
+                select(AssessmentDetail)
+                .where(AssessmentDetail.submission_id == submission_id)
+                .options(selectinload(AssessmentDetail.claims))
+            )
+        ).scalar_one()
+
+        assert detail.claims, "the seeded line graph supports checkable claims"
+        assert {c.verdict for c in detail.claims} <= {"correct", "incorrect", "unverified"}
+        assert all(isinstance(c, GraphAccuracyClaim) for c in detail.claims)
+
+    async def test_a_contradicted_claim_is_linked_to_the_correction_it_produced(
+        self, client, student, seeded_graph, db
+    ):
+        from sqlalchemy.orm import selectinload
+
+        _, headers = student
+        submission_id = await score_answer(client, headers, seeded_graph, MISREAD)
+
+        detail = (
+            await db.execute(
+                select(AssessmentDetail)
+                .where(AssessmentDetail.submission_id == submission_id)
+                .options(
+                    selectinload(AssessmentDetail.claims), selectinload(AssessmentDetail.issues)
+                )
+            )
+        ).scalar_one()
+
+        wrong = [c for c in detail.claims if c.verdict == "incorrect"]
+        assert wrong, "this answer describes a rising series as falling"
+        assert all(c.issue_id is not None for c in wrong)
+
+        linked = {c.issue_id for c in wrong}
+        graph_issues = {i.id for i in detail.issues if i.category == "graph_accuracy"}
+        assert linked <= graph_issues
+
+    async def test_a_correct_claim_carries_no_correction(self, client, student, seeded_graph, db):
+        from sqlalchemy.orm import selectinload
+
+        _, headers = student
+        submission_id = await score_answer(client, headers, seeded_graph, MISREAD)
+
+        detail = (
+            await db.execute(
+                select(AssessmentDetail)
+                .where(AssessmentDetail.submission_id == submission_id)
+                .options(selectinload(AssessmentDetail.claims))
+            )
+        ).scalar_one()
+
+        for claim in detail.claims:
+            if claim.verdict != "incorrect":
+                assert claim.issue_id is None
+
+    async def test_an_unverified_claim_naming_a_series_is_refused(
+        self, client, student, seeded_graph, db
+    ):
+        from app.models.assessment import GraphAccuracyClaim
+
+        _, headers = student
+        submission_id = await score_answer(client, headers, seeded_graph, MISREAD)
+        detail = await stored(db, submission_id)
+
+        # Enforced in the dataclass, and again here: a claim that resolved to a
+        # series is one the engine could judge, and recording it as unverified
+        # *and* attributed would make the accuracy figure unreadable.
+        db.add(
+            GraphAccuracyClaim(
+                assessment_id=detail.id,
+                claim_type="trend",
+                series_label="Solar",
+                claimed="fell",
+                actual="increase",
+                verdict="unverified",
+                start_index=0,
+                end_index=4,
+                issue_id=detail.issues[0].id,
+            )
+        )
+        with pytest.raises(IntegrityError):
+            await db.flush()
+        await db.rollback()
+
+    async def test_the_claims_go_when_the_submission_does(self, client, student, seeded_graph, db):
+        from app.models.assessment import GraphAccuracyClaim
+        from app.models.submission import Submission
+
+        _, headers = student
+        submission_id = await score_answer(client, headers, seeded_graph, MISREAD)
+
+        await db.delete(await db.get(Submission, submission_id))
+        await db.flush()
+
+        remaining = (await db.execute(select(GraphAccuracyClaim))).scalars().all()
+        assert remaining == []

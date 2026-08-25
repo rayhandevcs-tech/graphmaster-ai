@@ -14,8 +14,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.assessment.result import AssessmentResult
-from app.models.assessment import AssessmentDetail, AssessmentIssue
-from app.models.enums import AssessmentStatus, IssueCategory
+from app.models.assessment import AssessmentDetail, AssessmentIssue, GraphAccuracyClaim
+from app.models.enums import AssessmentStatus, ClaimVerdict, IssueCategory
 from app.repositories.base import BaseRepository
 
 #: Which analyzer's score goes in which column.
@@ -68,7 +68,7 @@ class AssessmentRepository(BaseRepository[AssessmentDetail]):
             # fact from a score of zero and is stored as a different value.
             setattr(detail, column, output.score if output is not None else None)
 
-        detail.issues = [
+        issues = [
             AssessmentIssue(
                 category=issue.category.value,
                 subtype=issue.subtype,
@@ -85,6 +85,37 @@ class AssessmentRepository(BaseRepository[AssessmentDetail]):
                 source=issue.source,
             )
             for issue in result.issues
+        ]
+        detail.issues = issues
+
+        # Claims are linked to the issue they produced, where they produced
+        # one. Matched on the span and the claim type rather than carried
+        # through the engine as an object reference: the engine's issue and its
+        # claim are separate frozen values, and threading an identity between
+        # them would only exist to survive this one write.
+        by_span = {
+            (i.start_index, i.end_index, i.subtype): i
+            for i in issues
+            if i.category == IssueCategory.GRAPH_ACCURACY.value
+        }
+        detail.claims = [
+            GraphAccuracyClaim(
+                claim_type=claim.claim_type.value,
+                series_label=claim.series_label,
+                claimed=claim.claimed[:120],
+                actual=claim.actual[:120],
+                verdict=claim.verdict.value,
+                confidence=claim.confidence,
+                start_index=claim.start,
+                end_index=claim.end,
+                issue_id=None,
+                issue=(
+                    by_span.get((claim.start, claim.end, f"incorrect_{claim.claim_type.value}"))
+                    if claim.verdict is ClaimVerdict.INCORRECT
+                    else None
+                ),
+            )
+            for claim in result.claims
         ]
 
         return await self.add(detail)
