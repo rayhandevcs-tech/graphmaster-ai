@@ -84,7 +84,9 @@ class Settings(BaseSettings):
     # see app/assessment/__init__.py.
     ASSESSMENT_ENABLED: bool = True
     #: Which analyzers run, and in what order. Same idiom as OCR_PROVIDER_ORDER.
-    ASSESSMENT_ANALYZERS: str = "vocabulary,writing,spelling,sentence,word_usage,graph_accuracy"
+    ASSESSMENT_ANALYZERS: str = (
+        "vocabulary,writing,spelling,sentence,word_usage,graph_accuracy,grammar"
+    )
     #: Runs and persists, shown to nobody. A dark launch measures real issue
     #: volume and real latency against real answers before a student is shown
     #: a correction that might be wrong.
@@ -107,8 +109,28 @@ class Settings(BaseSettings):
     # the remote one posts student writing to a third party. Neither is a
     # decision to make silently inside an image.
     GRAMMAR_PROVIDER: Literal["none", "local", "remote"] = "none"
+    #: The local engine's address. Ignored when GRAMMAR_API_URL is set, which
+    #: is how a local engine behind a path prefix or a proxy is reached.
+    GRAMMAR_HOST: str = "localhost"
+    GRAMMAR_PORT: int = Field(default=8081, ge=1, le=65535)
+    #: The remote endpoint, and the override for a local one. A base URL —
+    #: "/v2/check" is appended, and recognised if it is already there.
     GRAMMAR_API_URL: str | None = None
-    GRAMMAR_TIMEOUT_SECONDS: float = Field(default=3.0, gt=0)
+    #: The **total** budget for one check, retries included. This call sits
+    #: inside the request that is scoring a submission, so a per-attempt
+    #: timeout would let a retry double the worst case.
+    GRAMMAR_TIMEOUT_SECONDS: float = Field(default=3.0, gt=0, le=15.0)
+    #: Attempts beyond the first, for the remote provider only. Spent within
+    #: the budget above, never in addition to it.
+    GRAMMAR_MAX_RETRIES: int = Field(default=1, ge=0, le=3)
+    #: Longer answers are truncated for grammar analysis rather than refused.
+    #: The public service truncates silently at 20,000, which would report
+    #: offsets into a different string from the one the student wrote.
+    GRAMMAR_MAX_CHARS: int = Field(default=20_000, ge=100)
+    #: How long a health probe's answer stands. A negative answer must expire:
+    #: a platform that started before its engine did would otherwise report
+    #: grammar unavailable until someone restarted it.
+    GRAMMAR_HEALTH_TTL_SECONDS: float = Field(default=60.0, gt=0)
     GRAMMAR_LANGUAGE: str = "en-GB"
 
     # ── Gamification ─────────────────────────────────────────────────────────
@@ -231,6 +253,20 @@ class Settings(BaseSettings):
             raise ValueError(
                 "STORAGE_BACKEND is 's3' but S3_BUCKET and S3_ACCESS_KEY_ID are not both set"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _check_grammar_provider(self) -> Settings:
+        """A remote grammar provider must name its endpoint.
+
+        Deliberately fatal rather than a fall back to ``none``. Choosing
+        ``remote`` is a decision that student writing leaves the institution,
+        and a deployment that made it needs to know immediately if it is not
+        actually happening — a server that quietly ran without the checker
+        someone switched on would look identical to one that had it.
+        """
+        if self.GRAMMAR_PROVIDER == "remote" and not (self.GRAMMAR_API_URL or "").strip():
+            raise ValueError("GRAMMAR_PROVIDER is 'remote' but GRAMMAR_API_URL is not set")
         return self
 
     @model_validator(mode="after")

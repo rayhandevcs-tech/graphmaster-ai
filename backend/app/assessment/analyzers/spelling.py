@@ -77,6 +77,26 @@ def _checker() -> Any | None:
     return SpellChecker(distance=2)
 
 
+@lru_cache(maxsize=8192)
+def _correction(word: str) -> str | None:
+    """The dictionary's suggestion for one word, computed once per process.
+
+    Memoised because the search is expensive and the input repeats. A word with
+    no near neighbour costs the full edit-distance-2 expansion — a quarter of a
+    million candidate strings intersected with the dictionary, around half a
+    second for "terawatt" — and a 300-word answer about terawatt hours contains
+    that word a dozen times. Uncached, one answer spent six seconds asking the
+    same question twelve times and answering it identically.
+
+    Process-wide rather than per-run: the dictionary is a fixed lookup table
+    loaded once, so the answer for a given word cannot change between
+    submissions. Behaviour is unchanged — this removes duplicated work, not a
+    result.
+    """
+    checker = _checker()
+    return None if checker is None else checker.correction(word)
+
+
 class SpellingAnalyzer:
     """Finds misspellings, and works hard not to find anything else."""
 
@@ -101,7 +121,7 @@ class SpellingAnalyzer:
         checker = _checker()
         if checker is not None:
             checker.unknown(["warmup"])
-            checker.correction("wramup")
+            _correction("wramup")
 
     def run(self, ctx: AssessmentContext) -> AnalyzerOutput:
         checker = _checker()
@@ -213,7 +233,7 @@ def _issue_for(ctx: AssessmentContext, token: Token, checker: Any) -> Assessment
     word = token.text.lower()
     start, end = token_span(ctx, token)
 
-    correction = checker.correction(word)
+    correction = _correction(word)
     if correction is None or correction == word:
         # Unknown, and the dictionary has nothing to offer. Most often a name
         # or a domain term the exemptions missed, so this is reported quietly
