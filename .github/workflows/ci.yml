@@ -292,6 +292,12 @@ jobs:
     env:
       ENVIRONMENT: test
       SECRET_KEY: ci-openapi-dump-key-at-least-32-characters
+      # Nothing connects: `app.db.session` builds the engine at import time and
+      # `create_async_engine` does not dial the server, so this only has to be a
+      # URL the settings model accepts. It is required all the same — the
+      # settings are constructed during the import, and a developer's machine
+      # only gets away without it because `backend/.env` is sitting there.
+      DATABASE_URL: postgresql+asyncpg://openapi:openapi@127.0.0.1:5432/openapi
     steps:
       - uses: actions/checkout@v4
 
@@ -305,7 +311,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      # No database, no language model, no OCR: building the OpenAPI document
+      # No language model and no OCR engine: building the OpenAPI document
       # only needs the application to import.
       - name: Install the backend
         run: pip install -e "./backend"
