@@ -8,7 +8,8 @@
 
 ## 1. Delivery status
 
-**Last updated:** end of Sprint 10 (frontend foundation).
+**Last updated:** Sprint 15 (assessment framework). Sprints 11–14 remain
+outstanding; see §1.3.
 
 ### 1.1 Snapshot
 
@@ -17,8 +18,8 @@
 | Backend sprints complete | **9 of 9** (Sprints 1–9) |
 | Frontend sprints complete | **1 of 5** (Sprint 10) |
 | API endpoints | 75 operations across 59 paths |
-| Application modules | 120 Python files · 60 TypeScript modules |
-| Tests | **1,048 passing** — 990 backend (986 in the default run, 4 performance budgets behind a marker) and 58 frontend |
+| Application modules | 130 Python files · 60 TypeScript modules |
+| Tests | **1,135 passing** — 1,077 backend (1,073 in the default run, 4 performance budgets behind a marker) and 58 frontend |
 | Coverage | **99%** (target 80%, NFR-5.2) |
 | Migrations | 3, forward-only, upgraded from empty and round-tripped in CI |
 | Lint / format | `ruff` and `black` clean, enforced by CI |
@@ -44,6 +45,7 @@ schema looks the way it does.
 | **8** | Class and platform analytics, vocabulary usage, score trends, student dashboard, four report types in CSV / Excel / PDF | Computed live; exports carry the screens' access rules |
 | **9** | API-surface invariants, the optional S3 and OCR backends tested against fakes, session-management endpoints, the request transaction, performance budgets, five-job CI | Every endpoint is proved to demand a token, by the same test |
 | **10** | Next.js 15 App Router, Tailwind 4 palette with dark mode, shadcn primitives, the generated API types and typed client for all 75 operations, the in-memory token store, auth context, route guard, Docker image and two more CI jobs | The types are generated from the OpenAPI document, and CI fails if the committed copy has drifted |
+| **15** | The assessment framework: unified issue model, analyzer protocol, supervisor with failure containment, `assessment_version` fingerprint, and vocabulary and writing wrapped as analyzers | Diagnostic only — a regression suite asserts field by field that no assessment can move a score, and reads `build_score`'s signature so the wiring cannot be added |
 
 ### 1.3 What remains
 

@@ -8,9 +8,12 @@ the reliability figures the project's evaluation chapter needs.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from app.assessment.engine import run_assessment
+from app.assessment.result import AssessmentResult
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AnalysisError
 from app.models.enums import Gender, GraphType
@@ -40,6 +43,11 @@ class AnalysisResult:
     categories: dict[str, dict[str, Any]]
     engine_version: str
     normalised: NormalisedText
+    #: The diagnostic pass, or ``None`` where it is switched off, could not be
+    #: assembled, or — for a submission scored before the feature existed —
+    #: never ran. Optional by design: nothing in ``to_score_fields`` reads it,
+    #: so a score is identical whether or not this is present.
+    assessment: AssessmentResult | None = None
 
     @property
     def word_count(self) -> int:
@@ -50,6 +58,13 @@ class AnalysisResult:
 
         Assembled here rather than in the service so the mapping from analysis
         output to stored columns lives next to the analysis that produced it.
+
+        **Nothing from ``assessment`` appears here, and nothing may be added.**
+        The diagnostic analyzers are reported beside the score, never folded
+        into it: folding them in would re-rank every leaderboard, move every
+        reward tier, and make the scores already in the corpus incomparable
+        with everything scored afterwards.
+        ``tests/unit/test_assessment_isolation.py`` asserts this field-by-field.
         """
         return {
             "vocabulary_score": self.score.vocabulary_score,
@@ -85,6 +100,7 @@ def analyse(
     settings: Settings | None = None,
     graph_type: GraphType | None = None,
     gender: Gender | None = None,
+    chart_data: Mapping[str, Any] | None = None,
 ) -> AnalysisResult:
     """Analyse one answer against one graph's target vocabulary.
 
@@ -120,6 +136,22 @@ def analyse(
     )
     score = build_score(detection, writing, compiled, settings)
 
+    # After the score, and reading the same parsed document rather than
+    # re-parsing: the parse is the expensive step and it has already happened.
+    # `run_assessment` cannot raise, so a diagnostic failure cannot cost the
+    # student the score that has just been computed.
+    assessment = run_assessment(
+        text=text,
+        doc=doc,
+        normalised=normalised,
+        targets=compiled,
+        detection=detection,
+        writing=writing,
+        chart_data=chart_data,
+        graph_type=graph_type,
+        settings=settings,
+    )
+
     return AnalysisResult(
         score=score,
         detection=detection,
@@ -137,6 +169,7 @@ def analyse(
         categories=category_breakdown(detection, compiled),
         engine_version=engine_version(settings),
         normalised=normalised,
+        assessment=assessment,
     )
 
 

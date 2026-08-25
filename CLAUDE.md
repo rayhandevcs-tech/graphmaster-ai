@@ -19,6 +19,7 @@ Read these before changing anything structural:
 | `docs/architecture/07-ocr-architecture.md` | OCR provider chain |
 | `docs/architecture/08-nlp-architecture.md` | Analysis and scoring |
 | `docs/architecture/09-gamification-architecture.md` | XP, tiers, achievements, leaderboard |
+| `docs/architecture/10-assessment-architecture.md` | Diagnostic assessment engine — **framework only**; schema and API await review |
 
 ## Tech stack
 
@@ -216,6 +217,34 @@ Framer Motion · Lottie · Chart.js · TanStack Query
     `next-env.d.ts`, which declares the ambient types for CSS imports and
     `next/font`. Typechecking a clean checkout without it fails on imports
     that are fine.
+
+57. **The assessment engine is diagnostic and can never move a score.** The
+    70/30 rubric keeps exactly its two inputs. Folding a grammar or spelling
+    figure into `final_score` would re-rank every leaderboard, move students
+    across tier boundaries they have already been shown, and make the existing
+    corpus incomparable with everything scored afterwards.
+    `tests/unit/test_assessment_isolation.py` asserts it field by field, and
+    reads `build_score`'s signature so the wiring cannot even be added.
+58. **`engine_version` and `assessment_version` move for different reasons.**
+    The first fingerprints the rubric, the second the analyzer set and its
+    thresholds. Turning an analyzer on must not mark a run of numerically
+    identical scores as a different engine.
+59. **An analyzer failure is contained, never propagated.** The supervisor
+    catches `Exception` per analyzer and `run_assessment` catches everything
+    above it, so a broken diagnostic cannot cost a student the score that has
+    already been computed. `unavailable` and `failed` stay distinct: one is a
+    deployment fact, the other a fault, and only one is worth an alert.
+60. **The analyzer time budget is observed, not enforced.** CPU-bound Python
+    cannot be preempted safely from another thread, so exceeding it logs and
+    is recorded. Real cancellation belongs to whichever provider does I/O.
+61. **Integrity is teacher-facing and structurally absent from the student's
+    payload.** No risk score, probability, percentage or AI label reaches a
+    student. `AssessmentResult` has no integrity field at all, so the leak
+    cannot be made by a careless serialiser, and no `IssueCategory` names
+    cheating, AI or risk.
+62. **Analyzers read the shared `Doc`, never parse their own.** Parsing is the
+    expensive step and it has already happened; an analyzer that calls
+    `get_nlp()` has doubled the cost of the whole pipeline.
 
 ## Conventions
 

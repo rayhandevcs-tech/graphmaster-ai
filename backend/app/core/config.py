@@ -77,6 +77,30 @@ class Settings(BaseSettings):
     TARGET_WORD_COUNT_MIN: int = 150
     TARGET_WORD_COUNT_MAX: int = 250
 
+    # ── Assessment ───────────────────────────────────────────────────────────
+    # Diagnostic only. Nothing here can move a score, a tier or an XP award —
+    # see app/assessment/__init__.py.
+    ASSESSMENT_ENABLED: bool = True
+    ASSESSMENT_ANALYZERS: str = "vocabulary,writing"
+    #: Issues below this confidence are recorded but not shown, so a
+    #: false-positive rate can be tuned from evidence rather than guessed.
+    ASSESSMENT_ISSUE_CONFIDENCE_FLOOR: float = Field(default=0.6, ge=0.0, le=1.0)
+    #: Per category, per submission. A wall of corrections teaches nothing.
+    ASSESSMENT_MAX_ISSUES_PER_CATEGORY: int = Field(default=25, ge=1)
+    #: Observed, not enforced: a CPU-bound analyzer cannot be preempted safely
+    #: from another thread, so exceeding this logs a warning and is recorded on
+    #: the output. Hard cancellation belongs to whichever provider does I/O.
+    ASSESSMENT_ANALYZER_BUDGET_MS: float = Field(default=250.0, gt=0)
+
+    # ── Grammar provider ─────────────────────────────────────────────────────
+    # Off by default: the local engine needs a JVM and a ~250MB download, and
+    # the remote one posts student writing to a third party. Neither is a
+    # decision to make silently inside an image.
+    GRAMMAR_PROVIDER: Literal["none", "local", "remote"] = "none"
+    GRAMMAR_API_URL: str | None = None
+    GRAMMAR_TIMEOUT_SECONDS: float = Field(default=3.0, gt=0)
+    GRAMMAR_LANGUAGE: str = "en-GB"
+
     # ── Gamification ─────────────────────────────────────────────────────────
     XP_PER_SUBMISSION: int = 20
     XP_HIGH_SCORE_BONUS: int = 30
@@ -98,6 +122,21 @@ class Settings(BaseSettings):
     @property
     def ocr_provider_order(self) -> list[str]:
         return [p.strip() for p in self.OCR_PROVIDER_ORDER.split(",") if p.strip()]
+
+    @property
+    def assessment_analyzers(self) -> list[str]:
+        """Configured analyzer names, in order, de-duplicated.
+
+        Duplicates are dropped rather than run twice: an analyzer named twice
+        in an environment variable is a typo, and running it twice would
+        double every issue it finds.
+        """
+        seen: dict[str, None] = {}
+        for name in self.ASSESSMENT_ANALYZERS.split(","):
+            cleaned = name.strip()
+            if cleaned:
+                seen.setdefault(cleaned, None)
+        return list(seen)
 
     @property
     def easyocr_languages(self) -> list[str]:

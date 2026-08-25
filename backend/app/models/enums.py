@@ -102,6 +102,52 @@ class ReportStatus(StrEnum):
     FAILED = "failed"
 
 
+class IssueCategory(StrEnum):
+    """What kind of problem an assessment issue describes.
+
+    One vocabulary for every analyzer, so the issues from all of them can live
+    in one list ordered by where they appear in the answer.
+    """
+
+    GRAMMAR = "grammar"
+    SPELLING = "spelling"
+    SENTENCE = "sentence"
+    WORD_USAGE = "word_usage"
+    VOCABULARY = "vocabulary"
+    GRAPH_ACCURACY = "graph_accuracy"
+    STYLE = "style"
+
+
+class IssueSeverity(StrEnum):
+    """How firmly an issue is asserted.
+
+    The distinction is required, not cosmetic: FR asks that acceptable
+    stylistic variation is never penalised, so a preference must be able to
+    say it is a preference. Only ``ERROR`` claims the student got something
+    wrong.
+    """
+
+    ERROR = "error"
+    WARNING = "warning"
+    SUGGESTION = "suggestion"
+
+
+class AnalyzerStatus(StrEnum):
+    """How one analyzer's run ended.
+
+    ``UNAVAILABLE`` and ``FAILED`` are deliberately different. The first is a
+    deployment fact — no grammar provider is configured — and the second is a
+    fault. Collapsing them would make "this server cannot check grammar"
+    indistinguishable from "the grammar checker crashed", and only one of
+    those is worth waking someone for.
+    """
+
+    OK = "ok"
+    UNAVAILABLE = "unavailable"
+    SKIPPED = "skipped"
+    FAILED = "failed"
+
+
 def values(enum_cls: type[StrEnum]) -> list[str]:
     """Member values, for building ``CHECK`` constraints from the enum itself."""
     return [member.value for member in enum_cls]
