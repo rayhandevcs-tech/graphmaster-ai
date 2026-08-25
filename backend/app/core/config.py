@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     # see app/assessment/__init__.py.
     ASSESSMENT_ENABLED: bool = True
     #: Which analyzers run, and in what order. Same idiom as OCR_PROVIDER_ORDER.
-    ASSESSMENT_ANALYZERS: str = "vocabulary,writing,spelling,sentence,word_usage"
+    ASSESSMENT_ANALYZERS: str = "vocabulary,writing,spelling,sentence,word_usage,graph_accuracy"
     #: Runs and persists, shown to nobody. A dark launch measures real issue
     #: volume and real latency against real answers before a student is shown
     #: a correction that might be wrong.

@@ -10,6 +10,7 @@ what lets one be swapped for a fake in a test.
 
 from __future__ import annotations
 
+from app.assessment.analyzers.graph_accuracy import GraphAccuracyAnalyzer
 from app.assessment.analyzers.sentence import SentenceAnalyzer
 from app.assessment.analyzers.spelling import SpellingAnalyzer
 from app.assessment.analyzers.vocabulary import VocabularyAnalyzer
@@ -17,6 +18,7 @@ from app.assessment.analyzers.word_usage import WordUsageAnalyzer
 from app.assessment.analyzers.writing import WritingAnalyzer
 
 __all__ = [
+    "GraphAccuracyAnalyzer",
     "SentenceAnalyzer",
     "SpellingAnalyzer",
     "VocabularyAnalyzer",

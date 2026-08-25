@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from app.assessment.analyzers import (
+    GraphAccuracyAnalyzer,
     SentenceAnalyzer,
     SpellingAnalyzer,
     VocabularyAnalyzer,
@@ -35,6 +36,7 @@ BUILDERS: dict[str, Callable[[Settings], Analyzer]] = {
     "spelling": SpellingAnalyzer,
     "sentence": SentenceAnalyzer,
     "word_usage": WordUsageAnalyzer,
+    "graph_accuracy": GraphAccuracyAnalyzer,
 }
 
 

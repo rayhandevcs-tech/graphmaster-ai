@@ -8,7 +8,7 @@
 
 ## 1. Delivery status
 
-**Last updated:** Sprint 16 (first diagnostic analyzers). Sprints 11–14 remain
+**Last updated:** Sprint 17 (graph accuracy). Sprints 11–14 remain
 outstanding; see §1.3.
 
 ### 1.1 Snapshot
@@ -18,8 +18,8 @@ outstanding; see §1.3.
 | Backend sprints complete | **9 of 9** (Sprints 1–9) |
 | Frontend sprints complete | **1 of 5** (Sprint 10) |
 | API endpoints | 75 operations across 59 paths |
-| Application modules | 136 Python files · 60 TypeScript modules |
-| Tests | **1,260 passing** — 1,202 backend (1,198 in the default run, 4 performance budgets behind a marker) and 58 frontend |
+| Application modules | 139 Python files · 60 TypeScript modules |
+| Tests | **1,332 passing** — 1,274 backend (1,270 in the default run, 4 performance budgets behind a marker) and 58 frontend |
 | Coverage | **99%** (target 80%, NFR-5.2) |
 | Migrations | 4, forward-only, upgraded from empty and round-tripped in CI |
 | Lint / format | `ruff` and `black` clean, enforced by CI |
@@ -47,6 +47,7 @@ schema looks the way it does.
 | **10** | Next.js 15 App Router, Tailwind 4 palette with dark mode, shadcn primitives, the generated API types and typed client for all 75 operations, the in-memory token store, auth context, route guard, Docker image and two more CI jobs | The types are generated from the OpenAPI document, and CI fails if the committed copy has drifted |
 | **15** | The assessment framework: unified issue model, analyzer protocol, supervisor with failure containment, `assessment_version` fingerprint, and vocabulary and writing wrapped as analyzers | Diagnostic only — a regression suite asserts field by field that no assessment can move a score, and reads `build_score`'s signature so the wiring cannot be added |
 | **16** | Migration 4 and three tables, the spelling, sentence-quality and word-usage analyzers, the four-level severity scale, per-analyzer rollout flags, and persistence inside the scoring transaction | Every issue is located in the student's own text; the subject of the chart is exempt from both the spelling and the repetition checks |
+| **17** | Graph accuracy: chart facts, claims extracted from the vocabulary the detector already located, four claim kinds and their verdicts, and the claims table | Reaches a verdict only where both the attribution and the fact are unambiguous — everything else is recorded as unverified and shown to nobody |
 
 ### 1.3 What remains
 
@@ -80,6 +81,7 @@ place; say the word and it changes.
 | 7 | A raw submission export is capped at 20,000 rows. Paginate a larger one, or leave date filters as the answer? | Capped, with the ceiling published on `/reports/capabilities` |
 | 8 | The performance budgets run in CI as an advisory step, because a shared runner cannot certify a latency figure. Should they instead be measured on the deployment host during Sprint 14 and recorded as the project's evidence for NFR-1.1? | Advisory in CI; `make perf` on real hardware |
 | 9 | The browser talks to the API directly, so the refresh cookie belongs to the API's origin. Serving both behind one origin (a Next rewrite, or one reverse proxy) would make it first-party, allow server-side data fetching, and let route protection move into middleware — at the cost of a hop on every request. Decide in Sprint 14's deployment pass? | Direct, with the guard in the browser |
+| 10 | **Settled.** Historical submissions carry no assessment and there is no backfill, so every assessment metric reports an `assessed_count`, trend lines break where it is zero, and missing data renders as unavailable rather than zero. | Approved before Sprint 17 |
 
 ---
 

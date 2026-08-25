@@ -16,6 +16,7 @@ from __future__ import annotations
 import time
 
 from app.assessment import assessment_version
+from app.assessment.claims import GraphClaim
 from app.assessment.issues import AssessmentIssue, deduplicate, order_for_display
 from app.assessment.protocol import Analyzer, AnalyzerOutput, AssessmentContext
 from app.assessment.result import AssessmentResult
@@ -42,10 +43,12 @@ def run_analyzers(
 
     outputs: dict[str, AnalyzerOutput] = {}
     collected: list[AssessmentIssue] = []
+    claims: list[GraphClaim] = []
 
     for analyzer in analyzers:
         output = _run_one(analyzer, ctx, settings)
         outputs[analyzer.name] = output
+        claims.extend(output.claims)
         # Stamped here rather than trusted from the analyzer: `source` is what
         # the audience filter and a false-positive audit both key on, so an
         # issue that forgot it would be unattributable.
@@ -57,6 +60,7 @@ def run_analyzers(
         version=assessment_version(settings),
         analyzers=outputs,
         issues=tuple(issues),
+        claims=tuple(claims),
         suppressed_count=suppressed,
         truncated_categories=truncated,
         audiences={name: settings.analyzer_audience(name) for name in outputs},

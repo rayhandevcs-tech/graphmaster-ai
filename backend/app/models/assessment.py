@@ -239,6 +239,10 @@ class GraphAccuracyClaim(Base, UUIDPrimaryKeyMixin):
     )
 
     assessment: Mapped[AssessmentDetail] = relationship(back_populates="claims")
+    #: Assigned by object rather than by id, so the claim and the issue it
+    #: produced can be written in one flush without a round trip to learn the
+    #: issue's primary key.
+    issue: Mapped[AssessmentIssue | None] = relationship()
 
     __table_args__ = (
         CheckConstraint(_in("claim_type", ClaimType), name="claim_type_valid"),
