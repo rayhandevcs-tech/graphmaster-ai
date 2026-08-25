@@ -93,6 +93,10 @@ ignore = [
 # Ranges and formulae in user-facing prose: "150-250 words", "(detected / total) x 100".
 "app/nlp/writing.py" = ["RUF002"]
 "app/nlp/scoring.py" = ["RUF002"]
+# Ranges written as "0-1" and "0-100" use an en dash deliberately; these are
+# developer-facing docstrings and error messages, not identifiers.
+"app/assessment/issues.py" = ["RUF001", "RUF003"]
+"app/assessment/protocol.py" = ["RUF001", "RUF003"]
 "app/nlp/feedback.py" = ["RUF001"]
 "app/nlp/defaults.py" = ["RUF003"]
 "tests/unit/test_nlp_scoring.py" = ["RUF003"]
