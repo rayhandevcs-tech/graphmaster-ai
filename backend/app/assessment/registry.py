@@ -11,7 +11,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from app.assessment.analyzers import VocabularyAnalyzer, WritingAnalyzer
+from app.assessment.analyzers import (
+    SentenceAnalyzer,
+    SpellingAnalyzer,
+    VocabularyAnalyzer,
+    WordUsageAnalyzer,
+    WritingAnalyzer,
+)
 from app.assessment.protocol import Analyzer
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
@@ -20,12 +26,15 @@ logger = get_logger(__name__)
 
 #: Every analyzer this build knows how to construct.
 #:
-#: Factories rather than instances: an analyzer may hold a provider or a
-#: loaded word list, and building it once per process belongs to whoever
-#: assembles the pipeline, not to import time.
-BUILDERS: dict[str, Callable[[], Analyzer]] = {
+#: Factories taking the deployment's settings, rather than instances: an
+#: analyzer may hold a provider, a client or a loaded word list, and building
+#: it belongs to whoever assembles the pipeline rather than to import time.
+BUILDERS: dict[str, Callable[[Settings], Analyzer]] = {
     "vocabulary": VocabularyAnalyzer,
     "writing": WritingAnalyzer,
+    "spelling": SpellingAnalyzer,
+    "sentence": SentenceAnalyzer,
+    "word_usage": WordUsageAnalyzer,
 }
 
 
@@ -46,9 +55,26 @@ def build_analyzers(settings: Settings | None = None) -> list[Analyzer]:
                 ", ".join(sorted(BUILDERS)),
             )
             continue
-        analyzers.append(builder())
+        analyzers.append(builder(settings))
 
     return analyzers
+
+
+def warm_up(settings: Settings | None = None) -> None:
+    """Load whatever the configured analyzers need, during boot.
+
+    Failures are logged and swallowed: a warm-up is an optimisation, and an
+    analyzer that cannot preload is still able to report itself unavailable on
+    the first request rather than stopping the server from starting.
+    """
+    for analyzer in build_analyzers(settings):
+        preload = getattr(analyzer, "warm_up", None)
+        if preload is None:
+            continue
+        try:
+            preload()
+        except Exception as exc:
+            logger.warning("Could not warm up analyzer %s: %s", analyzer.name, exc)
 
 
 def known_analyzers() -> list[str]:
@@ -56,4 +82,4 @@ def known_analyzers() -> list[str]:
     return sorted(BUILDERS)
 
 
-__all__ = ["BUILDERS", "build_analyzers", "known_analyzers"]
+__all__ = ["BUILDERS", "build_analyzers", "known_analyzers", "warm_up"]

@@ -195,7 +195,7 @@ def test_an_analyzer_that_raises_does_not_break_the_analysis(exception: Exceptio
     baseline = analyse(text, targets, settings=settings).to_score_fields()
 
     builders = dict(BUILDERS)
-    builders["exploding"] = lambda: Exploding(exception)
+    builders["exploding"] = lambda _settings: Exploding(exception)
     registry.BUILDERS = builders
     try:
         result = analyse(text, targets, settings=settings)
@@ -234,7 +234,7 @@ def test_every_registered_analyzer_can_fail_alone(targets):
 
     for name in BUILDERS:
         builders = dict(BUILDERS)
-        builders[name] = lambda broken=name: Exploding(
+        builders[name] = lambda _settings, broken=name: Exploding(
             RuntimeError(f"{broken} is broken"), name=broken
         )
         registry.BUILDERS = builders
@@ -308,11 +308,24 @@ def test_issue_categories_contain_nothing_a_student_should_not_see():
         assert "ai_" not in category.value.lower()
 
 
-def test_severity_can_express_a_preference_without_calling_it_an_error():
+def test_severity_can_express_a_preference_without_calling_it_a_mistake():
     """Feature 5: acceptable stylistic variation is never penalised.
 
-    The distinction has to exist in the type, or a "suggestion" is only a
-    convention that the next contributor can forget.
+    ``INFO`` is not the bottom of a ladder of badness — it is the rung that
+    means "this is not a mistake". The distinction has to live in the type, or
+    a suggestion is only a convention the next contributor can forget.
     """
-    assert IssueSeverity.SUGGESTION is not IssueSeverity.ERROR
-    assert {s.value for s in IssueSeverity} == {"error", "warning", "suggestion"}
+    assert {s.value for s in IssueSeverity} == {"info", "low", "medium", "high"}
+    assert IssueSeverity.INFO.is_mistake is False
+    assert all(s.is_mistake for s in IssueSeverity if s is not IssueSeverity.INFO)
+
+
+def test_the_severity_scale_is_ordered():
+    # StrEnum sorts alphabetically, which would put "high" below "info".
+    ordered = sorted(IssueSeverity, key=lambda s: s.rank)
+    assert ordered == [
+        IssueSeverity.INFO,
+        IssueSeverity.LOW,
+        IssueSeverity.MEDIUM,
+        IssueSeverity.HIGH,
+    ]

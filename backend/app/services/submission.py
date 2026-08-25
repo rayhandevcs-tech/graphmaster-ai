@@ -46,6 +46,7 @@ from app.models.identity import User
 from app.models.submission import Score, Submission
 from app.nlp.analyzer import AnalysisResult
 from app.ocr.postprocess import word_count as count_words
+from app.repositories.assessment import AssessmentRepository
 from app.repositories.submission import SubmissionRepository
 from app.services.analysis import AnalysisService
 from app.services.gamification import AwardResult, GamificationService
@@ -83,6 +84,7 @@ class SubmissionService:
         analysis: AnalysisService,
         ocr: OCRService,
         gamification: GamificationService,
+        assessments: AssessmentRepository,
         settings: Settings | None = None,
     ) -> None:
         self.submissions = submissions
@@ -90,6 +92,7 @@ class SubmissionService:
         self.analysis = analysis
         self.ocr = ocr
         self.gamification = gamification
+        self.assessments = assessments
         self.settings = settings or get_settings()
 
     # ── Opening an attempt ───────────────────────────────────────────────────
@@ -293,6 +296,15 @@ class SubmissionService:
 
         score = Score(submission_id=locked.id, **result.to_score_fields())
         self.submissions.db.add(score)
+
+        # The diagnostic record, in the same transaction as the score it
+        # accompanies. `result.assessment` is None when the pass is switched
+        # off, when no analyzer is configured, or when building it failed — all
+        # three leave the submission scored and the student's work intact,
+        # which is the whole reason it is a separate optional row rather than
+        # columns on `scores`.
+        if result.assessment is not None:
+            await self.assessments.create_for(locked.id, result.assessment)
 
         locked.status = SubmissionStatus.SCORED.value
         locked.scored_at = datetime.now(UTC)

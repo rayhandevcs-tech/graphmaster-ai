@@ -5,6 +5,11 @@ Alembic autogenerate or ``create_all`` runs. A model that is never imported is
 invisible to both.
 """
 
+from app.models.assessment import (
+    AssessmentDetail,
+    AssessmentIssue,
+    GraphAccuracyClaim,
+)
 from app.models.content import (
     Graph,
     GraphTargetVocabulary,
@@ -26,11 +31,14 @@ from app.models.submission import Score, Submission
 __all__ = [
     "Achievement",
     "AnalyticsSnapshot",
+    "AssessmentDetail",
+    "AssessmentIssue",
     "AuthSession",
     "Avatar",
     "Badge",
     "Class",
     "Graph",
+    "GraphAccuracyClaim",
     "GraphTargetVocabulary",
     "LeaderboardEntry",
     "Score",

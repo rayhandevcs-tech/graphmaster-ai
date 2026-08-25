@@ -46,7 +46,10 @@ def run_analyzers(
     for analyzer in analyzers:
         output = _run_one(analyzer, ctx, settings)
         outputs[analyzer.name] = output
-        collected.extend(output.issues)
+        # Stamped here rather than trusted from the analyzer: `source` is what
+        # the audience filter and a false-positive audit both key on, so an
+        # issue that forgot it would be unattributable.
+        collected.extend(issue.from_analyzer(analyzer.name) for issue in output.issues)
 
     issues, suppressed, truncated = _select(collected, settings)
 
@@ -56,6 +59,7 @@ def run_analyzers(
         issues=tuple(issues),
         suppressed_count=suppressed,
         truncated_categories=truncated,
+        audiences={name: settings.analyzer_audience(name) for name in outputs},
     )
 
 

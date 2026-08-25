@@ -120,6 +120,11 @@ class AnalysisService:
             settings=self.settings,
             graph_type=GraphType(graph.graph_type),
             gender=gender,
+            # The chart itself, for the diagnostic analyzers. The spelling
+            # checker exempts every word written on it, and sprint 17's graph
+            # accuracy analyzer checks the student's claims against it. The
+            # scoring engine ignores it entirely.
+            chart_data=graph.chart_data,
         )
 
     async def preview(

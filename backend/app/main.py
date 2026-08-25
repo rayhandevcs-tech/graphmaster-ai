@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import __version__
 from app.api.v1.router import api_router
+from app.assessment.registry import warm_up as warm_up_assessment
 from app.core.config import get_settings
 from app.core.exceptions import GraphMasterError, RateLimitError
 from app.core.logging import configure_logging, get_logger
@@ -60,6 +61,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "The analysis engine is unavailable. Scoring will return 503 until the "
             "spaCy model is installed."
         )
+
+    # The diagnostic analyzers' own preloading — a megabyte of spelling
+    # dictionary, and whatever the provider-backed ones need. Same reason as
+    # above: without it the cost lands on whichever student submits first.
+    warm_up_assessment()
 
     yield
     logger.info("Shutting down %s", settings.PROJECT_NAME)

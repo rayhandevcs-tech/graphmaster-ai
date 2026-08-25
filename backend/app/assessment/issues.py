@@ -10,7 +10,7 @@ this class" be one query rather than five.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from app.assessment import MAX_EXPLANATION_CHARS
@@ -74,6 +74,29 @@ class AssessmentIssue:
         material = f"{self.category}|{self.subtype}|{self.start}|{self.end}"
         return hashlib.blake2s(material.encode("utf-8"), digest_size=8).hexdigest()
 
+    @property
+    def is_mistake(self) -> bool:
+        """Whether this asserts the student did something wrong."""
+        return self.severity.is_mistake
+
+    def from_analyzer(self, name: str) -> AssessmentIssue:
+        """A copy whose ``source`` is prefixed with the analyzer that found it.
+
+        Applied by the supervisor rather than trusted from the analyzer,
+        because ``source`` is what an audience filter and a false-positive
+        audit both key on. An analyzer that forgot to set it, or set it to
+        something else, would otherwise make its issues unattributable.
+        """
+        if self.source == name or self.source.startswith(f"{name}:"):
+            return self
+        suffix = "" if self.source in {"unknown", ""} else f":{self.source}"
+        return replace(self, source=f"{name}{suffix}")
+
+    @property
+    def analyzer(self) -> str:
+        """The analyzer that produced this, from the stamped source."""
+        return self.source.split(":", 1)[0]
+
     def truncated(self) -> AssessmentIssue:
         """A copy whose explanation fits the column it will be stored in."""
         if len(self.explanation) <= MAX_EXPLANATION_CHARS:
@@ -81,18 +104,7 @@ class AssessmentIssue:
         # Cut on a word boundary: a sentence severed mid-word reads as
         # corruption rather than as an abbreviation.
         cut = self.explanation[: MAX_EXPLANATION_CHARS - 1].rsplit(" ", 1)[0]
-        return AssessmentIssue(
-            category=self.category,
-            subtype=self.subtype,
-            severity=self.severity,
-            original_text=self.original_text,
-            explanation=f"{cut}…",
-            start=self.start,
-            end=self.end,
-            suggested_text=self.suggested_text,
-            confidence=self.confidence,
-            source=self.source,
-        )
+        return replace(self, explanation=f"{cut}…")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -114,11 +126,13 @@ def order_for_display(issues: list[AssessmentIssue]) -> list[AssessmentIssue]:
 
     A student works through their answer from the top; a list grouped by
     analyzer would make them jump around their own writing. Ties break on
-    severity so that where two issues share a span, the one asserting an error
-    is read before the one offering a preference.
+    severity descending, so where two issues share a span the one that matters
+    most is read first — and a preference never displaces a mistake.
     """
-    rank = {IssueSeverity.ERROR: 0, IssueSeverity.WARNING: 1, IssueSeverity.SUGGESTION: 2}
-    return sorted(issues, key=lambda i: (i.start, rank[i.severity], i.category.value, i.subtype))
+    return sorted(
+        issues,
+        key=lambda i: (i.start, -i.severity.rank, i.category.value, i.subtype),
+    )
 
 
 def deduplicate(issues: list[AssessmentIssue]) -> list[AssessmentIssue]:

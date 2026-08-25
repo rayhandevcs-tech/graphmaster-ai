@@ -35,7 +35,7 @@ def issue(
     *,
     category: IssueCategory = IssueCategory.SPELLING,
     subtype: str = "misspelling",
-    severity: IssueSeverity = IssueSeverity.ERROR,
+    severity: IssueSeverity = IssueSeverity.MEDIUM,
     confidence: float = 1.0,
     text: str = "teh",
 ) -> AssessmentIssue:
@@ -144,7 +144,7 @@ class TestAssessmentIssue:
         long_issue = AssessmentIssue(
             category=IssueCategory.GRAMMAR,
             subtype="tense",
-            severity=IssueSeverity.ERROR,
+            severity=IssueSeverity.HIGH,
             original_text="was",
             explanation="word " * 200,
             start=0,
@@ -183,14 +183,14 @@ class TestOrdering:
         ordered = order_for_display([issue(start=30, end=34), issue(start=2, end=6)])
         assert [i.start for i in ordered] == [2, 30]
 
-    def test_an_error_is_read_before_a_suggestion_at_the_same_span(self):
+    def test_the_more_serious_issue_is_read_first_at_the_same_span(self):
         ordered = order_for_display(
             [
-                issue(severity=IssueSeverity.SUGGESTION, subtype="style"),
-                issue(severity=IssueSeverity.ERROR, subtype="spelling"),
+                issue(severity=IssueSeverity.INFO, subtype="style"),
+                issue(severity=IssueSeverity.HIGH, subtype="spelling"),
             ]
         )
-        assert ordered[0].severity is IssueSeverity.ERROR
+        assert ordered[0].severity is IssueSeverity.HIGH
 
     def test_deduplication_keeps_the_more_confident_of_two_identical_findings(self):
         kept = deduplicate([issue(confidence=0.7), issue(confidence=0.95)])
@@ -413,17 +413,17 @@ class TestAssessmentResult:
         assert counts["spelling"] == 1
         assert counts["grammar"] == 0
 
-    def test_errors_are_counted_separately_from_suggestions(self, context):
+    def test_only_mistakes_are_counted_as_errors(self, context):
         analyzers: list[Analyzer] = [
             Fake(
                 "one",
                 AnalyzerOutput(
                     issues=(
-                        issue(start=0, end=3, severity=IssueSeverity.ERROR),
+                        issue(start=0, end=3, severity=IssueSeverity.MEDIUM),
                         issue(
                             start=10,
                             end=13,
-                            severity=IssueSeverity.SUGGESTION,
+                            severity=IssueSeverity.INFO,
                             subtype="style",
                             category=IssueCategory.STYLE,
                         ),
@@ -533,6 +533,57 @@ class TestRegistry:
             is None
         )
 
+    def test_warming_up_builds_and_preloads_the_configured_analyzers(self, monkeypatch):
+        from app.assessment import registry
+
+        warmed: list[str] = []
+
+        class Preloading:
+            name = "preloading"
+
+            def __init__(self, settings) -> None:
+                pass
+
+            def warm_up(self) -> None:
+                warmed.append(self.name)
+
+            def run(self, ctx):
+                return AnalyzerOutput()
+
+        monkeypatch.setitem(registry.BUILDERS, "preloading", Preloading)
+        registry.warm_up(
+            get_settings().model_copy(update={"ASSESSMENT_ANALYZERS": "preloading,writing"})
+        )
+
+        # `writing` has nothing to preload and must not be asked to.
+        assert warmed == ["preloading"]
+
+    def test_an_analyzer_that_cannot_warm_up_does_not_stop_the_server_booting(
+        self, monkeypatch, caplog
+    ):
+        from app.assessment import registry
+
+        class Broken:
+            name = "broken"
+
+            def __init__(self, settings) -> None:
+                pass
+
+            def warm_up(self) -> None:
+                raise RuntimeError("dictionary file is truncated")
+
+            def run(self, ctx):
+                return AnalyzerOutput()
+
+        monkeypatch.setitem(registry.BUILDERS, "broken", Broken)
+
+        with caplog.at_level(logging.WARNING):
+            # A warm-up is an optimisation. An analyzer that cannot preload can
+            # still report itself unavailable on the first request.
+            registry.warm_up(get_settings().model_copy(update={"ASSESSMENT_ANALYZERS": "broken"}))
+
+        assert any("Could not warm up" in record.message for record in caplog.records)
+
     def test_every_known_analyzer_can_actually_be_built(self):
         # Guards against a registry entry whose constructor was renamed.
         for name in known_analyzers():
@@ -587,7 +638,7 @@ class TestAdapters:
     def test_the_vocabulary_analyzer_reports_but_never_flags(self, context):
         from app.assessment.analyzers import VocabularyAnalyzer
 
-        output = VocabularyAnalyzer().run(context)
+        output = VocabularyAnalyzer(get_settings()).run(context)
 
         # Missing vocabulary is already carried by `scores.missing_terms` and
         # the feedback. Emitting it here too would double-count it in "the
@@ -599,7 +650,7 @@ class TestAdapters:
     def test_the_writing_analyzer_reports_the_score_the_rubric_uses(self, context):
         from app.assessment.analyzers import WritingAnalyzer
 
-        output = WritingAnalyzer().run(context)
+        output = WritingAnalyzer(get_settings()).run(context)
 
         assert output.issues == ()
         assert output.score == context.writing.score
@@ -608,7 +659,9 @@ class TestAdapters:
     def test_a_result_built_from_the_adapters_scores_both(self, context):
         from app.assessment.analyzers import VocabularyAnalyzer, WritingAnalyzer
 
-        result: AssessmentResult = run_analyzers([VocabularyAnalyzer(), WritingAnalyzer()], context)
+        result: AssessmentResult = run_analyzers(
+            [VocabularyAnalyzer(get_settings()), WritingAnalyzer(get_settings())], context
+        )
 
         assert set(result.scores()) == {"vocabulary", "writing"}
         assert result.issues == ()

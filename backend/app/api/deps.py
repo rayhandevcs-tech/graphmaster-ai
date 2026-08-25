@@ -21,6 +21,7 @@ from app.models.enums import UserRole
 from app.models.identity import User
 from app.ocr.factory import get_ocr_chain
 from app.repositories.analytics import AnalyticsRepository
+from app.repositories.assessment import AssessmentRepository
 from app.repositories.auth_session import AuthSessionRepository
 from app.repositories.avatar import AvatarRepository
 from app.repositories.class_ import ClassRepository
@@ -90,6 +91,10 @@ def get_class_repository(db: DbSession) -> ClassRepository:
     return ClassRepository(db)
 
 
+def get_assessment_repository(db: DbSession) -> AssessmentRepository:
+    return AssessmentRepository(db)
+
+
 def get_submission_repository(db: DbSession) -> SubmissionRepository:
     return SubmissionRepository(db)
 
@@ -128,6 +133,7 @@ VocabItemRepo = Annotated[VocabularyItemRepository, Depends(get_vocabulary_item_
 GraphRepo = Annotated[GraphRepository, Depends(get_graph_repository)]
 ClassRepo = Annotated[ClassRepository, Depends(get_class_repository)]
 SubmissionRepo = Annotated[SubmissionRepository, Depends(get_submission_repository)]
+AssessmentRepo = Annotated[AssessmentRepository, Depends(get_assessment_repository)]
 XPRepo = Annotated[XPRepository, Depends(get_xp_repository)]
 AchievementRepo = Annotated[AchievementRepository, Depends(get_achievement_repository)]
 BadgeRepo = Annotated[BadgeRepository, Depends(get_badge_repository)]
@@ -202,8 +208,9 @@ def get_submission_service(
     analysis: AnalysisSvc,
     ocr: OCRSvc,
     gamification: GamificationSvc,
+    assessments: AssessmentRepo,
 ) -> SubmissionService:
-    return SubmissionService(submissions, graph_service, analysis, ocr, gamification)
+    return SubmissionService(submissions, graph_service, analysis, ocr, gamification, assessments)
 
 
 def get_ocr_service() -> OCRService:

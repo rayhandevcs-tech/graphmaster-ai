@@ -246,6 +246,34 @@ Framer Motion · Lottie · Chart.js · TanStack Query
     expensive step and it has already happened; an analyzer that calls
     `get_nlp()` has doubled the cost of the whole pipeline.
 
+63. **`IssueSeverity.INFO` means "not a mistake", not "a small mistake".**
+    It is the rung the specification's "never penalise acceptable stylistic
+    variation" rests on, and `is_mistake` puts that in the type rather than in
+    a convention. `error_count` counts everything above INFO.
+64. **Never trust spaCy's `PROPN` tag to identify a name.** The tagger falls
+    back to PROPN for any word it does not know — which is exactly what a
+    misspelling is. Use the entity recogniser, and capitalisation *away from
+    the start of a sentence*. A capitalised word the recogniser declines to
+    claim is ambiguous, and is reported below the confidence floor rather than
+    told to a student.
+65. **The subject of the answer is exempt from spelling and repetition
+    checks.** Target terms, the forms the detector actually matched, and every
+    word written on the chart. A chart of three renewable sources cannot be
+    described without naming them repeatedly, and a student's own city is not
+    a typo.
+66. **An analyzer scores only what it would show.** Saying "we are not
+    confident enough to display this" and then marking the student down for it
+    is a contradiction — which is why the confidence floor is injected into
+    the analyzer rather than applied only by the supervisor.
+67. **A comparative or superlative is not informal.** "The smallest
+    contributor" is how a comparison between series is *correctly* expressed;
+    only the positive degree is a register suggestion.
+68. **Staged rollout is per analyzer**, through `ASSESSMENT_DARK_ANALYZERS`
+    and `ASSESSMENT_TEACHER_ONLY_ANALYZERS`, and the audience is frozen onto
+    the row at assessment time. Read at display time instead, a stage that has
+    since moved would retroactively reveal what was dark when the work was
+    marked.
+
 ## Conventions
 
 - **Python** — Black, Ruff, full type hints. Routers → services → repositories;

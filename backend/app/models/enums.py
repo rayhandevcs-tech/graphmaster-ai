@@ -119,17 +119,112 @@ class IssueCategory(StrEnum):
 
 
 class IssueSeverity(StrEnum):
-    """How firmly an issue is asserted.
+    """How much an issue matters, on one ordered scale.
 
-    The distinction is required, not cosmetic: FR asks that acceptable
-    stylistic variation is never penalised, so a preference must be able to
-    say it is a preference. Only ``ERROR`` claims the student got something
-    wrong.
+    ``INFO`` is not the bottom of a severity ladder — it is the rung that
+    means **"this is not a mistake"**. The specification asks that acceptable
+    stylistic variation is never penalised, so a preference has to be able to
+    say it is a preference; :attr:`is_mistake` makes that a property of the
+    type rather than a convention an analyzer author has to remember.
+
+    The three grades above it all assert the student got something wrong, and
+    differ only in how much it costs them:
+
+    * ``LOW`` — worth knowing, and the reader would not have stumbled.
+    * ``MEDIUM`` — a real error against the conventions being taught.
+    * ``HIGH`` — it changes what the writing means, or contradicts the data.
     """
 
-    ERROR = "error"
-    WARNING = "warning"
-    SUGGESTION = "suggestion"
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+    @property
+    def rank(self) -> int:
+        """Sort key. ``StrEnum`` orders alphabetically, which is meaningless here."""
+        return _SEVERITY_RANK[self]
+
+    @property
+    def is_mistake(self) -> bool:
+        """Whether this asserts the student did something wrong.
+
+        The one guard that keeps a style preference from reading as an error,
+        wherever it is counted or displayed.
+        """
+        return self is not IssueSeverity.INFO
+
+
+#: Declared after the class because a ``StrEnum`` body cannot hold a mapping of
+#: its own members.
+_SEVERITY_RANK: dict[IssueSeverity, int] = {
+    IssueSeverity.INFO: 0,
+    IssueSeverity.LOW: 1,
+    IssueSeverity.MEDIUM: 2,
+    IssueSeverity.HIGH: 3,
+}
+
+
+class AssessmentStatus(StrEnum):
+    """How complete one submission's assessment is.
+
+    ``PENDING`` is reserved from the first migration for the deferred pass
+    that expensive analyzers will need. Adding it later would mean altering a
+    ``CHECK`` constraint on a table with rows in it; adding it now costs
+    nothing.
+
+    ``PARTIAL`` means an analyzer *failed*. One that is simply not configured
+    on this server leaves the assessment ``COMPLETE`` — a deployment fact is
+    not a fault, and conflating them would leave every server without a
+    grammar provider permanently reporting partial results.
+    """
+
+    PENDING = "pending"
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+
+
+class ClaimVerdict(StrEnum):
+    """Whether a claim about the chart matched the data.
+
+    ``UNVERIFIED`` is the honest majority case: the sentence could not be
+    resolved to a series with enough confidence to judge it. It is stored
+    rather than dropped because "we could not check this" and "we checked it
+    and it was fine" are different, and only one of them should encourage a
+    student.
+    """
+
+    CORRECT = "correct"
+    INCORRECT = "incorrect"
+    UNVERIFIED = "unverified"
+
+
+class ClaimType(StrEnum):
+    """What kind of statement about the chart a claim makes."""
+
+    TREND = "trend"
+    PEAK = "peak"
+    TROUGH = "trough"
+    COMPARISON = "comparison"
+    MAGNITUDE = "magnitude"
+    TIMING = "timing"
+
+
+class AnalyzerAudience(StrEnum):
+    """Who may see what an analyzer produced.
+
+    Staged rollout, per analyzer, without a redeploy. An analyzer moves
+    ``dark`` → ``teacher`` → ``student`` as confidence in its false-positive
+    rate grows, and moves back the moment it does not.
+
+    ``DARK`` still runs and still persists: the point of a dark launch is to
+    measure real issue volume and real latency against real answers before
+    anyone is shown a correction that might be wrong.
+    """
+
+    STUDENT = "student"
+    TEACHER = "teacher"
+    DARK = "dark"
 
 
 class AnalyzerStatus(StrEnum):

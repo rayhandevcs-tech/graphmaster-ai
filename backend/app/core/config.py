@@ -16,6 +16,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.models.enums import AnalyzerAudience
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -81,7 +83,15 @@ class Settings(BaseSettings):
     # Diagnostic only. Nothing here can move a score, a tier or an XP award —
     # see app/assessment/__init__.py.
     ASSESSMENT_ENABLED: bool = True
-    ASSESSMENT_ANALYZERS: str = "vocabulary,writing"
+    #: Which analyzers run, and in what order. Same idiom as OCR_PROVIDER_ORDER.
+    ASSESSMENT_ANALYZERS: str = "vocabulary,writing,spelling,sentence,word_usage"
+    #: Runs and persists, shown to nobody. A dark launch measures real issue
+    #: volume and real latency against real answers before a student is shown
+    #: a correction that might be wrong.
+    ASSESSMENT_DARK_ANALYZERS: str = ""
+    #: Surfaced to teachers and administrators, hidden from students. The
+    #: middle rung: teachers judge the false-positive rate first.
+    ASSESSMENT_TEACHER_ONLY_ANALYZERS: str = ""
     #: Issues below this confidence are recorded but not shown, so a
     #: false-positive rate can be tuned from evidence rather than guessed.
     ASSESSMENT_ISSUE_CONFIDENCE_FLOOR: float = Field(default=0.6, ge=0.0, le=1.0)
@@ -123,6 +133,28 @@ class Settings(BaseSettings):
     def ocr_provider_order(self) -> list[str]:
         return [p.strip() for p in self.OCR_PROVIDER_ORDER.split(",") if p.strip()]
 
+    def analyzer_audience(self, name: str) -> AnalyzerAudience:
+        """Who may see what ``name`` produced.
+
+        The most restrictive listing wins. An analyzer named in both lists is
+        a deployment mid-way through a rollback, and answering "teacher" there
+        would show a student output that someone has just decided to withdraw.
+        """
+        if name in self._named("ASSESSMENT_DARK_ANALYZERS"):
+            return AnalyzerAudience.DARK
+        if name in self._named("ASSESSMENT_TEACHER_ONLY_ANALYZERS"):
+            return AnalyzerAudience.TEACHER
+        return AnalyzerAudience.STUDENT
+
+    def _named(self, setting: str) -> list[str]:
+        """A comma-separated setting, cleaned and de-duplicated in order."""
+        seen: dict[str, None] = {}
+        for name in str(getattr(self, setting)).split(","):
+            cleaned = name.strip()
+            if cleaned:
+                seen.setdefault(cleaned, None)
+        return list(seen)
+
     @property
     def assessment_analyzers(self) -> list[str]:
         """Configured analyzer names, in order, de-duplicated.
@@ -131,12 +163,7 @@ class Settings(BaseSettings):
         in an environment variable is a typo, and running it twice would
         double every issue it finds.
         """
-        seen: dict[str, None] = {}
-        for name in self.ASSESSMENT_ANALYZERS.split(","):
-            cleaned = name.strip()
-            if cleaned:
-                seen.setdefault(cleaned, None)
-        return list(seen)
+        return self._named("ASSESSMENT_ANALYZERS")
 
     @property
     def easyocr_languages(self) -> list[str]:

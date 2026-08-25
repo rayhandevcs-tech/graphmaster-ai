@@ -448,3 +448,43 @@ def strong_answer() -> str:
 def weak_answer() -> str:
     """Three short sentences with almost no target vocabulary."""
     return "The graph go up. Then it go down a lot. Sales increase in 2015 and that is all."
+
+
+@pytest.fixture
+def assessment_context(term_factory):
+    """Build a real :class:`AssessmentContext` from text, as the engine would.
+
+    The analyzers read a parsed document, the vocabulary detector's output and
+    the normalisation index map, so a fake context proves very little about
+    them. This runs the same three steps ``analyse`` runs, and hands back what
+    an analyzer would actually receive.
+    """
+    from app.assessment.protocol import AssessmentContext
+    from app.core.config import get_settings
+    from app.nlp.detector import detect
+    from app.nlp.normalise import normalise
+    from app.nlp.pipeline import get_nlp
+    from app.nlp.terms import compile_targets, dedupe
+    from app.nlp.writing import assess
+
+    def build(text: str, *, targets=None, chart_data=None, graph_type=None):
+        settings = get_settings()
+        compiled = compile_targets(dedupe(list(targets or [])))
+        normalised = normalise(text)
+        doc = get_nlp()(normalised.text)
+        return AssessmentContext(
+            text=text,
+            doc=doc,
+            normalised=normalised,
+            targets=compiled,
+            detection=detect(doc, normalised, compiled),
+            writing=assess(
+                doc,
+                target_min=settings.TARGET_WORD_COUNT_MIN,
+                target_max=settings.TARGET_WORD_COUNT_MAX,
+            ),
+            chart_data=chart_data,
+            graph_type=graph_type,
+        )
+
+    return build

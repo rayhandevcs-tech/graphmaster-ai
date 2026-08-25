@@ -22,6 +22,7 @@ dependencies = [
     "spacy>=3.8.0",
     "nltk>=3.9.1",
     "python-json-logger>=2.0.7",
+    "pyspellchecker>=0.8.0",
 ]
 
 [project.optional-dependencies]
@@ -97,6 +98,16 @@ ignore = [
 # developer-facing docstrings and error messages, not identifiers.
 "app/assessment/issues.py" = ["RUF001", "RUF003"]
 "app/assessment/protocol.py" = ["RUF001", "RUF003"]
+# Student-facing copy and developer docstrings: the en dash in "150-250 words"
+# and "0-100" is deliberate typography, not an identifier.
+"app/assessment/text.py" = ["RUF002"]
+"app/assessment/analyzers/sentence.py" = ["RUF001", "RUF002", "RUF003"]
+"app/assessment/analyzers/spelling.py" = ["RUF001", "RUF002", "RUF003"]
+"app/assessment/analyzers/word_usage.py" = ["RUF001", "RUF002", "RUF003"]
+# Typographic quotes and en dashes appear in these tests as deliberate input:
+# a curly apostrophe is exactly what normalisation has to survive.
+"tests/unit/test_assessment_spelling.py" = ["E501", "RUF001"]
+"tests/unit/test_assessment_word_usage.py" = ["E501", "RUF001"]
 "app/nlp/feedback.py" = ["RUF001"]
 "app/nlp/defaults.py" = ["RUF003"]
 "tests/unit/test_nlp_scoring.py" = ["RUF003"]
