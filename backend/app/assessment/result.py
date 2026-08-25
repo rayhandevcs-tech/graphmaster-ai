@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from app.assessment.issues import AssessmentIssue
 from app.assessment.protocol import AnalyzerOutput
-from app.models.enums import AnalyzerStatus, IssueCategory, IssueSeverity
+from app.models.enums import AnalyzerAudience, AnalyzerStatus, IssueCategory
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,10 +32,20 @@ class AssessmentResult:
     #: Categories where the per-submission cap dropped issues, so a truncated
     #: list can be shown as truncated instead of as complete.
     truncated_categories: tuple[str, ...] = ()
+    #: Who may see each analyzer's output. Recorded at assessment time rather
+    #: than read at display time, so a rollout stage that changed since a
+    #: submission was marked cannot retroactively reveal what was dark.
+    audiences: dict[str, AnalyzerAudience] = field(default_factory=dict)
 
     @property
     def error_count(self) -> int:
-        return sum(1 for i in self.issues if i.severity is IssueSeverity.ERROR)
+        """Issues that assert a mistake — everything above ``INFO``.
+
+        A style preference is deliberately not counted: telling a student they
+        made nine mistakes when four of them were suggestions is the failure
+        FR-5 rules out.
+        """
+        return sum(1 for i in self.issues if i.is_mistake)
 
     @property
     def ran_analyzers(self) -> tuple[str, ...]:
@@ -52,6 +62,40 @@ class AssessmentResult:
     def is_complete(self) -> bool:
         """Whether every analyzer that was asked to run actually did."""
         return not any(out.status is AnalyzerStatus.FAILED for out in self.analyzers.values())
+
+    def for_audience(self, audience: AnalyzerAudience) -> AssessmentResult:
+        """The same result, with everything this audience may not see removed.
+
+        A student's copy of a result is *built* without the withheld analyzers
+        rather than serialised with them omitted: a filtered object cannot leak
+        through a field someone adds to a schema later.
+
+        Teachers see everything except what is still dark; students see only
+        what has been promoted all the way. Nothing is hidden from an
+        administrator that is hidden from a teacher — an administrator's extra
+        power is over accounts and content, not over another student's writing.
+        """
+        if audience is AnalyzerAudience.TEACHER:
+            visible = {
+                name for name, stage in self.audiences.items() if stage is not AnalyzerAudience.DARK
+            }
+        elif audience is AnalyzerAudience.STUDENT:
+            visible = {
+                name for name, stage in self.audiences.items() if stage is AnalyzerAudience.STUDENT
+            }
+        else:  # DARK sees everything; it is the internal, unfiltered view.
+            return self
+
+        return AssessmentResult(
+            version=self.version,
+            analyzers={name: out for name, out in self.analyzers.items() if name in visible},
+            issues=tuple(i for i in self.issues if i.analyzer in visible),
+            # Counted over what was withheld too: the numbers describe the
+            # assessment that ran, not the slice being shown.
+            suppressed_count=self.suppressed_count,
+            truncated_categories=self.truncated_categories,
+            audiences={name: self.audiences[name] for name in visible},
+        )
 
     def issues_for(self, category: IssueCategory) -> tuple[AssessmentIssue, ...]:
         return tuple(i for i in self.issues if i.category is category)

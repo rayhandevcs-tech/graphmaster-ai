@@ -31,6 +31,7 @@ from app.models.enums import (
 )
 
 if TYPE_CHECKING:
+    from app.models.assessment import AssessmentDetail
     from app.models.content import Graph
     from app.models.gamification import UserBadge, XPEvent
     from app.models.identity import User
@@ -82,6 +83,11 @@ class Submission(Base, UUIDPrimaryKeyMixin):
     )
     xp_events: Mapped[list[XPEvent]] = relationship(back_populates="submission")
     badge: Mapped[UserBadge | None] = relationship(
+        back_populates="submission", cascade="all, delete-orphan", uselist=False
+    )
+    # Diagnostic, and optional by design: a submission scored before the
+    # assessment engine existed has none, and never will.
+    assessment: Mapped[AssessmentDetail | None] = relationship(
         back_populates="submission", cascade="all, delete-orphan", uselist=False
     )
 

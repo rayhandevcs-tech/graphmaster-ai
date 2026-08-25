@@ -16,12 +16,19 @@ re-scanning: one fact, one source.
 from __future__ import annotations
 
 from app.assessment.protocol import AnalyzerOutput, AssessmentContext
+from app.core.config import Settings
 
 
 class VocabularyAnalyzer:
     """Reports the existing detection as metrics and a diagnostic score."""
 
     name = "vocabulary"
+
+    def __init__(self, settings: Settings) -> None:
+        # Nothing to configure. The uniform constructor is what lets the
+        # registry build every analyzer the same way, and what gives the
+        # provider-backed ones somewhere to read their configuration from.
+        self.settings = settings
 
     def run(self, ctx: AssessmentContext) -> AnalyzerOutput:
         required = len(ctx.targets.required)

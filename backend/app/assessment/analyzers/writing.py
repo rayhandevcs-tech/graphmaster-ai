@@ -15,12 +15,19 @@ where it is cannot be highlighted or corrected.
 from __future__ import annotations
 
 from app.assessment.protocol import AnalyzerOutput, AssessmentContext
+from app.core.config import Settings
 
 
 class WritingAnalyzer:
     """Reports the existing writing-quality heuristics."""
 
     name = "writing"
+
+    def __init__(self, settings: Settings) -> None:
+        # Nothing to configure. The uniform constructor is what lets the
+        # registry build every analyzer the same way, and what gives the
+        # provider-backed ones somewhere to read their configuration from.
+        self.settings = settings
 
     def run(self, ctx: AssessmentContext) -> AnalyzerOutput:
         writing = ctx.writing

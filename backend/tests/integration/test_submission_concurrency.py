@@ -30,6 +30,7 @@ from app.models.enums import Gender, InputMethod, SubmissionStatus, UserRole
 from app.models.gamification import UserAchievement, UserBadge, XPEvent
 from app.models.identity import User
 from app.models.submission import Score, Submission
+from app.repositories.assessment import AssessmentRepository
 from app.repositories.gamification import (
     AchievementRepository,
     BadgeRepository,
@@ -78,6 +79,7 @@ def build_service(session: AsyncSession) -> SubmissionService:
         AnalysisService(graphs, vocabulary, graph_service),
         ocr=None,  # type: ignore[arg-type]
         gamification=gamification,
+        assessments=AssessmentRepository(session),
     )
 
 
