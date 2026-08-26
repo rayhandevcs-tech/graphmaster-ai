@@ -10,7 +10,7 @@
  * is not ranked being invited rather than shown an empty row.
  */
 
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Podium } from "@/components/leaderboard/podium";

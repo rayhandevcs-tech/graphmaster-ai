@@ -7,7 +7,7 @@ import { ArrowRight, Sparkles } from "lucide-react";
 import { LevelRing } from "@/components/gamification/level-ring";
 import { StreakFlame } from "@/components/gamification/streak-flame";
 import { XpBar } from "@/components/gamification/xp-bar";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarCharacter, avatarCodeFor } from "@/components/avatars/character";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -29,17 +29,23 @@ export function HeroPanel({ user, dashboard }: { user: UserProfile; dashboard: S
   return (
     <section
       className={cn(
-        "from-primary/10 via-primary/5 to-secondary/10 relative overflow-hidden rounded-2xl",
+        // `rounded-xl`, like every other card. The hero is already distinct by
+        // its gradient; a second radius made it distinct by accident too.
+        "from-primary/10 via-primary/5 to-secondary/10 relative overflow-hidden rounded-xl",
         "border bg-gradient-to-br p-6 sm:p-8",
       )}
     >
       <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-col gap-6">
           <div className="flex items-center gap-4">
-            <Avatar className="ring-background/70 size-14 shadow-sm ring-2">
-              {user.avatar?.image_url ? <AvatarImage src={user.avatar.image_url} alt="" /> : null}
-              <AvatarFallback>{initials(user.full_name)}</AvatarFallback>
-            </Avatar>
+            {/* The character the student chose, drawn — not the initials that
+                stood here while `image_url` pointed at files this repository
+                has never contained. */}
+            <AvatarCharacter
+              code={avatarCodeFor(user)}
+              expression="happy"
+              className="ring-background/70 size-14 rounded-full shadow-sm ring-2"
+            />
 
             <div className="min-w-0">
               {/* Wraps rather than truncates: a long first name on a narrow
@@ -146,13 +152,4 @@ function goalHint(dashboard: StudentDashboard): string {
 
 function firstName(fullName: string): string {
   return fullName.split(/\s+/)[0] || fullName;
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
 }

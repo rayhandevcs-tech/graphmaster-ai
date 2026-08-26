@@ -52,7 +52,9 @@ export default function ForgotPasswordPage() {
       <div className="flex flex-col gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Reset your password</CardTitle>
+            <CardTitle as="h1" className="text-2xl">
+              Reset your password
+            </CardTitle>
             <CardDescription>
               {sent
                 ? "Check your inbox for the next step."

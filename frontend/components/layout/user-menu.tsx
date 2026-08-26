@@ -5,7 +5,7 @@ import { LogOut, Settings, User as UserIcon } from "lucide-react";
 
 import { useAuth } from "@/lib/auth/context";
 import { ROLE_LABELS } from "@/lib/auth/roles";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarCharacter, avatarCodeFor } from "@/components/avatars/character";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,15 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 export function UserMenu() {
   const { status, user, signOut } = useAuth();
@@ -48,10 +39,13 @@ export function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" aria-label="Account menu">
-          <Avatar>
-            {user.avatar?.image_url ? <AvatarImage src={user.avatar.image_url} alt="" /> : null}
-            <AvatarFallback>{initials(user.full_name)}</AvatarFallback>
-          </Avatar>
+          {/* size-9 with a ring, not size-8 bare: the character is drawn to fill
+              its box, so at 32px the hat clipped against the circle and the
+              whole thing read as a smudge rather than a face. */}
+          <AvatarCharacter
+            code={avatarCodeFor(user)}
+            className="ring-border size-9 rounded-full ring-1"
+          />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

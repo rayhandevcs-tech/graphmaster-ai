@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
-import { Search, Shuffle, SlidersHorizontal, Telescope } from "lucide-react";
+import { ChevronDown, Search, Shuffle, SlidersHorizontal, Telescope } from "lucide-react";
 
 import { Protected } from "@/components/auth/protected";
 import { EmptyState } from "@/components/layout/empty-state";
@@ -50,6 +50,11 @@ function GraphLibrary() {
   const [graphType, setGraphType] = useState<GraphType | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
   const [page, setPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // Shown on the collapsed control, so a student who filtered, scrolled and
+  // came back knows why the list is short without opening the panel.
+  const activeFilters = (graphType ? 1 : 0) + (difficulty ? 1 : 0);
 
   const settledSearch = useDebouncedValue(search.trim());
 
@@ -133,31 +138,65 @@ function GraphLibrary() {
           />
         </div>
 
-        <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
-          <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
+        {/* Collapsed on a phone, always open from `sm:`.
+            Two single-select groups over four rows of chips pushed the first
+            graph card to roughly 700px — most of a screen and a half before
+            anything to practise on. A button with `aria-expanded` rather than
+            `<details>`: the panel has to be unconditionally visible at width,
+            and no breakpoint can force a `<details>` open. */}
+        <div className="border-t pt-4">
+          <button
+            type="button"
+            aria-expanded={filtersOpen}
+            aria-controls="graph-filters"
+            onClick={() => setFiltersOpen((open) => !open)}
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 w-full items-center gap-1.5 rounded-md text-xs font-medium tracking-wide uppercase transition-colors focus-visible:ring-2 focus-visible:outline-none sm:hidden"
+          >
             <SlidersHorizontal className="size-3.5" aria-hidden />
             Filter
-          </span>
-          <FilterChips
-            label="Chart type"
-            options={TYPE_OPTIONS}
-            value={graphType}
-            onChange={(next) => {
-              setGraphType(next);
-              setPage(1);
-            }}
-            allLabel="Any type"
-          />
-          <FilterChips
-            label="Difficulty"
-            options={DIFFICULTY_OPTIONS}
-            value={difficulty}
-            onChange={(next) => {
-              setDifficulty(next);
-              setPage(1);
-            }}
-            allLabel="Any level"
-          />
+            {activeFilters > 0 ? (
+              <span className="bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 text-[0.625rem] tabular-nums">
+                {activeFilters}
+              </span>
+            ) : null}
+            <ChevronDown
+              className={cn("ml-auto size-4 transition-transform", filtersOpen && "rotate-180")}
+              aria-hidden
+            />
+          </button>
+
+          <div
+            id="graph-filters"
+            className={cn(
+              "flex-col gap-3 pt-3 sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-6 sm:pt-0",
+              filtersOpen ? "flex" : "hidden",
+            )}
+          >
+            <span className="text-muted-foreground hidden items-center gap-1.5 text-xs font-medium tracking-wide uppercase sm:inline-flex">
+              <SlidersHorizontal className="size-3.5" aria-hidden />
+              Filter
+            </span>
+            <FilterChips
+              label="Chart type"
+              options={TYPE_OPTIONS}
+              value={graphType}
+              onChange={(next) => {
+                setGraphType(next);
+                setPage(1);
+              }}
+              allLabel="Any type"
+            />
+            <FilterChips
+              label="Difficulty"
+              options={DIFFICULTY_OPTIONS}
+              value={difficulty}
+              onChange={(next) => {
+                setDifficulty(next);
+                setPage(1);
+              }}
+              allLabel="Any level"
+            />
+          </div>
         </div>
       </Card>
 

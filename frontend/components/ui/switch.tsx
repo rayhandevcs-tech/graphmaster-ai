@@ -35,20 +35,29 @@ export function Switch({
       aria-label={label}
       disabled={disabled}
       onClick={() => onCheckedChange(!checked)}
+      // The track is 24px because that is what a switch looks like. The
+      // *button* is 44px, with the track centred inside it — a control this
+      // small is otherwise a quarter of the area a thumb needs.
       className={cn(
-        "focus-visible:ring-ring inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent",
-        "transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
+        "focus-visible:ring-ring inline-flex min-h-11 shrink-0 items-center rounded-md px-0.5",
+        "focus-visible:ring-2 focus-visible:outline-none",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-primary" : "bg-muted-foreground/40",
         className,
       )}
     >
       <span
         className={cn(
-          "bg-background pointer-events-none block size-5 rounded-full shadow transition-transform",
-          checked ? "translate-x-5" : "translate-x-0",
+          "inline-flex h-6 w-11 items-center rounded-full border-2 border-transparent transition-colors",
+          checked ? "bg-primary" : "bg-muted-foreground/40",
         )}
-      />
+      >
+        <span
+          className={cn(
+            "bg-background pointer-events-none block size-5 rounded-full shadow transition-transform",
+            checked ? "translate-x-5" : "translate-x-0",
+          )}
+        />
+      </span>
     </button>
   );
 }

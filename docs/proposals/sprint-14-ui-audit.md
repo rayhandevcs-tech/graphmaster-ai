@@ -9,6 +9,13 @@ regions). Source read where the screenshot raised a question.
 **Nothing in this document was fixed while auditing it.** It is a findings
 report for Sprint 14 to schedule.
 
+> **Status: resolved.** Every P0 and P1 was fixed in Sprint 14, along with
+> F8, F13, F15 and F16. Two findings were **withdrawn on implementation** —
+> F4's third bullet and F10's diagnosis — and are struck through in place
+> rather than deleted, because an audit that quietly removes its own mistakes
+> is not a record. F7 and F9 remain open by decision, F12 by judgement; see
+> §5 of `sprint-14-implementation-plan.md` and the sprint report.
+
 **Reviewed at:** `74c1009`.
 
 ---
@@ -113,10 +120,10 @@ whenever it is reachable, and the guard costs one branch.
 - **The XP card on a revisit** — `result-view.tsx:185` is a full-height card
   holding one centred sentence, so a revisited result has a large empty box
   where the awards were.
-- **How your work is marked** — `settings-view.tsx:29` destructures only
-  `data` from `useRubric()`. The hook degrades honestly (both helpers return
-  `null`), so a failed fetch leaves the card's heading and description above
-  nothing.
+- ~~**How your work is marked**~~ — **withdrawn on implementation.** The card
+  is already guarded: `settings-view.tsx:110` renders it only when `weighting`
+  is non-null, so a failed rubric fetch hides the whole card rather than
+  leaving a heading over nothing. The audit was wrong about this one.
 
 None of these is a crash; all three read as a page that failed to finish
 loading.
@@ -187,12 +194,14 @@ switch.
 ### F10 · P2 · A 500 shows a skeleton for several seconds
 **Screens:** all query-backed screens. **Component:** `app/providers.tsx`.
 
-While auditing, `GET /submissions/{id}` returned 500 (seeded data, since
-repaired). The result page rendered a **bare skeleton with no indication
-anything was wrong** for the duration of TanStack's default retry schedule
-before reaching its error state. Retrying a 5xx once is defensible; retrying
-three times with backoff turns a fast failure into a long ambiguous wait, and
-4xx should not be retried at all.
+**Partly withdrawn on implementation.** The symptom was real: while auditing,
+`GET /submissions/{id}` returned 500 and the result page rendered a **bare
+skeleton with no indication anything was wrong** for about three seconds.
+
+The diagnosis was not. `app/providers.tsx` already refuses to retry any 4xx
+(`error.status < 500` returns false) and caps the rest at two attempts. There
+is no default-schedule bug to fix, and the remaining wait is the deliberate
+price of retrying genuine transport failures. Left as it is.
 
 ### F11 · P2 · Authentication pages have no `<h1>`
 **Screens:** `/login`, `/register`. Measured `h1=0` on both.

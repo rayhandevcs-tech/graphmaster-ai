@@ -143,7 +143,9 @@ function AccountStep({ onCreated }: { onCreated: (fullName: string) => void }) {
         <CardHeader className="gap-4">
           <StepMarker current={1} />
           <div className="flex flex-col gap-1.5">
-            <CardTitle className="text-2xl">Create your account</CardTitle>
+            <CardTitle as="h1" className="text-2xl">
+              Create your account
+            </CardTitle>
             <CardDescription>
               Free for students. You will be practising in under a minute.
             </CardDescription>
@@ -236,7 +238,7 @@ function AvatarStep({ name }: { name: string }) {
         <CardHeader className="gap-4">
           <StepMarker current={2} />
           <div className="flex flex-col gap-1.5">
-            <CardTitle className="flex items-center gap-2 text-2xl">
+            <CardTitle as="h1" className="flex items-center gap-2 text-2xl">
               <PartyPopper className="text-primary size-5" aria-hidden />
               You are in{name ? `, ${name.split(/\s+/)[0]}` : ""}
             </CardTitle>

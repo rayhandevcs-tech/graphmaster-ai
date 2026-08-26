@@ -12,12 +12,12 @@ import { EmptyState } from "@/components/layout/empty-state";
 import { Pager } from "@/components/layout/pager";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage, leaderboardApi, queryKeys } from "@/lib/api";
 import { useAuth } from "@/lib/auth/context";
 import { formatLongDate } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import type { LeaderboardScope } from "@/types/api";
 
 /**
@@ -79,29 +79,18 @@ export function LeaderboardView() {
       </div>
 
       <div role="group" aria-label="Board" className="flex flex-wrap gap-1.5">
-        {scopes.map((option) => {
-          const active = option.value === scope;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={active}
-              onClick={() => {
-                setScope(option.value);
-                setPage(1);
-              }}
-              className={cn(
-                "focus-visible:ring-ring min-h-11 rounded-full border px-4 text-sm font-medium sm:min-h-9",
-                "transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
-                active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border text-muted-foreground hover:border-input hover:text-foreground",
-              )}
-            >
-              {option.label}
-            </button>
-          );
-        })}
+        {scopes.map((option) => (
+          <Chip
+            key={option.value}
+            pressed={option.value === scope}
+            onPress={() => {
+              setScope(option.value);
+              setPage(1);
+            }}
+          >
+            {option.label}
+          </Chip>
+        ))}
       </div>
 
       {board.isPending ? (

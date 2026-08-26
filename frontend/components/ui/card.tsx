@@ -15,9 +15,25 @@ export function CardHeader({ className, ...props }: React.ComponentPropsWithoutR
   return <div className={cn("flex flex-col gap-1.5 p-6", className)} {...props} />;
 }
 
-export function CardTitle({ className, ...props }: React.ComponentPropsWithoutRef<"h3">) {
+/**
+ * A card's heading, at the level the *page* needs.
+ *
+ * Defaults to `h3`, which is right for a card inside a page that already has
+ * an `h1`. The sign-in and registration screens are a card *and* the whole
+ * page, so their title is the document's `h1` — without `as`, those pages had
+ * no top-level heading at all and a screen-reader user navigating by heading
+ * found nothing (WCAG 1.3.1, 2.4.6).
+ */
+export function CardTitle({
+  as: Component = "h3",
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<"h3"> & { as?: "h1" | "h2" | "h3" }) {
   return (
-    <h3 className={cn("text-lg leading-none font-semibold tracking-tight", className)} {...props} />
+    <Component
+      className={cn("text-lg leading-none font-semibold tracking-tight", className)}
+      {...props}
+    />
   );
 }
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Keyboard, PenLine, RotateCcw } from "lucide-react";
+import { ArrowLeft, Keyboard, LayoutDashboard, PenLine, RotateCcw } from "lucide-react";
 
 import { FeedbackPanel } from "./feedback-panel";
 import { HighlightedAnswer } from "./highlighted-answer";
@@ -146,7 +146,7 @@ export function ResultView({ submissionId }: { submissionId: string }) {
         />
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-3">
+      <section className="grid items-start gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
@@ -182,11 +182,20 @@ export function ResultView({ submissionId }: { submissionId: string }) {
         {awards?.gamification ? (
           <AwardSummary awards={awards.gamification} />
         ) : (
-          <Card className="flex items-center justify-center p-6">
-            <p className="text-muted-foreground max-w-[16rem] text-center text-sm text-pretty">
+          // Not a full-height card: on a revisit this is one sentence, and
+          // stretched to match the two beside it, it was a large empty box
+          // where the awards had been.
+          <Card className="flex flex-col justify-center gap-3 self-start p-6">
+            <p className="text-muted-foreground text-sm text-pretty">
               The XP for this attempt was awarded when it was marked. Your totals are on your
               dashboard.
             </p>
+            <Button asChild variant="outline" size="sm" className="w-fit">
+              <Link href="/dashboard">
+                <LayoutDashboard aria-hidden />
+                Your dashboard
+              </Link>
+            </Button>
           </Card>
         )}
       </section>

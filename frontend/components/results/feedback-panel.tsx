@@ -23,6 +23,15 @@ export function FeedbackPanel({ feedback }: { feedback: FeedbackOut }) {
       </CardHeader>
 
       <CardContent className="flex flex-col gap-6">
+        {/* A title over an empty body reads as a page that failed to load. The
+            engine fills these for every real submission; where it has not, the
+            card says which. */}
+        {!hasLists && !feedback.next_step ? (
+          <p className="text-muted-foreground text-sm text-pretty">
+            The marker had no specific points to add for this attempt beyond the summary above.
+          </p>
+        ) : null}
+
         {hasLists ? (
           <div className="grid gap-6 sm:grid-cols-2">
             {feedback.strengths.length > 0 ? (

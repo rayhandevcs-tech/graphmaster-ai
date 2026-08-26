@@ -20,7 +20,17 @@ import type { AchievementOut } from "@/types/api";
  * card a fixed height whether a student has two of these or twenty, so the
  * work below it does not move down the page as they earn more.
  */
-export function AchievementStrip({ achievements }: { achievements: AchievementOut[] }) {
+export function AchievementStrip({
+  achievements,
+  attempts,
+}: {
+  achievements: AchievementOut[];
+  /** Marked descriptions so far. The empty state is worded from this, not from
+   *  the achievement count — "your first one is close · finishing a single
+   *  description unlocks one" was shown to a student with nine of them, and
+   *  both halves of that sentence were false. */
+  attempts: number;
+}) {
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
@@ -28,7 +38,9 @@ export function AchievementStrip({ achievements }: { achievements: AchievementOu
           <CardTitle>Achievements</CardTitle>
           <CardDescription>
             {achievements.length === 0
-              ? "Unlocked by practising — none yet."
+              ? attempts === 0
+                ? "Unlocked by practising."
+                : "Unlocked by practising — none of these yet."
               : `${achievements.length} unlocked.`}
           </CardDescription>
         </div>
@@ -44,8 +56,12 @@ export function AchievementStrip({ achievements }: { achievements: AchievementOu
         {achievements.length === 0 ? (
           <EmptyState
             icon={Medal}
-            title="Your first one is close"
-            description="Finishing a single description unlocks one. The catalogue shows how far you are from each of the others."
+            title={attempts === 0 ? "Your first one is close" : "Still to earn your first"}
+            description={
+              attempts === 0
+                ? "Finishing a single description unlocks one. The catalogue shows how far you are from each of the others."
+                : "These take more than one description. The catalogue shows exactly how far you are from each."
+            }
             className="py-10"
           />
         ) : (

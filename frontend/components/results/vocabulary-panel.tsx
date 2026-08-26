@@ -25,9 +25,16 @@ export function VocabularyPanel({ score }: { score: ScoreOut }) {
         <CardTitle>Vocabulary</CardTitle>
         <CardDescription>
           {/* The denominator is frozen at scoring time, so a later edit to the
-              graph cannot move this figure. */}
-          You used {score.unique_detected_count} of the {score.total_target_count} required target
-          terms, {score.detected_count} times in total.
+              graph cannot move this figure — and it can be zero, on a graph
+              curated before required targets were enforced. "4 of the 0
+              required target terms" is not a sentence, so a graph with no
+              denominator gets one describing what was used instead of a
+              ratio against nothing. */}
+          {score.total_target_count > 0
+            ? `You used ${score.unique_detected_count} of the ${score.total_target_count} required target terms, ${score.detected_count} times in total.`
+            : score.unique_detected_count > 0
+              ? `This graph has no required target terms set, so there is no vocabulary percentage to earn. You used ${score.unique_detected_count} target ${score.unique_detected_count === 1 ? "term" : "terms"} anyway.`
+              : "This graph has no required target terms set, so there is no vocabulary percentage to earn."}
         </CardDescription>
       </CardHeader>
 
