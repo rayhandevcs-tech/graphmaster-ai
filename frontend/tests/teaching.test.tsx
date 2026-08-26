@@ -8,6 +8,8 @@
  */
 
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
 import { AttentionPanel } from "@/components/teaching/attention-panel";
@@ -15,7 +17,8 @@ import { InsightCard } from "@/components/insight/insight-card";
 import { Metric } from "@/components/insight/metric";
 import { Sparkline } from "@/components/insight/sparkline";
 import { DistributionBar } from "@/components/insight/distribution-bar";
-import type { StudentRow } from "@/types/api";
+import { UserForm } from "@/components/admin/user-form";
+import type { StudentRow, UserListItem } from "@/types/api";
 
 const NOW = Date.now();
 const daysAgo = (days: number) => new Date(NOW - days * 86_400_000).toISOString();
@@ -168,5 +171,68 @@ describe("a whole divided into parts", () => {
   it("says what would fill it rather than drawing an empty bar", () => {
     render(<DistributionBar label="Reward tiers" segments={[]} />);
     expect(screen.getByText(/nothing to show/i)).toBeInTheDocument();
+  });
+});
+
+describe("changing what someone may do", () => {
+  const person: UserListItem = {
+    id: "00000000-0000-0000-0000-0000000000ad",
+    email: "admin@university.edu",
+    full_name: "Rina Admin",
+    role: "admin",
+    gender: "female",
+    class_id: null,
+    total_xp: 0,
+    current_level: 1,
+    is_active: true,
+    created_at: "2026-01-04T09:00:00Z",
+  };
+
+  it("refuses to let an administrator remove their own role, and says why", async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <UserForm user={person} classes={[]} isSelf open onOpenChange={() => {}} />
+      </QueryClientProvider>,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/role/i), "teacher");
+
+    expect(screen.getByText(/cannot remove your own administrator role/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled();
+  });
+
+  it("allows the same change on somebody else", async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <UserForm user={person} classes={[]} isSelf={false} open onOpenChange={() => {}} />
+      </QueryClientProvider>,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/role/i), "teacher");
+
+    expect(screen.queryByText(/cannot remove your own/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeEnabled();
+  });
+
+  it("refuses to let anyone deactivate the account they are signed in with", async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <UserForm user={person} classes={[]} isSelf open onOpenChange={() => {}} />
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole("switch", { name: /account active/i }));
+
+    expect(screen.getByText(/cannot deactivate your own account/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled();
   });
 });
