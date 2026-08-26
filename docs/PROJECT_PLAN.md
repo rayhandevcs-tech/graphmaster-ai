@@ -1,27 +1,29 @@
 # GraphMaster — Project Plan
 
-**Version:** 1.4
+**Version:** 1.5
 **Status:** In progress — backend complete, the student experience delivered
+and rewarded
 **Branch:** `claude/graphmaster-platform-9aba5t`
 
 ---
 
 ## 1. Delivery status
 
-**Last updated:** Sprint 11 (the student experience). The backend is complete
-and a student can now do everything the specification asks of them; sprints
-12–14 build the rewards and every teacher and administrator screen. See §1.3
-for exactly what is left.
+**Last updated:** Sprint 12 (the reward layer). The backend is complete, and
+the student's half of the product is finished — practising, marking, the
+celebrations that answer a result, and the catalogue of what is still to earn.
+Sprints 13–14 build every teacher and administrator screen and the deployment
+pass. See §1.3 for exactly what is left.
 
 ### 1.1 Snapshot
 
 | Item | State |
 |---|---|
 | Backend sprints complete | **9 of 9** core (Sprints 1–9), plus the assessment engine (Sprints 15–20) |
-| Frontend sprints complete | **2 of 5** (Sprints 10–11) |
+| Frontend sprints complete | **3 of 5** (Sprints 10–12) |
 | API endpoints | 81 operations across 65 paths |
-| Application modules | 156 Python files · 129 TypeScript modules |
-| Tests | **1,742 passing** — 1,580 backend (1,576 in the default run, 4 performance budgets behind a marker) and 162 frontend |
+| Application modules | 156 Python files · 144 TypeScript modules |
+| Tests | **1,766 passing** — 1,580 backend (1,576 in the default run, 4 performance budgets behind a marker) and 186 frontend |
 | Coverage | **99%** (target 80%, NFR-5.2) |
 | Migrations | 4, forward-only, upgraded from empty and round-tripped in CI |
 | Lint / format | `ruff` and `black` clean, enforced by CI |
@@ -50,6 +52,7 @@ schema looks the way it does.
 | **10** | Next.js 15 App Router, Tailwind 4 palette with dark mode, shadcn primitives, the generated API types and typed client for all 75 operations, the in-memory token store, auth context, route guard, Docker image and two more CI jobs | The types are generated from the OpenAPI document, and CI fails if the committed copy has drifted |
 | **11** | The student experience end to end: the graph library, a themed Chart.js layer with its data-table alternative, the practice workspace with typed and handwriting routes and the editable OCR preview, the result screen, the dashboard aggregate, two-step registration with avatar selection, the profile and settings pages, the password-reset screens, and a phone navigation | Handwriting is hidden where no engine is configured; a failed read is recovered by typing into the *same* submission, so `input_method` never flips. A missing average is an em dash on every surface that shows one |
 | **11** *(backend)* | `GET /analysis/rubric` — the two scoring weights and the word-count band, to every signed-in role | A separate model and builder rather than a filtered view of the teacher-only engine status: a removal list publishes a field added later, an inclusion list withholds it. A test asserts the response's key set exactly |
+| **12** | The reward layer: a motion vocabulary, celebrations as storyboards, the four tier sequences, a drawn avatar with five expressions, the level-up banner, synthesised sound muted by default, and the achievement catalogue | The hammer's recovery is a property of an array, asserted without timers or rendering. The encouragement is on the card from the first frame — the animation reveals the title, never the words |
 | **15** | The assessment framework: unified issue model, analyzer protocol, supervisor with failure containment, `assessment_version` fingerprint, and vocabulary and writing wrapped as analyzers | Diagnostic only — a regression suite asserts field by field that no assessment can move a score, and reads `build_score`'s signature so the wiring cannot be added |
 | **16** | Migration 4 and three tables, the spelling, sentence-quality and word-usage analyzers, the four-level severity scale, per-analyzer rollout flags, and persistence inside the scoring transaction | Every issue is located in the student's own text; the subject of the chart is exempt from both the spelling and the repetition checks |
 | **17** | Graph accuracy: chart facts, claims extracted from the vocabulary the detector already located, four claim kinds and their verdicts, and the claims table | Reaches a verdict only where both the attribution and the fact are unambiguous — everything else is recorded as unverified and shown to nobody |
@@ -61,7 +64,6 @@ schema looks the way it does.
 
 | Sprint | Still to build | Depends on |
 |---|---|---|
-| **12** | The achievements catalogue page, Framer Motion reward sequences (crown + confetti / flower / hammer bonk-dizzy-fall-**recovery**), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal | 11 |
 | **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management | 12 |
 | **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit | 13 |
 
@@ -74,9 +76,12 @@ published graphs, describe one — typed, or photographed and corrected — read
 the mark, the tier and the vocabulary they missed, and manage their own
 profile and settings, on a phone as well as a laptop.
 
-What is still missing is the celebration and the staff side: the reward
-sequences that play on a result, the achievements catalogue, the leaderboard,
-and every teacher and administrator screen. None of it is blocked on the
+A result now answers back: the tier plays its sequence, the character reacts,
+XP counts up, a level-up says so, and the catalogue shows what is still to
+earn. Sound is there and muted until asked for.
+
+What is still missing is the staff side — the leaderboard and every teacher and
+administrator screen — and the deployment pass. None of it is blocked on the
 backend.
 
 ### 1.3a Feature by feature
@@ -95,8 +100,8 @@ frontend work — there is no backend gap behind any of it.
 | Practising: typed answers | ✅ done | ✅ done |
 | Practising: handwriting + OCR preview | ✅ done | ✅ done |
 | Marking: 70/30 scoring, tiers, feedback | ✅ done | ✅ done |
-| Rewards: XP, levels, achievements, badges, streaks | ✅ done | ⚠️ on the result screen, the dashboard and the profile; the achievements catalogue remains (12) |
-| Reward animations (crown / flower / steady / hammer) | n/a | ❌ not started (12) |
+| Rewards: XP, levels, achievements, badges, streaks | ✅ done | ✅ done — result screen, dashboard, profile and the catalogue |
+| Reward animations (crown / flower / steady / hammer) | n/a | ✅ done — with sound, muted by default |
 | Leaderboards, four scopes | ✅ done | ❌ not started (13) |
 | Analytics: class, platform, vocabulary, trends | ✅ done | ❌ not started (13) |
 | Exports: CSV always, Excel and PDF optional | ✅ done | ❌ not started (13) |

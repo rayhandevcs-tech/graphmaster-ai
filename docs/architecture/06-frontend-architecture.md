@@ -51,18 +51,21 @@ frontend/
 │   ├── charts/                        # Chart.js wrappers
 │   ├── practice/                      # Editor, upload, OCR preview
 │   ├── results/                       # Score, feedback, highlighted answer
-│   ├── gamification/                  # Avatar, rewards, XP bar, badges, tiers
+│   ├── gamification/                  # Tier celebrations, particles, XP bar, level-up
 │   ├── dashboard/                     # Hero, stat tiles, trend, recent work
 │   ├── auth/                          # Route guard, role gate, auth shell, registration
-│   ├── avatars/                       # The catalogue picker, shared by register and profile
+│   ├── avatars/                       # The drawn character, and the catalogue picker
+│   ├── achievements/                  # The catalogue and its cards
 │   ├── profile/, settings/            # Identity; appearance and security
-│   ├── motion/                        # Reveal, count-up
+│   ├── motion/                        # Stage, reveal, count-up
 │   ├── theme/, layout/, teacher/
 ├── lib/
 │   ├── api/                           # Typed client, one module per resource
 │   ├── auth/                          # Token store, context, role helpers
 │   ├── charts/                        # Palette resolution, normalisation, config
 │   ├── hooks/                         # Debounce, reduced motion, the rubric
+│   ├── motion/                        # Durations, curves, storyboards, the sequence hook
+│   ├── sound/                         # Synthesised cues, muted by default
 │   ├── results/                       # Highlight offsets → segments
 │   ├── text/                          # Word counting, matching the server's rule
 │   ├── format.ts                      # Figures and dates, with the em-dash rule
