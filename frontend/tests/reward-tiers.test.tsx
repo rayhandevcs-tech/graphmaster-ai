@@ -12,6 +12,13 @@ import { describe, expect, it } from "vitest";
 
 import { TierPanel } from "@/components/gamification/tier-panel";
 import { TIER_BANDS, TIER_ICONS, TIER_LABELS, TIER_ORDER } from "@/components/gamification/tiers";
+import {
+  HAMMER_MESSAGE,
+  HAMMER_RECOVERY,
+  SETTLED,
+  TIER_STORYBOARDS,
+} from "@/lib/motion/storyboards";
+import { beatIndexAt, sequenceDuration } from "@/lib/motion/sequence";
 import type { FeedbackOut, RewardTier } from "@/types/api";
 
 const feedback = (headline: string, message: string): FeedbackOut => ({
@@ -55,6 +62,7 @@ describe("the tier panel", () => {
         tier="hammer"
         feedback={feedback("Keep Practicing!", message)}
         vocabularyPercentage={33.3}
+        avatarCode="girl_default"
       />,
     );
 
@@ -68,6 +76,7 @@ describe("the tier panel", () => {
         tier="flower"
         feedback={feedback("Rising Writer", "Good work.")}
         vocabularyPercentage={74}
+        avatarCode="girl_default"
       />,
     );
 
@@ -82,11 +91,71 @@ describe("the tier panel", () => {
         tier={tier}
         feedback={feedback("A headline", "A message.")}
         vocabularyPercentage={50}
+        avatarCode="boy_scholar"
       />,
     );
 
     // NFR-4.6: a colour-blind student still has to be able to read which tier
     // this is. The label appears twice — as the eyebrow and in the note.
     expect(screen.getAllByText(new RegExp(TIER_LABELS[tier], "i")).length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The celebrations, read as data.
+ *
+ * This is the point of storyboards being a list rather than control flow: the
+ * requirement that the hammer ends in recovery is a property of an array, and
+ * asserting it needs no timers, no rendering and no waiting three seconds.
+ */
+describe("the tier storyboards", () => {
+  it.each(TIER_ORDER)("%s starts at zero and ends settled", (tier: RewardTier) => {
+    const beats = TIER_STORYBOARDS[tier].beats;
+
+    expect(beats[0]?.at).toBe(0);
+    expect(beats[beats.length - 1]?.id).toBe(SETTLED);
+  });
+
+  it.each(TIER_ORDER)("%s runs strictly forwards", (tier: RewardTier) => {
+    const times = TIER_STORYBOARDS[tier].beats.map((beat) => beat.at);
+    expect([...times].sort((a, b) => a - b)).toEqual(times);
+    expect(new Set(times).size).toBe(times.length);
+  });
+
+  it("ends the hammer on recovery and the encouragement, in that order (FR-7.7)", () => {
+    const ids = TIER_STORYBOARDS.hammer.beats.map((beat) => beat.id);
+
+    // The last three, in order: the character gets back up, is told it can
+    // improve, and the card comes to rest. Nothing may be appended after the
+    // knock without also passing through these.
+    expect(ids.slice(-3)).toEqual([HAMMER_RECOVERY, HAMMER_MESSAGE, SETTLED]);
+  });
+
+  it("never leaves the hammer's character down for long", () => {
+    const beats = TIER_STORYBOARDS.hammer.beats;
+    const at = (id: string) => beats.find((beat) => beat.id === id)?.at ?? -1;
+
+    // Knocked off balance, not knocked down: the wobble is under half a
+    // second, and the recovery follows it immediately.
+    expect(at(HAMMER_RECOVERY) - at("wobble")).toBeLessThanOrEqual(0.5);
+    expect(at(HAMMER_RECOVERY)).toBeGreaterThan(at("bonk"));
+  });
+
+  it("keeps every celebration short enough to sit through", () => {
+    // A student who scored badly should not be watching for longer than one
+    // who scored well; three seconds is the ceiling for all of them.
+    for (const tier of TIER_ORDER) {
+      expect(sequenceDuration(TIER_STORYBOARDS[tier])).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it("resolves the beat playing at a given moment", () => {
+    const beats = TIER_STORYBOARDS.hammer.beats;
+
+    expect(beats[beatIndexAt(beats, 0)]?.id).toBe("arrive");
+    expect(beats[beatIndexAt(beats, 0.6)]?.id).toBe("bonk");
+    expect(beats[beatIndexAt(beats, 1.9)]?.id).toBe(HAMMER_RECOVERY);
+    // Past the end it stays settled rather than running off the array.
+    expect(beats[beatIndexAt(beats, 99)]?.id).toBe(SETTLED);
   });
 });

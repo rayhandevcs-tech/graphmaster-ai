@@ -26,11 +26,14 @@ export function TierPanel({
   tier,
   feedback,
   vocabularyPercentage,
+  avatarCode,
   className,
 }: {
   tier: RewardTier;
   feedback: FeedbackOut;
   vocabularyPercentage: number;
+  /** The student's character. Resolved by the page from the session. */
+  avatarCode: string;
   className?: string;
 }) {
   return (
@@ -43,7 +46,7 @@ export function TierPanel({
     >
       <p className="text-xs font-medium tracking-wide uppercase opacity-80">{TIER_LABELS[tier]}</p>
 
-      <TierCelebration tier={tier} headline={feedback.headline} />
+      <TierCelebration tier={tier} headline={feedback.headline} avatarCode={avatarCode} />
 
       <p className="text-[0.95rem] leading-relaxed text-pretty">{feedback.message}</p>
 

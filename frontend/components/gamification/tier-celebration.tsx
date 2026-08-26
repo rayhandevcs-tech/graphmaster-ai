@@ -7,12 +7,11 @@ import { AvatarCharacter, type Expression } from "@/components/avatars/character
 import { MotionStage } from "@/components/motion/stage";
 import { BloomingFlower, Confetti, OrbitStars, Pulse, Sparkles } from "./particles";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/auth/context";
 import { useSequence, type SequenceState } from "@/lib/motion/use-sequence";
 import { HAMMER_MESSAGE, HAMMER_RECOVERY, TIER_STORYBOARDS } from "@/lib/motion/storyboards";
 import { DURATION, EASE, SPRING, SPRING_SOFT } from "@/lib/motion/tokens";
 import { cn } from "@/lib/utils";
-import type { RewardTier, UserProfile } from "@/types/api";
+import type { RewardTier } from "@/types/api";
 
 /**
  * The tier's celebration, played on the result card.
@@ -32,32 +31,29 @@ import type { RewardTier, UserProfile } from "@/types/api";
 export function TierCelebration({
   tier,
   headline,
+  avatarCode,
   className,
 }: {
   tier: RewardTier;
   /** `feedback.headline` — "Graph Queen", "Keep Practicing!". Never composed here. */
   headline: string;
+  /** The student's character, resolved by the page. Passed rather than read
+   *  from the session here, so the celebration is a pure function of its props
+   *  and can be exercised beat by beat without a signed-in user. */
+  avatarCode: string;
   className?: string;
 }) {
-  const { user } = useAuth();
   const sequence = useSequence(TIER_STORYBOARDS[tier]);
 
   return (
     <MotionStage>
       <div className={cn("flex flex-col items-center gap-3", className)}>
-        <Stage tier={tier} sequence={sequence} code={avatarCodeFor(user)} />
+        <Stage tier={tier} sequence={sequence} code={avatarCode} />
         <TitleCard tier={tier} headline={headline} sequence={sequence} />
         <Controls sequence={sequence} />
       </div>
     </MotionStage>
   );
-}
-
-/** Which drawn character to pose. Falls back to the default for their gender —
- *  registration always assigns one, so this is for a profile mid-migration. */
-function avatarCodeFor(user: UserProfile | null): string {
-  if (user?.avatar?.code) return user.avatar.code;
-  return user?.gender === "male" ? "boy_default" : "girl_default";
 }
 
 function Stage({
@@ -162,13 +158,17 @@ function TitleCard({
   // The hammer's title beat is its encouragement; every other tier calls it
   // `title`. Both are the last beat before the card settles.
   const beat = tier === "hammer" ? HAMMER_MESSAGE : "title";
-  if (!sequence.reached(beat)) return <div className="h-8" aria-hidden />;
+  const revealed = sequence.reached(beat);
 
+  // Rendered from the first frame and revealed by opacity, not mounted at the
+  // beat. The headline is content — a screen reader should reach it whether or
+  // not two seconds of animation have elapsed, and the card should not change
+  // height when it arrives.
   return (
     <m.h2
       className="text-xl font-semibold tracking-tight text-balance"
       initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
+      animate={{ opacity: revealed ? 1 : 0, scale: revealed ? 1 : 0.9 }}
       transition={SPRING}
     >
       {headline}

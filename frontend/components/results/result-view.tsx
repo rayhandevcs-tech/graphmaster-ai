@@ -11,6 +11,7 @@ import { ModelAnswer } from "./model-answer";
 import { ScoreRing } from "./score-ring";
 import { VocabularyPanel } from "./vocabulary-panel";
 import { WritingPanel } from "./writing-panel";
+import { avatarCodeFor } from "@/components/avatars/character";
 import { AwardSummary } from "@/components/gamification/award-summary";
 import { TierPanel } from "@/components/gamification/tier-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -19,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError, errorMessage, queryKeys, submissionsApi } from "@/lib/api";
+import { useAuth } from "@/lib/auth/context";
 import type { SubmissionResult } from "@/types/api";
 
 /**
@@ -32,11 +34,14 @@ import type { SubmissionResult } from "@/types/api";
  * simply absent. Reconstructing it would imply the award happened again, and
  * the XP ledger is append-only precisely so that is never ambiguous.
  *
- * Sprint 12 adds the tier animation. It belongs inside `TierPanel`, which
- * already renders the still version that the reduced-motion path needs.
+ * The tier animation lives inside `TierPanel`; the character it poses is
+ * resolved here, because the session is already in scope on this page and a
+ * celebration that reads the session itself cannot be exercised beat by beat
+ * without one.
  */
 export function ResultView({ submissionId }: { submissionId: string }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   // Frozen on first render: the cache entry is a one-shot handoff, and a later
   // invalidation elsewhere must not make the panel vanish mid-read.
@@ -160,6 +165,7 @@ export function ResultView({ submissionId }: { submissionId: string }) {
           tier={score.reward_tier}
           feedback={score.feedback}
           vocabularyPercentage={score.vocabulary_percentage}
+          avatarCode={avatarCodeFor(user)}
         />
 
         {awards?.gamification ? (

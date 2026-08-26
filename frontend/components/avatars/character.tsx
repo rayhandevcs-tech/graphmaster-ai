@@ -20,6 +20,18 @@ import { cn } from "@/lib/utils";
 
 export type Expression = "neutral" | "happy" | "cheer" | "dizzy" | "determined";
 
+/**
+ * Which drawn character belongs to a profile.
+ *
+ * The fallback is for a profile that predates the avatar catalogue —
+ * registration has assigned one since sprint 2 — and picks by gender, which is
+ * what the catalogue itself is partitioned by.
+ */
+export function avatarCodeFor(user: { avatar?: { code: string } | null; gender?: string } | null) {
+  if (user?.avatar?.code) return user.avatar.code;
+  return user?.gender === "male" ? "boy_default" : "girl_default";
+}
+
 type Hair = "short" | "long";
 type Accessory = "none" | "glasses" | "hat";
 
