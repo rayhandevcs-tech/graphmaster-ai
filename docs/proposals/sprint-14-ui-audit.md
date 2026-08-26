@@ -9,6 +9,13 @@ regions). Source read where the screenshot raised a question.
 **Nothing in this document was fixed while auditing it.** It is a findings
 report for Sprint 14 to schedule.
 
+> **Status: resolved.** Every P0 and P1 was fixed in Sprint 14, along with
+> F8, F13, F15 and F16. Two findings were **withdrawn on implementation** —
+> F4's third bullet and F10's diagnosis — and are struck through in place
+> rather than deleted, because an audit that quietly removes its own mistakes
+> is not a record. F7 and F9 remain open by decision, F12 by judgement; see
+> §5 of `sprint-14-implementation-plan.md` and the sprint report.
+
 **Reviewed at:** `74c1009`.
 
 ---

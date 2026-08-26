@@ -9,7 +9,7 @@ and rewarded
 
 ## 1. Delivery status
 
-**Last updated:** Sprint 13 (the teaching surfaces). The backend is complete, and
+**Last updated:** Sprint 14 (audit fixes and the polish pass). The backend is complete, and
 the student's half of the product is finished — practising, marking, the
 celebrations that answer a result, and the catalogue of what is still to earn.
 Sprints 13–14 build every teacher and administrator screen and the deployment
@@ -341,7 +341,7 @@ conventional commit.
 | ✅ | **11** | Landing, login, register (gender + avatar), student dashboard, practice page with live Chart.js rendering, typed editor, handwriting upload with OCR preview, result page, profile, settings |
 | ✅ | **12** | Framer Motion reward sequences (crown+confetti / flower / hammer bonk-dizzy-fall-recovery), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal |
 | ✅ | **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management |
-| ☐ | **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit |
+| ◐ | **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit |
 
 ---
 
