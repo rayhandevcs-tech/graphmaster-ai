@@ -1,7 +1,14 @@
 # Sprint 19 Design Proposal — Writing Consistency Assessment
 
-**Status:** Proposed. Awaiting approval. **No implementation code has been
-written, no migration created, no API contract or frontend touched.**
+**Status: approved and implemented.** Built as proposed, with no endpoint, no
+frontend and no migration. Q1, Q2, Q3 and Q6 were accepted as recommended;
+Q4, Q5 and Q7 remain open and are carried in `docs/PROJECT_PLAN.md` §1.4 as
+decisions 12–14.
+
+The implementation is documented in
+`docs/architecture/10-assessment-architecture.md` §15, which is the
+authoritative description. This document is kept as the design record — the
+reasoning behind the shape, and what was rejected along the way.
 
 **Author:** Architecture review, Sprint 19 design phase
 **Reviewed against:** Sprints 15–18 as merged (`2d7be54`), migration 4
@@ -952,5 +959,5 @@ proceed on the defaults if you would rather not decide now.
 
 ---
 
-*No implementation code, migration, API contract or frontend change accompanies
-this document. Implementation begins on approval.*
+*Design record. The built system is described in
+`docs/architecture/10-assessment-architecture.md` §15.*

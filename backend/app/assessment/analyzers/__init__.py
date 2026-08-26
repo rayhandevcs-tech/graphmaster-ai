@@ -17,6 +17,7 @@ from app.assessment.analyzers.spelling import SpellingAnalyzer
 from app.assessment.analyzers.vocabulary import VocabularyAnalyzer
 from app.assessment.analyzers.word_usage import WordUsageAnalyzer
 from app.assessment.analyzers.writing import WritingAnalyzer
+from app.assessment.analyzers.writing_profile import WritingProfileAnalyzer
 
 __all__ = [
     "GrammarAnalyzer",
@@ -26,4 +27,5 @@ __all__ = [
     "VocabularyAnalyzer",
     "WordUsageAnalyzer",
     "WritingAnalyzer",
+    "WritingProfileAnalyzer",
 ]

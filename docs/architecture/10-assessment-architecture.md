@@ -1,9 +1,10 @@
 # Assessment Architecture
 
-> **Revision 1.3** — the framework (Sprint 15), the first three diagnostic
-> analyzers and their storage (Sprint 16), graph accuracy (Sprint 17), and the
-> grammar provider chain (Sprint 18). The API surface is proposed but not yet
-> built; no endpoint in this document exists.
+> **Revision 1.4** — the framework (Sprint 15), the first three diagnostic
+> analyzers and their storage (Sprint 16), graph accuracy (Sprint 17), the
+> grammar provider chain (Sprint 18), and writing consistency (Sprint 19). The
+> API surface is proposed but not yet built; no endpoint in this document
+> exists.
 
 ## 1. What this package is for
 
@@ -439,8 +440,19 @@ matches an integrity vocabulary, and that no `IssueCategory` names cheating,
 AI or risk. A category called `ai_generated` would put an accusation on a
 student's screen no matter how the surrounding copy was worded.
 
-When the engine is built it will live in `app/integrity`, behind its own
-endpoints and its own role dependency.
+Sprint 19 was scheduled to build that engine and deliberately did not. What
+it built instead is **writing consistency** (§15): a measurement of how one
+student's own writing moves over time, with no verdict of any kind at either
+end of it. `app/integrity` does not exist, and nothing in this codebase
+computes a probability that text was machine-generated, an authorship
+decision, or a risk value under any name.
+
+The reasoning is in §15.1 and in `docs/proposals/sprint-19-writing-
+consistency.md`. In short: at 150–250 words per answer the statistics that
+would support an integrity verdict are not reliable, the platform's own
+teaching is the largest cause of the changes such an engine would react to,
+and there is no clean baseline to compare against — so the honest product is
+measurements a teacher reads, not a judgement the software makes.
 
 ## 10. Configuration
 
@@ -461,6 +473,10 @@ endpoints and its own role dependency.
 | `GRAMMAR_MAX_CHARS` | `20000` | Longer answers are truncated, not refused. |
 | `GRAMMAR_HEALTH_TTL_SECONDS` | `60` | A negative health probe expires, so a late-starting engine recovers. |
 | `GRAMMAR_LANGUAGE` | `en-GB` | Part of the assessment fingerprint — see §3. |
+| `CONSISTENCY_ANALYTICS_ENABLED` | `false` | Whether the comparison layer may be called. See §15. |
+| `CONSISTENCY_MIN_WORDS` | `120` | Shorter answers are not profiled and never compared. |
+| `CONSISTENCY_MIN_BASELINE` | `3` | Comparable prior submissions needed before a baseline exists. |
+| `CONSISTENCY_MIN_CLASS_SAMPLES` | `5` | Distinct students needed before a class distribution is shown. |
 
 An unknown analyzer name is logged and skipped rather than raising: a typo in
 a deployment's environment must not cost a student the submission that
@@ -475,6 +491,16 @@ false-positive rate grows, and back the moment it does not, without a
 redeploy. The most restrictive listing wins: a deployment mid-way through a
 rollback must not still be showing output someone has just decided to
 withdraw.
+
+One rung is nailed shut. `analyzer_audience` answers `STUDENT` for any
+analyzer no list names, which is right for the six that produce corrections a
+student should read and wrong for `writing_profile`, whose whole premise is
+that they must not see it — a deployment that added it to
+`ASSESSMENT_ANALYZERS` and forgot `ASSESSMENT_TEACHER_ONLY_ANALYZERS` would
+publish every student's own profile to them, with no error and no warning.
+`NEVER_STUDENT_ANALYZERS` in `app/core/config.py` is checked first and cannot
+be raised by any environment. It still allows an analyzer to be pushed *down*
+to `dark`: the floor stops promotion, not withdrawal.
 
 The audience is **frozen onto the row at assessment time**. Read at display
 time instead, a stage that had since moved would retroactively reveal what was
@@ -627,5 +653,226 @@ configured, and says so plainly when one is not. The six that need no network
 run in roughly three milliseconds on a warmed process, because they share the
 parse that has already happened.
 
-Still to come: the integrity engine (sprint 19), and the API and analytics
-surfaces that read any of it.
+`writing_profile` (§15) measures and reports nothing to anybody yet: it is
+absent from the default roster, and a deployment that pulls the release gets
+exactly the behaviour it had before.
+
+Still to come: the API and analytics surfaces that read any of this.
+
+## 15. Writing consistency
+
+Teacher-facing measurement of how one student's writing moves across their own
+submissions. Built in Sprint 19, switched off in every deployment that has not
+deliberately switched it on, and structurally unable to reach a student.
+
+### 15.1 What it is, and what it is not
+
+It is a longitudinal view of quantities the platform already computes — the
+existing measurements plotted against time and against the student's own
+earlier work. It is not a new judgement about writing.
+
+No component computes, internally or externally: a probability that text was
+machine-generated, an authorship decision, a risk or integrity or suspicion
+value under any name, a comparison between two different students, or a flag
+whose meaning is "look at this one". The last needs saying out loud, because a
+review flag with no label attached is still a verdict — it says *this student,
+not those students*. Nothing here orders or ranks students by any measure.
+
+Two facts govern how any surface built on this may be worded, and they belong
+in the interface rather than only here:
+
+1. **The platform causes the changes it measures.** Its purpose is to raise
+   target-vocabulary use and writing quality, and `generate_feedback` names
+   the missing terms on every scored submission. A student who is told to use
+   *fluctuate* and then uses it has shifted their vocabulary profile because
+   the system instructed them to. Among students the course succeeds with,
+   large change is the ordinary case.
+2. **A settled profile is not evidence of anything.** A student assisted
+   uniformly from their first submission has a perfectly stable baseline,
+   because the baseline is itself assisted. These measures cannot detect
+   uniform assistance — not poorly, but in principle, since they measure
+   change and there is none. Unless a surface says so, "consistent" will be
+   read as "cleared".
+
+### 15.2 Two layers, and why
+
+| Layer | Where | When | Stores |
+|---|---|---|---|
+| Measurement | `analyzers/writing_profile.py` | Assessment time | Metrics on the assessment row |
+| Comparison | `assessment/consistency/` | Read time | **Nothing** |
+
+The split is forced by versioning. `assessment_version` exists so a stored
+result is reproducible: the row's version plus the same input determines the
+same output. An analyzer that read the student's history would break that —
+re-run the same submission a month later and it answers differently under an
+unchanged version string, so the fingerprint would still *look* like a
+guarantee. Three smaller reasons run the same way: the analyzer Protocol
+requires purity, a history-reading analyzer makes submission *n* depend on
+submissions 1…*n*−1 (so deleting an old one silently corrupts every later
+result), and the analyzer suite would stop running without a database.
+
+Keeping the comparison at read time also means **no verdict is ever stored**.
+A stored comparison is a stored judgement with a timestamp: it goes stale the
+moment the next submission lands, it survives the deletion of the submission
+it was drawn from, and it is the artefact that ends up quoted in a meeting.
+
+### 15.3 What is measured
+
+`writing_profile` emits **metrics only** — no issues, and `score=None`.
+
+| Measure | Source |
+|---|---|
+| `lexical_diversity` | `WritingQuality.mattr` |
+| `mean_sentence_length` | `WritingQuality.mean_sentence_length` |
+| `sentence_length_variation` | Population SD of sentence lengths, from the shared parse |
+| `subordination_ratio` | `WritingQuality.subordination_ratio` |
+| `vocabulary_coverage` | The detection that has already run |
+
+Plus `word_count` and `sentence_count` as context. Mechanical accuracy is
+*not* re-measured: `spelling_score` and `grammar_score` are already columns on
+`assessment_details`, and the comparison reads them there. Self-overlap
+between a student's own attempts is computed from `submissions.answer_text` at
+read time.
+
+Three of these restate what the `writing` analyzer already reports. That
+overlap is deliberate: this map is a versioned measurement contract that a
+year of baselines is keyed on, and it must not shift when the writing analyzer
+changes what it chooses to report.
+
+The score is `None` permanently, and that is load-bearing. A 0–100
+"consistency score" is a risk score inverted — one number, monotone,
+orderable, whose components cannot be recovered from it. `SCORE_COLUMNS` has
+no entry for this analyzer, so a scalar has nowhere to go even if a later
+change starts returning one.
+
+**What was considered and rejected.** Function-word stylometry (Burrows's
+Delta and relatives) is authorship attribution: its only defensible reading is
+the one ruled out above, it cannot be explained to a teacher let alone to a
+student in an appeal, and it is unreliable below roughly a thousand words
+where these answers are a fifth of that. Timing and keystroke telemetry is not
+collected and would move the platform from analysing submitted work to
+recording how it was produced. Cross-student overlap is collusion detection
+under another name and needs an institutional decision, not an engineering
+one.
+
+### 15.4 Storage
+
+**No migration. No new table, no new column.** The profile lives in
+`assessment_details.analyzer_status['writing_profile']['metrics']` — JSONB on
+PostgreSQL, already written by `AssessmentRepository.create_for`, already
+carrying exactly this shape for six other analyzers.
+
+Metrics are extracted in Python rather than with a JSONB path expression, for
+the same reason `score_series` buckets in the service layer: the unit suite
+runs on SQLite where `JSONType` degrades to plain `JSON`. If a cohort-wide
+query over a term ever becomes slow, the mitigation is an expression index on
+`(analyzer_status -> 'writing_profile')` — forward-only, no column — added
+when there is a measurement to justify it.
+
+No `CHECK` constraint can protect a JSON blob's contents, so `Profile` parses
+it at read time and answers `None` for anything unusable: absent, corrupt,
+carrying a NaN, or written by a release with a different measure set. A bad
+row costs a teacher one point on a chart, never their page — the rule a
+malformed achievement rule already follows.
+
+### 15.5 Comparability
+
+Two submissions may be compared only when **all four** hold. Where any fails
+the pair is excluded and the reason is reported, never silently dropped.
+
+| Gate | Why |
+|---|---|
+| Same `assessment_version` | Different configurations measure different quantities. The series **breaks** at the boundary; it is never bridged. |
+| Same `input_method` | OCR merges sentences and inflates spelling density for reasons that are not the writer. |
+| Same `graph_type` | A pie chart asks for proportion language, a line chart for trend language. |
+| Both above `CONSISTENCY_MIN_WORDS` | Below it these measures are dominated by noise. |
+
+The gates exclude a great deal of data, which is the correct outcome. A
+baseline built from two of a student's nine submissions must say so, so
+`compared_count` and `considered_count` are reported together with a count per
+exclusion reason.
+
+"Earlier" is decided on the timestamp **and** the submission id, which is the
+order the repository returns rows in. `assessment_details.created_at` defaults
+to the transaction clock, so two assessments written in one transaction carry
+the same instant; on the timestamp alone neither would precede the other and
+both would vanish from each other's baselines with nothing reporting a gap.
+
+### 15.6 Reading the figures
+
+`§11.1` governs everything here too: every metric reports the count it was
+taken over, a trend line breaks rather than interpolates, and missing data
+renders as unavailable rather than zero.
+
+* **No baseline is `None`** — never `0`, never "consistent". It is the
+  majority state for most of a term, and it renders as "no baseline yet".
+* **The floor applies per measure.** On a server with no grammar engine a
+  student can have a settled lexical-diversity baseline and no grammar
+  baseline at all, and reporting the first is right.
+* **A difference is raw arithmetic** in the measure's own units — never a
+  z-score, because a normalised distance invites a threshold, and there is no
+  ground truth here to calibrate one against.
+* **A class view is suppressed** below `CONSISTENCY_MIN_CLASS_SAMPLES`
+  distinct students. Below that a "distribution" is both statistically
+  meaningless and re-identifying; the two failures compound at the same sizes.
+* **Nothing is combined.** There is no composite across measures, anywhere.
+
+### 15.7 Privacy
+
+**No new data is collected.** Every input is text and metadata the platform
+already stores for scoring. No new field on a submission, no frontend
+telemetry, and — unlike the remote grammar provider — nothing leaves the
+deployment.
+
+What does change is kind rather than quantity: the platform moves from marking
+each piece of work to characterising a student's writing over time, and a
+longitudinal profile supports inferences none of the submissions supports
+alone. The mitigations are the ones in the design — nothing stored but
+measurements, nothing derived except at read time, nothing visible except to a
+teacher who may already read every one of those submissions in full.
+
+Sprint 19 logs each comparison at application level (who asked, about whom,
+when). A persisted, queryable access log needs a table, a retention policy and
+an institutional decision about who may read it, and belongs with the endpoint
+rather than ahead of it.
+
+Second-language writers have higher intra-writer variance and improve faster
+under instruction, so they will show more and larger changes for entirely
+benign reasons. Any surface that draws attention to change draws it
+disproportionately to them. That is a reason to present measurements rather
+than notability, and a reason the dark stage must measure the distribution of
+changes by cohort before anything is promoted.
+
+### 15.8 Rollout
+
+| Stage | Configuration | Who sees it |
+|---|---|---|
+| 1 — off (**ship state**) | `writing_profile` absent from `ASSESSMENT_ANALYZERS` | Nothing is measured |
+| 2 — dark | on the roster **and** in `ASSESSMENT_DARK_ANALYZERS` | Nobody |
+| 3 — teacher | `ASSESSMENT_TEACHER_ONLY_ANALYZERS`, `CONSISTENCY_ANALYTICS_ENABLED=true` | Teachers and administrators |
+
+There is no stage 4. `NEVER_STUDENT_ANALYZERS` makes that a property of the
+build.
+
+Stage 2 is neither optional nor short: the feature needs history before it can
+produce output at all, and the distributions in §15.7 are unmeasured. Two
+switches rather than one because the useful order is *collect first, expose
+later* — one switch would force the choice between an empty feature and no
+collection.
+
+**Rollback** is removing the name from `ASSESSMENT_ANALYZERS`. Profiles stop
+being written, stored ones become inert data in a JSON blob nothing reads,
+`assessment_version` returns to its previous digest, and comparisons answer
+"no baseline". No data loss and no migration to reverse — the dividend of
+storing nothing but measurements.
+
+### 15.9 No endpoint
+
+Sprint 19 ships the analyzer, the comparison functions, the repository read
+and the tests. It ships **no route, no schema and no frontend**.
+
+`AssessmentResult.for_audience()` has no call site in the application today,
+because nothing reads assessment data over HTTP yet. The first endpoint that
+does must wire it, and that is the general assessment read surface. Building a
+consistency-only endpoint first would wire the audience filter twice, in two
+places, with two chances to get it wrong.

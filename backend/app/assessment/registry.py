@@ -19,6 +19,7 @@ from app.assessment.analyzers import (
     VocabularyAnalyzer,
     WordUsageAnalyzer,
     WritingAnalyzer,
+    WritingProfileAnalyzer,
 )
 from app.assessment.protocol import Analyzer
 from app.core.config import Settings, get_settings
@@ -39,6 +40,9 @@ BUILDERS: dict[str, Callable[[Settings], Analyzer]] = {
     "word_usage": WordUsageAnalyzer,
     "graph_accuracy": GraphAccuracyAnalyzer,
     "grammar": GrammarAnalyzer,
+    # Known to the build, absent from the default roster. Measurement is
+    # switched on per deployment — see docs/architecture/10 §15.2.
+    "writing_profile": WritingProfileAnalyzer,
 }
 
 

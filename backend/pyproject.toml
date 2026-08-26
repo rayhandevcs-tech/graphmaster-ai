@@ -111,6 +111,16 @@ ignore = [
 "app/assessment/grammar/languagetool.py" = ["RUF001", "RUF002", "RUF003"]
 "app/assessment/grammar/providers.py" = ["RUF001", "RUF002", "RUF003"]
 "app/assessment/grammar/rules.py" = ["RUF001", "RUF002", "RUF003"]
+# Same convention again for writing consistency: "0-100", "150-250 words" and
+# "1...n-1" in developer-facing docstrings and comments.
+"app/assessment/analyzers/writing_profile.py" = ["RUF001", "RUF002", "RUF003"]
+"app/assessment/consistency/__init__.py" = ["RUF002"]
+"app/assessment/consistency/compare.py" = ["RUF002", "RUF003"]
+"app/assessment/consistency/gating.py" = ["RUF002", "RUF003"]
+"app/assessment/consistency/overlap.py" = ["RUF002", "RUF003"]
+"app/assessment/consistency/profile.py" = ["RUF002", "RUF003"]
+"tests/unit/test_assessment_consistency.py" = ["E501", "RUF002"]
+"tests/unit/test_assessment_isolation.py" = ["E501", "RUF002"]
 # The test asserts on the module's own "0-1" message, en dash included.
 "tests/unit/test_grammar_providers.py" = ["E501", "RUF001"]
 # Typographic quotes and en dashes appear in these tests as deliberate input:
