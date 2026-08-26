@@ -1,5 +1,11 @@
 # Frontend Architecture
 
+> **Revision 2.4** — the reward layer as designed in sprint 12: the motion
+> vocabulary and why a celebration is data rather than control flow (§8.1),
+> the avatar as a drawn component with expressions (§8.2), the four
+> storyboards beat by beat (§8.3), the level-up banner and why it is not a
+> modal (§8.4), and synthesised sound (§8.5).
+>
 > **Revision 2.3** — records the rest of sprint 11: the student dashboard and
 > why it paints from a single aggregate (§7.2), the two-step registration the
 > avatar catalogue forces, the profile/settings split, the navigation that
@@ -308,22 +314,142 @@ as a sprint boundary.
 
 ## 8. Reward animations
 
-| Tier | Sequence |
-|---|---|
-| Crown | Avatar celebrates → crown descends and settles → sparkle particles → confetti burst → victory sound → title card "Graph King"/"Graph Queen" |
-| Flower | Flower blooms and rotates → avatar cheers → positive chime → "Rising Writer" |
-| Steady | Encouraging pulse → avatar nods → soft chime → "Steady Learner" |
-| Hammer | Cartoon hammer falls → bonk → dizzy stars → brief fall → **recovery** → "Keep Practicing! You Can Improve!" |
+### 8.1 The motion system
 
-Rules enforced in the components themselves, not left to the designer's
-discretion:
+One vocabulary, in `lib/motion/tokens.ts`, so that every movement in the
+product is recognisably the same hand. Four durations (`quick` 0.18s, `base`
+0.34s, `settle` 0.6s, `beat` 0.9s), one standard ease, one spring for arrivals
+and one anticipation curve reserved for the hammer. A component that wants a
+number not on this list is describing a movement GraphMaster does not make.
 
-1. **Every sequence is skippable and replayable** (FR-7.9).
-2. **Sound is muted until opted in** (FR-7.11).
-3. **`prefers-reduced-motion` collapses any sequence to a static card** carrying
-   the same message (FR-7.10) — the information is never only in the motion.
-4. **The hammer always ends in recovery.** The component has no code path that
-   leaves the avatar down; recovery is inside the sequence, not a follow-up.
+Sequences are **data, not control flow**. A tier celebration is an ordered list
+of beats — `{ id, at }` — and a hook advances an index against the clock. Three
+things fall out of that shape rather than having to be remembered:
+
+- **Skip** jumps the index to the last beat, which *is* the settled state.
+- **Replay** resets the index to zero.
+- **`prefers-reduced-motion` starts at the last beat**, so the reduced-motion
+  render is the same component in its final frame, not a separate card that
+  can drift out of step with what everyone else sees.
+
+And it makes FR-7.7 testable: a test reads the hammer storyboard and asserts
+that its final two beats are the recovery and the encouragement. There is no
+code path that ends the sequence earlier, because there is no code path at all
+— only a list.
+
+### 8.2 The avatar
+
+The avatar is a **component keyed by the avatar's `code`**, not an `<img>`
+pointed at `image_url`. A reaction needs an expression, an expression needs
+artwork per state, and a single flat image has one. The component draws the
+character from token-coloured shapes and takes an `expression` prop
+(`neutral`, `happy`, `cheer`, `dizzy`, `determined`), so it themes with the
+rest of the interface and can be posed.
+
+It is stylised rather than realistic: a duotone illustration in the product's
+own purple has no skin tone to get wrong, which for a platform used by one
+cohort after another is the right default rather than a compromise.
+
+`image_url` remains the API's own field and is untouched; the client simply
+does not need it for a character it can draw.
+
+### 8.3 The four storyboards
+
+Timings are seconds from the start of the sequence. Every one ends on a beat
+whose frame is the still card.
+
+**Crown — "Coronation" (2.6s)**
+
+| At | Beat | What moves |
+|---|---|---|
+| 0.00 | `arrive` | Card scales 0.96 → 1; avatar rises 16px; expression `happy` |
+| 0.35 | `crown` | Crown falls from −70px, overshoots, settles; avatar squashes 4% on impact; expression `cheer` |
+| 0.85 | `sparkle` | Six sparkles radiate outward, 40ms apart, fading over 0.9s |
+| 1.25 | `confetti` | Twenty-four pieces burst up and out, then fall under gravity |
+| 1.60 | `title` | The server's headline — "Graph King" / "Graph Queen" — springs in |
+| 2.60 | `settled` | The still card |
+
+**Flower — "Bloom" (1.9s)**
+
+| At | Beat | What moves |
+|---|---|---|
+| 0.00 | `arrive` | As above; expression `happy` |
+| 0.30 | `bloom` | Five petals scale 0 → 1 from the flower's centre, 60ms apart; the seed pops last |
+| 0.80 | `spin` | The whole flower turns 22° and settles; the avatar hops once; expression `cheer` |
+| 1.20 | `title` | "Rising Writer" |
+| 1.90 | `settled` | The still card |
+
+**Steady — "Steady on" (1.6s)**
+
+| At | Beat | What moves |
+|---|---|---|
+| 0.00 | `arrive` | As above |
+| 0.30 | `pulse` | Two concentric rings expand from the character and fade |
+| 0.70 | `nod` | The avatar nods once; expression `happy` |
+| 1.10 | `title` | "Steady Learner" |
+| 1.60 | `settled` | The still card |
+
+**Hammer — "Bonk, and back up" (3.0s)**
+
+| At | Beat | What moves |
+|---|---|---|
+| 0.00 | `arrive` | Avatar centred, expression `neutral` |
+| 0.25 | `swing` | An oversized cartoon hammer swings in from the top right, −65° → −35° |
+| 0.55 | `bonk` | Contact. The avatar squashes 14% and dips 8px; the hammer rebounds past vertical |
+| 0.75 | `dizzy` | Expression `dizzy`; three stars orbit clear of the head |
+| 1.30 | `wobble` | The avatar tips 12° and sinks 10px — knocked off balance, **not** knocked down |
+| 1.70 | `recover` | Springs upright with a 8% overshoot; expression `determined` |
+| 2.20 | `message` | "Keep Practicing!", in the server's own words |
+| 3.00 | `settled` | The still card |
+
+The hammer storyboard is the one with rules attached, and they are design
+constraints rather than notes:
+
+1. **The hammer is impossible.** Oversized, comic, and it rebounds further
+   than it fell. A hammer with plausible mass reads as violence; a weightless
+   one reads as slapstick.
+2. **`wobble` is 0.4s and 10px.** The character is never prone, never leaves
+   the frame, and never lies still. The beat exists to give the recovery
+   something to answer, and a longer one turns the joke on the student.
+3. **`recover` and `message` are the last two beats before the settled frame.**
+   Skipping lands on the settled frame; reduced motion renders it directly.
+   Both paths therefore end recovered, by construction.
+4. **The words are the server's**, and they do not wait for the animation.
+   `feedback.message` — which always opens with the encouragement (FR-7.7) —
+   is in the DOM from the first frame, below the stage. The sequence reveals
+   the *title card*; it never gates the sentence. A student whose tab is
+   throttled in the background, who navigates away at 1.2 seconds, or who is
+   using a screen reader has been told exactly what everyone else was told.
+5. **It is never shown to anyone else.** A tier lives on the student's own
+   result and dashboard. The leaderboard has XP and level and no tier at all.
+
+### 8.4 The level-up moment
+
+A **banner, not a modal**. A dialog over a result steals focus from the thing
+the student came to read and has to be dismissed before the feedback can be
+seen; the moment it celebrates is a side effect of work already displayed on
+the same screen. The banner arrives above the award summary, announces itself
+once through a live region, and stays — so a student who looks away does not
+miss it, which is the actual failure mode of a self-dismissing dialog.
+
+The XP bar fills to full, sweeps gold, and refills at the new level's
+position. The count-up shares `CountUp` with the dashboard, so the number
+behaves the same way in both places.
+
+### 8.5 Sound
+
+Muted by default (FR-7.11), stored per browser, and never started without a
+gesture — browsers block unprompted audio anyway, so an unmuted default would
+fail inconsistently rather than loudly.
+
+Cues are **synthesised**, not files: short envelopes over an oscillator, built
+the first time a student enables sound. A celebration that has to download an
+asset before it can play arrives after the moment it was for, and a reward
+system whose assets can 404 is worse than a silent one.
+
+Sound and motion are separate preferences. A student who has asked their
+system to stop animating has not asked it to be quiet, and the reverse is at
+least as common.
 
 ## 9. Accessibility (NFR-4.3 – NFR-4.6)
 
