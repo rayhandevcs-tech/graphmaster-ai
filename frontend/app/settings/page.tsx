@@ -1,12 +1,12 @@
 "use client";
 
 import { Protected } from "@/components/auth/protected";
-import { ProfileView } from "@/components/profile/profile-view";
+import { SettingsView } from "@/components/settings/settings-view";
 
-export default function ProfilePage() {
+export default function SettingsPage() {
   return (
     <Protected roles={["student", "teacher", "admin"]}>
-      <ProfileView />
+      <SettingsView />
     </Protected>
   );
 }

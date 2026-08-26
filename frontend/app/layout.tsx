@@ -5,6 +5,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SkipLink } from "@/components/layout/skip-link";
+import { MobileNav } from "@/components/layout/mobile-nav";
 
 // Downloaded at build time and served from our own origin, so there is no
 // third-party request on first paint (06-frontend-architecture §11).
@@ -39,9 +40,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <SkipLink />
           <SiteHeader />
-          <main id="main" className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+          {/* The bottom padding clears the phone's navigation bar, which is
+              fixed over the end of the page. */}
+          <main id="main" className="mx-auto w-full max-w-7xl px-4 pt-8 pb-28 sm:px-6 md:pb-8">
             {children}
           </main>
+          <MobileNav />
         </Providers>
       </body>
     </html>
