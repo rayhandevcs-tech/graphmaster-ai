@@ -17,7 +17,7 @@ export function GraphCard({ graph }: { graph: GraphSummary }) {
   const targets = targetTermsLabel(graph.target_vocabulary_count);
 
   return (
-    <Card className="group focus-within:ring-ring relative flex h-full flex-col gap-4 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-within:ring-2 focus-within:ring-offset-2">
+    <Card className="group focus-within:ring-ring relative flex h-full flex-col gap-4 p-5 transition-all duration-200 focus-within:ring-2 focus-within:ring-offset-2 hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
         <span className="bg-muted text-muted-foreground group-hover:bg-accent group-hover:text-accent-foreground flex size-9 items-center justify-center rounded-lg transition-colors">
           <GraphTypeIcon graphType={graph.graph_type} />

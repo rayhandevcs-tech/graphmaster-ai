@@ -8,8 +8,9 @@
  * fails the build for exactly that (NFR-4.2).
  *
  * So the token is resolved by *painting* it. The computed value of an OKLCH
- * custom property is still `oklch(...)`, which Chart.js's colour helper cannot
- * parse when it wants an alpha variant for a fill or a hover state — reading
+ * custom property is still in the OKLCH function syntax it was declared in,
+ * which Chart.js's colour helper cannot parse when it wants an alpha variant
+ * for a fill or a hover state — reading
  * the pixel back gives plain sRGB that everything downstream understands, and
  * it costs one 1×1 canvas for the life of the tab.
  */
@@ -50,8 +51,9 @@ export function resolveToken(token: string, alpha = 1, themeKey = ""): string {
   const context = probeContext();
 
   // No canvas (jsdom, or a context the browser refused): hand back the declared
-  // value. Modern canvases do accept `oklch()`, so this degrades rather than
-  // breaks, and an empty string lets Chart.js fall back to its own default.
+  // value. A modern canvas does accept an OKLCH colour, so this degrades
+  // rather than breaks, and an empty string lets Chart.js fall back to its
+  // own default.
   if (!context || !declared) return declared;
 
   context.clearRect(0, 0, 1, 1);
