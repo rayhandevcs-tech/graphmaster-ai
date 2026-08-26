@@ -1,25 +1,27 @@
 # GraphMaster — Project Plan
 
-**Version:** 1.3
-**Status:** In progress — backend complete, frontend foundation delivered
+**Version:** 1.4
+**Status:** In progress — backend complete, the student experience delivered
 **Branch:** `claude/graphmaster-platform-9aba5t`
 
 ---
 
 ## 1. Delivery status
 
-**Last updated:** Sprint 20 (the assessment read surface). The backend is
-complete; sprints 11–14 build the interface. See §1.3 for exactly what is left.
+**Last updated:** Sprint 11 (the student experience). The backend is complete
+and a student can now do everything the specification asks of them; sprints
+12–14 build the rewards and every teacher and administrator screen. See §1.3
+for exactly what is left.
 
 ### 1.1 Snapshot
 
 | Item | State |
 |---|---|
 | Backend sprints complete | **9 of 9** core (Sprints 1–9), plus the assessment engine (Sprints 15–20) |
-| Frontend sprints complete | **1 of 5** (Sprint 10) |
-| API endpoints | 80 operations across 64 paths |
-| Application modules | 156 Python files · 60 TypeScript modules |
-| Tests | **1,571 passing** — 1,513 backend (1,509 in the default run, 4 performance budgets behind a marker) and 58 frontend |
+| Frontend sprints complete | **2 of 5** (Sprints 10–11) |
+| API endpoints | 81 operations across 65 paths |
+| Application modules | 156 Python files · 129 TypeScript modules |
+| Tests | **1,742 passing** — 1,580 backend (1,576 in the default run, 4 performance budgets behind a marker) and 162 frontend |
 | Coverage | **99%** (target 80%, NFR-5.2) |
 | Migrations | 4, forward-only, upgraded from empty and round-tripped in CI |
 | Lint / format | `ruff` and `black` clean, enforced by CI |
@@ -46,6 +48,8 @@ schema looks the way it does.
 | **8** | Class and platform analytics, vocabulary usage, score trends, student dashboard, four report types in CSV / Excel / PDF | Computed live; exports carry the screens' access rules |
 | **9** | API-surface invariants, the optional S3 and OCR backends tested against fakes, session-management endpoints, the request transaction, performance budgets, five-job CI | Every endpoint is proved to demand a token, by the same test |
 | **10** | Next.js 15 App Router, Tailwind 4 palette with dark mode, shadcn primitives, the generated API types and typed client for all 75 operations, the in-memory token store, auth context, route guard, Docker image and two more CI jobs | The types are generated from the OpenAPI document, and CI fails if the committed copy has drifted |
+| **11** | The student experience end to end: the graph library, a themed Chart.js layer with its data-table alternative, the practice workspace with typed and handwriting routes and the editable OCR preview, the result screen, the dashboard aggregate, two-step registration with avatar selection, the profile and settings pages, the password-reset screens, and a phone navigation | Handwriting is hidden where no engine is configured; a failed read is recovered by typing into the *same* submission, so `input_method` never flips. A missing average is an em dash on every surface that shows one |
+| **11** *(backend)* | `GET /analysis/rubric` — the two scoring weights and the word-count band, to every signed-in role | A separate model and builder rather than a filtered view of the teacher-only engine status: a removal list publishes a field added later, an inclusion list withholds it. A test asserts the response's key set exactly |
 | **15** | The assessment framework: unified issue model, analyzer protocol, supervisor with failure containment, `assessment_version` fingerprint, and vocabulary and writing wrapped as analyzers | Diagnostic only — a regression suite asserts field by field that no assessment can move a score, and reads `build_score`'s signature so the wiring cannot be added |
 | **16** | Migration 4 and three tables, the spelling, sentence-quality and word-usage analyzers, the four-level severity scale, per-analyzer rollout flags, and persistence inside the scoring transaction | Every issue is located in the student's own text; the subject of the chart is exempt from both the spelling and the repetition checks |
 | **17** | Graph accuracy: chart facts, claims extracted from the vocabulary the detector already located, four claim kinds and their verdicts, and the claims table | Reaches a verdict only where both the attribution and the fact are unambiguous — everything else is recorded as unverified and shown to nobody |
@@ -57,17 +61,23 @@ schema looks the way it does.
 
 | Sprint | Still to build | Depends on |
 |---|---|---|
-| **11** | Registration with gender and avatar selection, the designed landing and auth pages, student dashboard, practice page with live Chart.js, typed editor, handwriting upload with OCR preview, result page, profile, settings | 10 |
-| **12** | Framer Motion reward sequences (crown + confetti / flower / hammer bonk-dizzy-fall-**recovery**), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal | 11 |
+| **12** | The achievements catalogue page, Framer Motion reward sequences (crown + confetti / flower / hammer bonk-dizzy-fall-**recovery**), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal | 11 |
 | **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management | 12 |
 | **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit | 13 |
 
-Roughly: **the backend is complete and the frontend has a foundation.** Every
-function in the specification — practising, marking, rewards, ranking,
-analytics and exports — is reachable over the API today, tested, and built by
-CI on every push. A student can now sign in, and the interface knows who they
-are; what they cannot yet do is practise. Sprints 11–14 build the screens on
-top of a client that already covers all 80 operations.
+Roughly: **the backend is complete and the student's half of the product is
+built.** Every function in the specification — practising, marking, rewards,
+ranking, analytics and exports — is reachable over the API today, tested, and
+built by CI on every push. A student can now create an account and choose
+their character, land on a dashboard that shows where they are, browse the
+published graphs, describe one — typed, or photographed and corrected — read
+the mark, the tier and the vocabulary they missed, and manage their own
+profile and settings, on a phone as well as a laptop.
+
+What is still missing is the celebration and the staff side: the reward
+sequences that play on a result, the achievements catalogue, the leaderboard,
+and every teacher and administrator screen. None of it is blocked on the
+backend.
 
 ### 1.3a Feature by feature
 
@@ -77,22 +87,24 @@ frontend work — there is no backend gap behind any of it.
 
 | Capability | Backend | Interface |
 |---|---|---|
-| Registration, login, refresh, roles | ✅ done | ❌ not started (11) |
-| Gender → avatar assignment | ✅ done | ❌ not started (11) |
+| Registration, login, refresh, roles | ✅ done | ✅ done — including the password-reset screens |
+| Gender → avatar assignment and selection | ✅ done | ✅ done |
 | Vocabulary library, 7 categories | ✅ done | ❌ not started (13) |
 | Graph management, Chart.js data, target curation | ✅ done | ❌ not started (13) |
 | Class management and enrolment | ✅ done | ❌ not started (13) |
-| Practising: typed answers | ✅ done | ❌ not started (11) |
-| Practising: handwriting + OCR preview | ✅ done | ❌ not started (11) |
-| Marking: 70/30 scoring, tiers, feedback | ✅ done | ❌ not started (11) |
-| Rewards: XP, levels, achievements, badges, streaks | ✅ done | ❌ not started (12) |
+| Practising: typed answers | ✅ done | ✅ done |
+| Practising: handwriting + OCR preview | ✅ done | ✅ done |
+| Marking: 70/30 scoring, tiers, feedback | ✅ done | ✅ done |
+| Rewards: XP, levels, achievements, badges, streaks | ✅ done | ⚠️ on the result screen, the dashboard and the profile; the achievements catalogue remains (12) |
 | Reward animations (crown / flower / steady / hammer) | n/a | ❌ not started (12) |
 | Leaderboards, four scopes | ✅ done | ❌ not started (13) |
 | Analytics: class, platform, vocabulary, trends | ✅ done | ❌ not started (13) |
 | Exports: CSV always, Excel and PDF optional | ✅ done | ❌ not started (13) |
-| Assessment: spelling, sentence, word usage, graph accuracy | ✅ done | ❌ not started (11) |
-| Assessment: grammar (optional engine, off by default) | ✅ done | ❌ not started (11) |
+| Assessment: spelling, sentence, word usage, graph accuracy | ✅ done | ❌ not started (13) |
+| Assessment: grammar (optional engine, off by default) | ✅ done | ❌ not started (13) |
 | Writing consistency (teacher-facing, stage 1 of 3) | ✅ done | ❌ not started (13) |
+| Student dashboard, profile and settings | ✅ done | ✅ done |
+| Marking criteria a student may read (`/analysis/rubric`) | ✅ done | ✅ done — the composer's length guide and the settings page |
 | Deployment guides, accessibility and responsive audit | — | ❌ not started (14) |
 
 ### 1.3b What is deliberately not built
@@ -117,7 +129,7 @@ place; say the word and it changes.
 
 | # | Question | Current default |
 |---|---|---|
-| 1 | Should `/analysis/*` be readable by students, or stay teacher-only? | Teacher and admin only |
+| 1 | **Partly settled.** `GET /analysis/rubric` — the two scoring weights and the word-count band — is open to every signed-in role as of Sprint 11, so a student's screen can state the marking criteria instead of hardcoding them. `preview` and `targets` stay teacher-only: preview would let a draft be iterated against the marker until it scored 100, and targets would turn description into transcription of a word list. Still open only as *should those two open up as well*. | Rubric public to signed-in users; preview and targets teacher and admin only |
 | 2 | NLTK is declared in `pyproject.toml` but unused since Sprint 5. Sprints 8 and 9 did not need it either, and it costs a corpus download in every image build — drop it in Sprint 14's deployment pass? | Kept, unused |
 | 3 | Editing a graph is open to any teacher; deleting it is owner-scoped. Should editing be owner-scoped too? | Any teacher may edit |
 | 4 | Two housekeeping jobs have no scheduler: superseded handwriting uploads are retained when a student re-uploads (deliberately, to avoid data loss on rollback), and `AuthSessionRepository.delete_expired` is never called. Both need a cron or a startup task. | Left as an operational task for Sprint 14 |

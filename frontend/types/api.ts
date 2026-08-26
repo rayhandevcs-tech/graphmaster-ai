@@ -917,6 +917,27 @@ export interface StudentRow {
   last_submission_at?: DateTimeString | null;
 }
 
+/**
+ * The marking criteria a student may see (FR-6.12).
+ *
+ * A separate model from :class:`RubricOut`, not a subset view of it. The two
+ * are shaped by different questions — "what does this server score with" and
+ * "what may a learner be told" — and a shared model would answer the second
+ * with whatever the first happened to grow.
+ *
+ * Absent on purpose: the tier thresholds (writing to the number is not
+ * describing a chart), the engine version and the language-model state
+ * (deployment facts), and the target vocabulary, which belongs to a graph and
+ * never reaches this endpoint at all.
+ */
+export interface StudentRubricOut {
+  /** Share of the final score carried by target vocabulary, as a fraction */
+  vocabulary_weight: number;
+  /** Share carried by the writing-quality signal */
+  writing_weight: number;
+  target_word_count: WordCountBand;
+}
+
 /** Open an attempt at a graph. */
 export interface SubmissionCreate {
   graph_id: UUID;
@@ -1188,6 +1209,12 @@ export interface VocabularyUsageRow {
   uses: number;
   submission_count: number;
   student_count: number;
+}
+
+/** The answer length the task expects. */
+export interface WordCountBand {
+  min: number;
+  max: number;
 }
 
 /**

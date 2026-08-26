@@ -1,18 +1,17 @@
-import { ComingSoon } from "@/components/layout/coming-soon";
+import type { Metadata } from "next";
 
-export const metadata = { title: "Create an account" };
+import { AuthShell } from "@/components/auth/auth-shell";
+import { RegisterFlow } from "@/components/auth/register-flow";
+
+export const metadata: Metadata = {
+  title: "Create an account",
+  description: "Create a GraphMaster account and start practising graph description in English.",
+};
 
 export default function RegisterPage() {
   return (
-    <ComingSoon
-      title="Create an account"
-      sprint="Sprint 11"
-      backHref="/login"
-      backLabel="Sign in instead"
-    >
-      Registration asks for a name, an email, a password and a gender — the last of these chooses
-      the cartoon avatar that receives your rewards — plus an optional class code. The endpoint is
-      live; the screen is next.
-    </ComingSoon>
+    <AuthShell>
+      <RegisterFlow />
+    </AuthShell>
   );
 }

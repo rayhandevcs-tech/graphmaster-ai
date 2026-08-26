@@ -166,6 +166,34 @@ class RubricOut(BaseModel):
     target_word_count: dict[str, int]
 
 
+class WordCountBand(BaseModel):
+    """The answer length the task expects."""
+
+    min: int
+    max: int
+
+
+class StudentRubricOut(BaseModel):
+    """The marking criteria a student may see (FR-6.12).
+
+    A separate model from :class:`RubricOut`, not a subset view of it. The two
+    are shaped by different questions — "what does this server score with" and
+    "what may a learner be told" — and a shared model would answer the second
+    with whatever the first happened to grow.
+
+    Absent on purpose: the tier thresholds (writing to the number is not
+    describing a chart), the engine version and the language-model state
+    (deployment facts), and the target vocabulary, which belongs to a graph and
+    never reaches this endpoint at all.
+    """
+
+    vocabulary_weight: float = Field(
+        description="Share of the final score carried by target vocabulary, as a fraction"
+    )
+    writing_weight: float = Field(description="Share carried by the writing-quality signal")
+    target_word_count: WordCountBand
+
+
 class PipelineOut(BaseModel):
     model: str
     available: bool

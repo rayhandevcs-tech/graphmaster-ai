@@ -208,6 +208,7 @@ read the preview carefully.
 | Method | Path | Description | Roles |
 |---|---|---|---|
 | GET | `/analysis/engine` | The deployed rubric and the language-model state | T A |
+| GET | `/analysis/rubric` | The marking criteria a student may see | S T A |
 | GET | `/analysis/graphs/{id}/targets` | The target set a submission would be scored against | T A |
 | POST | `/analysis/graphs/{id}/preview` | Score arbitrary text against a graph, recording nothing | T A |
 
@@ -290,6 +291,33 @@ Clients render the marking criteria from this rather than hardcoding a copy, so
 a rubric retuned for a study does not leave the UI describing rules the server
 no longer applies. `engine_version` carries a fingerprint of the rubric for the
 same reason — see [08-nlp-architecture.md](./08-nlp-architecture.md) §9.10.
+
+`GET /analysis/rubric` is the same configuration, cut to what a learner may be
+told:
+
+```json
+{
+  "vocabulary_weight": 0.70,
+  "writing_weight": 0.30,
+  "target_word_count": {"min": 150, "max": 250}
+}
+```
+
+It is a separate model rather than a filtered view of the one above, because a
+filter is a list of fields to *remove* — and a field added next sprint is then
+published by default. This is a list of fields to include.
+
+Absent, and each for a reason: the **tier thresholds**, because a student who
+knows the crown begins at 90% is writing at a number rather than describing a
+chart, and the tier is shown afterwards with the percentage that produced it;
+the **engine version and pipeline**, which are deployment facts; and the
+**target vocabulary**, which belongs to a graph this endpoint never sees.
+
+The word-count **maximum** travels with the minimum because the writing signal
+penalises an over-long answer as well as a short one, and a floor published
+without its ceiling invites the padding that loses marks. The feedback a
+student already receives names the whole band in the same sentence, so the
+ceiling is earlier here, not newer.
 
 `GET /analysis/graphs/{id}/targets` reports `source` as `curated` when a teacher
 set the list and `default` when it was derived from the chart type because none

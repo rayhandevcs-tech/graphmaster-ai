@@ -158,6 +158,50 @@ def rubric(settings: Settings) -> dict[str, Any]:
     }
 
 
+def student_rubric(settings: Settings) -> dict[str, Any]:
+    """The part of the rubric a student may be told (FR-6.1, FR-6.12).
+
+    Deliberately a *separate* function rather than a filtered copy of
+    :func:`rubric`. A filter is a list of keys to remove, and the failure mode
+    of a removal list is that a key added later is published by default; this
+    is a list of keys to include, whose failure mode is that a new one is
+    withheld until someone decides otherwise.
+
+    What is withheld, and why:
+
+    * **Tier thresholds.** The tier is the reward, and a student who knows the
+      crown starts at 90% is writing to a number rather than describing a
+      chart. They are shown the tier they earned and what produced it, after
+      the work.
+    * **The language-model state and the engine version.** Deployment facts. A
+      student can do nothing with either, and both name internals.
+
+    What is published, and why:
+
+    * **The weights**, because the marking criteria are not a secret — the
+      opposite: FR-6.12 wants a student to understand that vocabulary carries
+      most of the mark, and the alternative is a UI that hardcodes "70/30" and
+      goes on saying it after the rubric is retuned.
+    * **The word-count band.** The minimum is the task's own instruction. The
+      maximum comes with it because the writing score penalises an over-long
+      answer as well as a short one, and a floor published without its ceiling
+      invites exactly the padding that loses marks. The feedback a student is
+      already sent names the whole band in the same breath ("expects
+      150-250"), so the ceiling is not new information — it is only earlier.
+
+    Target vocabulary is not here and cannot be: this function never sees a
+    graph.
+    """
+    return {
+        "vocabulary_weight": settings.VOCABULARY_WEIGHT,
+        "writing_weight": settings.WRITING_WEIGHT,
+        "target_word_count": {
+            "min": settings.TARGET_WORD_COUNT_MIN,
+            "max": settings.TARGET_WORD_COUNT_MAX,
+        },
+    }
+
+
 def engine_version(settings: Settings) -> str:
     """The version stamped on every score.
 

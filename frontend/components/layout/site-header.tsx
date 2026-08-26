@@ -5,41 +5,11 @@ import { usePathname } from "next/navigation";
 import { LineChart } from "lucide-react";
 
 import { useAuth } from "@/lib/auth/context";
-import { isAdmin, isStudent, isTeacherOrAdmin } from "@/lib/auth/roles";
+import { homePathForRole } from "@/lib/auth/roles";
+import { isActive, linksFor } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import type { UserRole } from "@/types/api";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
-
-interface NavLink {
-  href: string;
-  label: string;
-}
-
-/** Sprint 11 onwards fill these routes in; the header knows about them now so
- *  the navigation does not have to be rebuilt around each new page. */
-function linksFor(role: UserRole | undefined): NavLink[] {
-  if (isStudent(role)) {
-    return [
-      { href: "/dashboard", label: "Dashboard" },
-      { href: "/practice", label: "Practice" },
-      { href: "/leaderboard", label: "Leaderboard" },
-      { href: "/achievements", label: "Achievements" },
-    ];
-  }
-  if (isTeacherOrAdmin(role)) {
-    const links = [
-      { href: "/teacher/dashboard", label: "Dashboard" },
-      { href: "/teacher/submissions", label: "Submissions" },
-      { href: "/teacher/graphs", label: "Graphs" },
-      { href: "/teacher/vocabulary", label: "Vocabulary" },
-      { href: "/teacher/analytics", label: "Analytics" },
-    ];
-    if (isAdmin(role)) links.push({ href: "/admin/users", label: "Users" });
-    return links;
-  }
-  return [];
-}
 
 export function SiteHeader() {
   const { user } = useAuth();
@@ -49,14 +19,21 @@ export function SiteHeader() {
   return (
     <header className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-40 border-b backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-4 px-4 sm:px-6">
-        <Link href={user ? "/dashboard" : "/"} className="flex items-center gap-2 font-semibold">
+        {/* A teacher's home is not the student dashboard, and sending them
+            there is a role error dressed up as a link. */}
+        <Link
+          href={user ? homePathForRole(user.role) : "/"}
+          className="flex items-center gap-2 font-semibold"
+        >
           <LineChart className="text-primary size-5" aria-hidden />
           <span>GraphMaster</span>
         </Link>
 
+        {/* Below `md` the links move to the bar at the bottom of the screen,
+            which is where a thumb reaches. Two navigations, one list. */}
         <nav aria-label="Main" className="hidden flex-1 items-center gap-1 md:flex">
           {links.map((link) => {
-            const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
+            const active = isActive(pathname, link.href);
             return (
               <Link
                 key={link.href}

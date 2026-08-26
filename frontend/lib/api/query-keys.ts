@@ -36,6 +36,19 @@ export const queryKeys = {
   submissions: (params: Params = {}) => ["submissions", "list", params] as const,
   submission: (submissionId: UUID) => ["submissions", "detail", submissionId] as const,
 
+  /**
+   * What one submission earned, handed from the analyze call to the result
+   * screen it navigates to.
+   *
+   * Deliberately *not* under the `submissions` prefix. XP, the level change and
+   * any achievements arrive only in the `analyze` response — re-reading the
+   * submission afterwards returns the score without them — so this cache entry
+   * is the only copy. Filing it under `submissions` would put it inside
+   * `INVALIDATED_BY_SCORING`, and scoring would evict the very payload it just
+   * produced.
+   */
+  submissionAward: (submissionId: UUID) => ["submission-awards", submissionId] as const,
+
   achievements: () => ["gamification", "achievements"] as const,
   badges: () => ["gamification", "badges"] as const,
   xpHistory: (params: Params = {}) => ["gamification", "xp-history", params] as const,
@@ -54,6 +67,7 @@ export const queryKeys = {
 
   ocrStatus: () => ["ocr", "status"] as const,
   engineStatus: () => ["analysis", "engine"] as const,
+  rubric: () => ["analysis", "rubric"] as const,
 } as const;
 
 /**

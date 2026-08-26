@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, User as UserIcon } from "lucide-react";
+import { LogOut, Settings, User as UserIcon } from "lucide-react";
 
 import { useAuth } from "@/lib/auth/context";
 import { ROLE_LABELS } from "@/lib/auth/roles";
@@ -66,6 +66,12 @@ export function UserMenu() {
           <Link href="/profile">
             <UserIcon aria-hidden />
             Profile
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/settings">
+            <Settings aria-hidden />
+            Settings
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
