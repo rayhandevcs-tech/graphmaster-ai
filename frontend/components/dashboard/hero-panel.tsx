@@ -42,7 +42,10 @@ export function HeroPanel({ user, dashboard }: { user: UserProfile; dashboard: S
             </Avatar>
 
             <div className="min-w-0">
-              <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
+              {/* Wraps rather than truncates: a long first name on a narrow
+                  phone is the common case, and "Good morning, Am…" is worse
+                  than two lines. */}
+              <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
                 <Greeting name={firstName(user.full_name)} />
               </h1>
               <p className="text-muted-foreground text-sm">
