@@ -126,7 +126,7 @@ loading.
 Achievements, Admin. **Component:** `components/ui/filter-chips.tsx:52`.
 
 Measured at 390px: **17 interactive targets under 44px on the practice
-library**, of which nine are filter chips at roughly 34px
+library**, of which nine are filter chips measuring exactly 30px
 (`px-3 py-1.5 text-xs`).
 
 This is a **design-system inconsistency**, not only an accessibility one.
