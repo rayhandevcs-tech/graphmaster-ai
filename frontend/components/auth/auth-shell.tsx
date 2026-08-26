@@ -111,6 +111,15 @@ function ChartMotif() {
 }
 
 /** The line under an auth card: the other way in. */
+/**
+ * "Already have an account? Sign in."
+ *
+ * The one interactive element in the product below the 44px floor, and
+ * deliberately so: WCAG 2.5.8 exempts a target whose size is constrained by
+ * the line-height of the sentence it sits in, and padding an inline link until
+ * it clears 44px breaks the line box it belongs to. The sentence is short, it
+ * is the last thing on the page, and nothing sits close enough to mis-tap.
+ */
 export function AuthSwitch({
   prompt,
   href,

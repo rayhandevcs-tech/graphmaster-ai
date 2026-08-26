@@ -23,7 +23,10 @@ export function SiteHeader() {
             there is a role error dressed up as a link. */}
         <Link
           href={user ? homePathForRole(user.role) : "/"}
-          className="flex items-center gap-2 font-semibold"
+          // The logo is how a phone user goes home, so it is a target before
+          // it is a wordmark: 44px of height, negative margin so the extra
+          // does not push the header taller.
+          className="-my-2 flex min-h-11 items-center gap-2 py-2 font-semibold"
         >
           <LineChart className="text-primary size-5" aria-hidden />
           <span>GraphMaster</span>
