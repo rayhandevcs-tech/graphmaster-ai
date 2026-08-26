@@ -1,5 +1,6 @@
 "use client";
 
+import { Chip } from "./chip";
 import { cn } from "@/lib/utils";
 
 export interface ChipOption<T extends string> {
@@ -15,6 +16,9 @@ export interface ChipOption<T extends string> {
  * four items. `null` is "no filter" and it is an option in the row — a student
  * should undo a filter with the same gesture that set it, not hunt for a clear
  * button.
+ *
+ * The chip itself is `ui/chip.tsx`, shared with the leaderboard's scope row so
+ * the two cannot drift apart on touch size again.
  */
 export function FilterChips<T extends string>({
   label,
@@ -42,26 +46,15 @@ export function FilterChips<T extends string>({
       aria-label={label}
       className={cn("flex flex-wrap items-center gap-1.5", className)}
     >
-      {entries.map((entry) => {
-        const active = entry.value === value;
-        return (
-          <button
-            key={entry.value ?? "__all"}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onChange(entry.value)}
-            className={cn(
-              "focus-visible:ring-ring rounded-full border px-3 py-1.5 text-xs font-medium",
-              "transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
-              active
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border text-muted-foreground hover:border-input hover:text-foreground",
-            )}
-          >
-            {entry.label}
-          </button>
-        );
-      })}
+      {entries.map((entry) => (
+        <Chip
+          key={entry.value ?? "__all"}
+          pressed={entry.value === value}
+          onPress={() => onChange(entry.value)}
+        >
+          {entry.label}
+        </Chip>
+      ))}
     </div>
   );
 }

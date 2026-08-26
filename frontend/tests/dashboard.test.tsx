@@ -12,6 +12,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { AchievementStrip } from "@/components/dashboard/achievement-strip";
 import { StatTiles } from "@/components/dashboard/stat-tiles";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { StreakFlame } from "@/components/gamification/streak-flame";
@@ -143,5 +144,26 @@ describe("recent work", () => {
       "href",
       "/practice",
     );
+  });
+});
+
+describe("the achievement strip's empty state", () => {
+  it("invites a student who has not started", () => {
+    render(<AchievementStrip achievements={[]} attempts={0} />);
+
+    expect(screen.getByText("Your first one is close")).toBeInTheDocument();
+    expect(screen.getByText(/Finishing a single description unlocks one/)).toBeInTheDocument();
+  });
+
+  it("never tells a student who has practised that one description would do it", () => {
+    // Shown to a student with nine marked descriptions, both halves of that
+    // sentence were false. The wording comes from practice history now.
+    render(<AchievementStrip achievements={[]} attempts={9} />);
+
+    expect(
+      screen.queryByText(/Finishing a single description unlocks one/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Your first one is close")).not.toBeInTheDocument();
+    expect(screen.getByText(/take more than one description/i)).toBeInTheDocument();
   });
 });

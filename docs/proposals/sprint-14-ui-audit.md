@@ -113,10 +113,10 @@ whenever it is reachable, and the guard costs one branch.
 - **The XP card on a revisit** — `result-view.tsx:185` is a full-height card
   holding one centred sentence, so a revisited result has a large empty box
   where the awards were.
-- **How your work is marked** — `settings-view.tsx:29` destructures only
-  `data` from `useRubric()`. The hook degrades honestly (both helpers return
-  `null`), so a failed fetch leaves the card's heading and description above
-  nothing.
+- ~~**How your work is marked**~~ — **withdrawn on implementation.** The card
+  is already guarded: `settings-view.tsx:110` renders it only when `weighting`
+  is non-null, so a failed rubric fetch hides the whole card rather than
+  leaving a heading over nothing. The audit was wrong about this one.
 
 None of these is a crash; all three read as a page that failed to finish
 loading.

@@ -52,7 +52,9 @@ function ResetForm() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">This link is incomplete</CardTitle>
+          <CardTitle as="h1" className="text-2xl">
+            This link is incomplete
+          </CardTitle>
           <CardDescription>
             The reset link needs the token that came with it. Open the link from your email again,
             or ask for a new one.

@@ -99,7 +99,7 @@ export function DashboardView() {
           </Reveal>
 
           <Reveal delay={0.18}>
-            <AchievementStrip achievements={data.achievements} />
+            <AchievementStrip achievements={data.achievements} attempts={data.total_attempts} />
           </Reveal>
 
           <Reveal delay={0.24}>

@@ -61,7 +61,9 @@ function LoginForm() {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Welcome back</CardTitle>
+          <CardTitle as="h1" className="text-2xl">
+            Welcome back
+          </CardTitle>
           <CardDescription>Sign in to keep your streak going.</CardDescription>
         </CardHeader>
 

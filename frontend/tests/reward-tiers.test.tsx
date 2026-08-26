@@ -11,6 +11,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { TierPanel } from "@/components/gamification/tier-panel";
+import { VocabularyPanel } from "@/components/results/vocabulary-panel";
 import { TIER_BANDS, TIER_ICONS, TIER_LABELS, TIER_ORDER } from "@/components/gamification/tiers";
 import {
   HAMMER_MESSAGE,
@@ -157,5 +158,44 @@ describe("the tier storyboards", () => {
     expect(beats[beatIndexAt(beats, 1.9)]?.id).toBe(HAMMER_RECOVERY);
     // Past the end it stays settled rather than running off the array.
     expect(beats[beatIndexAt(beats, 99)]?.id).toBe(SETTLED);
+  });
+});
+
+describe("the vocabulary sentence", () => {
+  const score = (overrides: Record<string, unknown> = {}) =>
+    ({
+      vocabulary_score: 67,
+      writing_score: 71,
+      final_score: 71,
+      vocabulary_percentage: 67,
+      total_target_count: 12,
+      unique_detected_count: 4,
+      detected_count: 4,
+      detected_terms: [],
+      missing_terms: [],
+      category_breakdown: {},
+      reward_tier: "flower",
+      ...overrides,
+    }) as never;
+
+  it("states the ratio when there is a denominator", () => {
+    render(<VocabularyPanel score={score()} />);
+    expect(screen.getByText(/You used 4 of the 12 required target terms/)).toBeInTheDocument();
+  });
+
+  it("never writes a ratio against zero", () => {
+    // "You used 4 of the 0 required target terms" is not a sentence.
+    render(<VocabularyPanel score={score({ total_target_count: 0 })} />);
+
+    expect(screen.queryByText(/of the 0 required/)).not.toBeInTheDocument();
+    expect(screen.getByText(/no required target terms set/i)).toBeInTheDocument();
+    expect(screen.getByText(/You used 4 target terms anyway/)).toBeInTheDocument();
+  });
+
+  it("says only what happened when there is neither a denominator nor a hit", () => {
+    render(<VocabularyPanel score={score({ total_target_count: 0, unique_detected_count: 0 })} />);
+
+    expect(screen.getByText(/no vocabulary percentage to earn\.$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/anyway/)).not.toBeInTheDocument();
   });
 });
