@@ -211,28 +211,46 @@ function TitleCard({
  * "replay" would offer to play something that does not play.
  */
 function Controls({ sequence }: { sequence: SequenceState }) {
-  if (sequence.reducedMotion) return null;
+  const { enabled, toggle } = useSound();
 
-  return sequence.isSettled ? (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={sequence.replay}
-      className="opacity-70 hover:opacity-100"
-    >
-      <RotateCcw aria-hidden />
-      Replay
-    </Button>
-  ) : (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={sequence.skip}
-      className="opacity-70 hover:opacity-100"
-    >
-      <SkipForward aria-hidden />
-      Skip
-    </Button>
+  return (
+    <div className="flex items-center gap-1">
+      {sequence.reducedMotion ? null : sequence.isSettled ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={sequence.replay}
+          className="opacity-70 hover:opacity-100"
+        >
+          <RotateCcw aria-hidden />
+          Replay
+        </Button>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={sequence.skip}
+          className="opacity-70 hover:opacity-100"
+        >
+          <SkipForward aria-hidden />
+          Skip
+        </Button>
+      )}
+
+      {/* Sound is off until asked for (FR-7.11), and the asking should be
+          possible here rather than only three screens away in settings — this
+          is the moment a student discovers there could have been a sound. */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={toggle}
+        aria-pressed={enabled}
+        aria-label={enabled ? "Turn reward sounds off" : "Turn reward sounds on"}
+        className="size-8 opacity-70 hover:opacity-100"
+      >
+        {enabled ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
+      </Button>
+    </div>
   );
 }
 

@@ -13,6 +13,7 @@ import { VocabularyPanel } from "./vocabulary-panel";
 import { WritingPanel } from "./writing-panel";
 import { avatarCodeFor } from "@/components/avatars/character";
 import { AwardSummary } from "@/components/gamification/award-summary";
+import { LevelUpBanner } from "@/components/gamification/level-up-banner";
 import { TierPanel } from "@/components/gamification/tier-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,16 @@ export function ResultView({ submissionId }: { submissionId: string }) {
           </p>
         </div>
       </div>
+
+      {awards?.gamification?.leveled_up ? (
+        // The two level fields are optional on the wire, and a banner that
+        // reads "level undefined" is worse than no banner; the fallbacks make
+        // it degrade to "you have reached level 1" rather than to a crash.
+        <LevelUpBanner
+          from={awards.gamification.level_before ?? 1}
+          to={awards.gamification.level_after ?? 1}
+        />
+      ) : null}
 
       <section className="grid gap-4 lg:grid-cols-3">
         <Card>
