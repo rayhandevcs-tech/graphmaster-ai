@@ -13,6 +13,8 @@ export type { ErrorEnvelope } from "./errors";
 
 export { analysisApi } from "./analysis";
 export { analyticsApi } from "./analytics";
+export { assessmentApi } from "./assessment";
+export type { AssessmentScope } from "./assessment";
 export { authApi } from "./auth";
 export { avatarsApi } from "./avatars";
 export { classesApi } from "./classes";

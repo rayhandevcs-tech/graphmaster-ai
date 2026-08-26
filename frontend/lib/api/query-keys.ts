@@ -62,6 +62,14 @@ export const queryKeys = {
   analyticsTrends: (params: Params = {}) => ["analytics", "trends", params] as const,
   analyticsVocabulary: (params: Params = {}) => ["analytics", "vocabulary", params] as const,
 
+  assessment: (submissionId: UUID) => ["assessment", "submission", submissionId] as const,
+  assessmentConsistency: (submissionId: UUID) =>
+    ["assessment", "submission", submissionId, "consistency"] as const,
+  assessmentIssues: (params: Params = {}) => ["assessment", "issues", params] as const,
+  assessmentScores: (params: Params = {}) => ["assessment", "scores", params] as const,
+  assessmentTrend: (analyzer: string, params: Params = {}) =>
+    ["assessment", "trend", analyzer, params] as const,
+
   reports: (params: Params = {}) => ["reports", "list", params] as const,
   reportCapabilities: () => ["reports", "capabilities"] as const,
 

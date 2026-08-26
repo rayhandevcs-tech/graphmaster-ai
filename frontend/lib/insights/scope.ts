@@ -30,10 +30,17 @@ export const RANGE_OPTIONS: readonly RangeOption[] = [
 
 const DAYS: Record<Exclude<RangeKey, "all">, number> = { "7d": 7, "30d": 30, "90d": 90 };
 
-export interface RangeDates {
+/**
+ * A type alias, not an interface, and that is load-bearing.
+ *
+ * TypeScript gives object *type aliases* an implicit index signature and
+ * interfaces none, so an interface here cannot be spread into the
+ * `Record<string, unknown>` a query key takes — at every call site.
+ */
+export type RangeDates = {
   date_from?: DateString;
   date_to?: DateString;
-}
+};
 
 function toDateString(at: Date): DateString {
   const year = at.getFullYear();
