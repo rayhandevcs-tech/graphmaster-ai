@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Keyboard, PenLine, Target } from "lucide-react";
 
 import { ChartPanel } from "@/components/charts/chart-panel";
+import { useRubric } from "@/lib/hooks/use-rubric";
 import { AnswerEditor } from "./answer-editor";
 import { CollapsiblePanel } from "./collapsible-panel";
 import { DifficultyBadge, GRAPH_TYPE_LABELS, GraphTypeIcon, targetTermsLabel } from "./graph-meta";
@@ -66,6 +67,12 @@ export function PracticeWorkspace({ graphId }: { graphId: string }) {
     // Which engines exist is a property of the deployment, not of this student.
     staleTime: 5 * 60 * 1000,
   });
+
+  /* The length the marker expects, from the server rather than from a constant
+     in this file. Optional throughout: if it cannot be read the editor counts
+     words with no target, which is what it did before the endpoint existed —
+     a failed request must not stop a student writing. */
+  const band = useRubric().data?.target_word_count;
 
   /**
    * Attempts already open on this graph.
@@ -314,6 +321,7 @@ export function PracticeWorkspace({ graphId }: { graphId: string }) {
                     saveState={method === "typed" ? saveState : "idle"}
                     disabled={submit.isPending}
                     placeholder="Describe what the graph shows. Start with an overview of the main trend, then give the figures that support it."
+                    band={band}
                   />
                 </TabsContent>
 
@@ -341,6 +349,7 @@ export function PracticeWorkspace({ graphId }: { graphId: string }) {
                       disabled={submit.isPending}
                       rows={12}
                       placeholder="Type your description here."
+                      band={band}
                     />
                   </HandwritingPanel>
                 </TabsContent>

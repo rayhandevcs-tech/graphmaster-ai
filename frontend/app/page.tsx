@@ -47,7 +47,10 @@ export default function LandingPage() {
           <Feature
             Icon={Trophy}
             title="See what you missed"
-            body="Seventy per cent of the score is the vocabulary a description needs. The words you did not reach for are the lesson."
+            // Deliberately no percentage: the weights are deployment configuration
+            // and `/analysis/rubric` — which publishes them — needs a token, so a
+            // number written here could not be corrected when a study retunes it.
+            body="Most of the score is the vocabulary a description needs. The words you did not reach for are the lesson."
           />
         </div>
       </section>

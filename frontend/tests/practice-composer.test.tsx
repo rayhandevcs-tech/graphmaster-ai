@@ -18,9 +18,17 @@ import { AnswerEditor } from "@/components/practice/answer-editor";
 import { SubmitPanel } from "@/components/practice/submit-panel";
 import { SaveStatus } from "@/components/practice/save-status";
 
-function Editable({ initial = "" }: { initial?: string }) {
+function Editable({
+  initial = "",
+  band,
+}: {
+  initial?: string;
+  band?: { min: number; max: number };
+}) {
   const [value, setValue] = React.useState(initial);
-  return <AnswerEditor id="answer" value={value} onChange={setValue} saveState="idle" />;
+  return (
+    <AnswerEditor id="answer" value={value} onChange={setValue} saveState="idle" band={band} />
+  );
 }
 
 describe("the answer editor", () => {
@@ -56,6 +64,47 @@ describe("the answer editor", () => {
 
     await user.type(screen.getByRole("textbox"), "Sales");
     expect(screen.getByText(/^1 word/)).toBeInTheDocument();
+  });
+});
+
+describe("the expected length", () => {
+  it("invents no target when the server did not supply one", () => {
+    // The weights and the band are deployment configuration. A default written
+    // into this component would be a number the marker does not use, shown to
+    // a student as though it did.
+    render(<Editable initial="Sales rose" />);
+
+    expect(screen.queryByText(/aim for/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  it("shows the band the server did supply", () => {
+    render(<Editable initial="Sales rose" band={{ min: 150, max: 250 }} />);
+    expect(screen.getByText(/aim for 150–250/)).toBeInTheDocument();
+  });
+
+  it("says when an answer has run past the band, without stopping it", async () => {
+    const user = userEvent.setup();
+    render(<Editable initial={"word ".repeat(12).trim()} band={{ min: 4, max: 8 }} />);
+
+    expect(screen.getByText(/over the 8 expected/)).toBeInTheDocument();
+
+    // Guidance, not a limit: writing long costs marks on one writing component
+    // and nothing else, so the editor must not enforce a rule the marker does
+    // not have.
+    const box = screen.getByRole("textbox");
+    expect(box).not.toBeDisabled();
+    await user.type(box, " more");
+    expect((box as HTMLTextAreaElement).value).toContain("more");
+  });
+
+  it("tells a screen reader the count in words, not as a bare percentage", () => {
+    render(<Editable initial="one two three four five" band={{ min: 4, max: 8 }} />);
+
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuetext",
+      "5 of the 4 to 8 words this task expects",
+    );
   });
 });
 
