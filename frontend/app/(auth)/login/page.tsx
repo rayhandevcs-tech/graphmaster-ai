@@ -8,34 +8,26 @@ import { useAuth } from "@/lib/auth/context";
 import { safeNextPath } from "@/lib/auth/redirect";
 import { homePathForRole } from "@/lib/auth/roles";
 import { ApiError, errorMessage } from "@/lib/api";
+import { AuthShell, AuthSwitch } from "@/components/auth/auth-shell";
+import { PasswordField } from "@/components/auth/password-field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 
-/**
- * Signing in.
- *
- * The full set of authentication screens — registration with gender and avatar
- * selection, the password-reset flow — is sprint 11. This one exists now
- * because a session has to start somewhere before route protection means
- * anything.
- */
 export default function LoginPage() {
   return (
-    // `useSearchParams` opts a page into client rendering; the boundary keeps
-    // that to the form rather than the whole route.
-    <Suspense
-      fallback={
-        <div className="flex justify-center py-16">
-          <Spinner />
-        </div>
-      }
-    >
-      <LoginForm />
-    </Suspense>
+    <AuthShell>
+      {/* `useSearchParams` opts a page into client rendering; the boundary
+          keeps that to the form rather than to the whole route. The fallback
+          is the card's own shape, so the page does not jump when it resolves. */}
+      <Suspense fallback={<Skeleton className="h-[26rem] rounded-xl" />}>
+        <LoginForm />
+      </Suspense>
+    </AuthShell>
   );
 }
 
@@ -66,17 +58,21 @@ function LoginForm() {
   }
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-6 py-8">
+    <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Welcome back</CardTitle>
+          <CardTitle className="text-2xl">Welcome back</CardTitle>
           <CardDescription>Sign in to keep your streak going.</CardDescription>
         </CardHeader>
+
         <CardContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
             {error ? (
               <Alert variant="destructive">
                 <AlertTitle>Could not sign you in</AlertTitle>
+                {/* Whatever the server said, and never more specific than it
+                    was: "no account with that email" would answer a question
+                    nobody signed in should be able to ask. */}
                 <AlertDescription>{errorMessage(error)}</AlertDescription>
               </Alert>
             ) : null}
@@ -102,38 +98,30 @@ function LoginForm() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
+              <PasswordField
                 id="password"
-                name="password"
-                type="password"
+                label="Password"
                 autoComplete="current-password"
-                required
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                aria-invalid={Boolean(fieldErrors.password)}
-                aria-describedby={fieldErrors.password ? "password-error" : undefined}
+                onChange={setPassword}
+                error={fieldErrors.password}
               />
-              {fieldErrors.password ? (
-                <p id="password-error" className="text-destructive text-sm">
-                  {fieldErrors.password}
-                </p>
-              ) : null}
+              <Link
+                href="/forgot-password"
+                className="text-muted-foreground hover:text-foreground self-end text-sm underline-offset-4 hover:underline"
+              >
+                Forgot your password?
+              </Link>
             </div>
 
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" size="lg" disabled={submitting}>
               {submitting ? <Spinner label="Signing in" /> : "Sign in"}
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      <p className="text-muted-foreground text-center text-sm">
-        No account yet?{" "}
-        <Link href="/register" className="text-primary underline-offset-4 hover:underline">
-          Create one
-        </Link>
-      </p>
+      <AuthSwitch prompt="No account yet?" href="/register" label="Create one" />
     </div>
   );
 }
