@@ -5,7 +5,11 @@ The engine's standalone surface. Sprint 6 wires the same service into
 XP and achievements; here it can be run against arbitrary text so a teacher can
 see what their target list actually rewards before setting it as an assignment.
 
-Both endpoints are restricted to teachers and administrators, which is a
+``GET /rubric`` is open to every signed-in role: it publishes the weights and
+the word-count band and nothing else, which is what lets a student's screen
+state the marking criteria without hardcoding them (FR-6.12).
+
+The other two are restricted to teachers and administrators, which is a
 product decision rather than a technical one:
 
 * **Preview** hands back a full score with no submission recorded. Open to
@@ -28,12 +32,13 @@ import uuid
 
 from fastapi import APIRouter, Depends, Request
 
-from app.api.deps import AnalysisSvc, TeacherUser, require_teacher
+from app.api.deps import AnalysisSvc, CurrentUser, TeacherUser, require_teacher
 from app.core.rate_limit import ANALYZE_LIMIT, enforce
 from app.schemas.analysis import (
     AnalysisRequest,
     AnalysisResponse,
     EngineStatusResponse,
+    StudentRubricOut,
     TargetSummaryResponse,
     to_analysis_response,
 )
@@ -54,6 +59,27 @@ router = APIRouter(tags=["analysis"])
 )
 async def engine_status(_: TeacherUser, analysis: AnalysisSvc) -> EngineStatusResponse:
     return EngineStatusResponse(**analysis.engine_status())
+
+
+@router.get(
+    "/rubric",
+    response_model=StudentRubricOut,
+    summary="The marking criteria, as a student may see them",
+    description=(
+        "The two weights the final score is composed from, and the word-count band the "
+        "task expects. Open to every signed-in role, which the two endpoints below are "
+        "not.\n\n"
+        "It carries neither of the things those withhold. There is no target vocabulary "
+        "here — this endpoint never sees a graph — and no tier threshold, because a "
+        "student who knows where the crown begins is writing to a number rather than "
+        "describing a chart. The engine version and the language-model state are absent "
+        "too: they are deployment facts a learner can do nothing with.\n\n"
+        "It exists so the interface can state the criteria (FR-6.12) instead of "
+        "hardcoding `70/30` and going on saying it after the rubric is retuned."
+    ),
+)
+async def student_rubric(_: CurrentUser, analysis: AnalysisSvc) -> StudentRubricOut:
+    return StudentRubricOut.model_validate(analysis.student_rubric())
 
 
 @router.get(

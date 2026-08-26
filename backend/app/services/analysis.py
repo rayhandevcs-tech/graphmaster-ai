@@ -20,7 +20,7 @@ from app.models.identity import User
 from app.nlp.analyzer import AnalysisResult, analyse
 from app.nlp.defaults import MAX_DEFAULT_TARGETS, TERMS_PER_CATEGORY, default_categories
 from app.nlp.pipeline import is_available, pipeline_info
-from app.nlp.scoring import engine_version, rubric
+from app.nlp.scoring import engine_version, rubric, student_rubric
 from app.nlp.terms import TargetTerm
 from app.repositories.graph import GraphRepository
 from app.repositories.vocabulary import VocabularyItemRepository
@@ -50,6 +50,15 @@ class AnalysisService:
             "pipeline": pipeline_info(),
             "rubric": rubric(self.settings),
         }
+
+    def student_rubric(self) -> dict[str, Any]:
+        """The marking criteria a learner may be shown.
+
+        Built from the same settings object the scorer reads, so a retuned
+        deployment cannot leave a student looking at weights this server no
+        longer applies.
+        """
+        return student_rubric(self.settings)
 
     # ── Target resolution ────────────────────────────────────────────────────
 

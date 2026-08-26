@@ -11,6 +11,7 @@ pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("spacy_model")]
 PREVIEW = "/api/v1/analysis/graphs/{id}/preview"
 TARGETS = "/api/v1/analysis/graphs/{id}/targets"
 ENGINE = "/api/v1/analysis/engine"
+RUBRIC = "/api/v1/analysis/rubric"
 
 
 @pytest.fixture
@@ -67,6 +68,73 @@ async def test_engine_version_is_reported(client, teacher):
 
 async def test_engine_requires_authentication(client):
     assert (await client.get(ENGINE)).status_code == 401
+
+
+# ── The student-safe rubric ──────────────────────────────────────────────────
+
+#: Everything the student rubric is allowed to carry. Asserted as an exact set
+#: rather than key by key: a field added to the response later is then a
+#: failing test that someone has to look at, which is the only way a rule about
+#: what must *not* be published survives a later sprint.
+STUDENT_RUBRIC_KEYS = {"vocabulary_weight", "writing_weight", "target_word_count"}
+
+
+async def test_student_rubric_reports_the_deployed_weights(client, student, settings):
+    _, headers = student
+    response = await client.get(RUBRIC, headers=headers)
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["vocabulary_weight"] == settings.VOCABULARY_WEIGHT
+    assert body["writing_weight"] == settings.WRITING_WEIGHT
+    assert body["target_word_count"] == {
+        "min": settings.TARGET_WORD_COUNT_MIN,
+        "max": settings.TARGET_WORD_COUNT_MAX,
+    }
+
+
+async def test_student_rubric_carries_nothing_else(client, student):
+    """No tier threshold, no engine version, no pipeline, no vocabulary.
+
+    The point of the endpoint is what it leaves out. A threshold turns writing
+    into aiming at a number; the pipeline and version are deployment facts; and
+    the target list would turn description into transcription.
+    """
+    _, headers = student
+    body = (await client.get(RUBRIC, headers=headers)).json()
+
+    assert set(body) == STUDENT_RUBRIC_KEYS
+
+    serialised = str(body)
+    for forbidden in ("tier", "crown", "engine_version", "pipeline", "term"):
+        assert forbidden not in serialised
+
+
+async def test_student_rubric_is_open_to_every_signed_in_role(client, student, teacher, admin):
+    for _, headers in (student, teacher, admin):
+        assert (await client.get(RUBRIC, headers=headers)).status_code == 200
+
+
+async def test_student_rubric_requires_authentication(client):
+    assert (await client.get(RUBRIC)).status_code == 401
+
+
+async def test_student_rubric_agrees_with_the_engine_a_teacher_sees(client, student, teacher):
+    """One configuration, two audiences — never two numbers.
+
+    A student told the weighting is 70/30 while the server scores on something
+    else is worse than a student told nothing, so the shared field is asserted
+    equal rather than merely present in both.
+    """
+    _, student_headers = student
+    _, teacher_headers = teacher
+
+    published = (await client.get(RUBRIC, headers=student_headers)).json()
+    deployed = (await client.get(ENGINE, headers=teacher_headers)).json()["rubric"]
+
+    assert published["vocabulary_weight"] == deployed["vocabulary_weight"]
+    assert published["writing_weight"] == deployed["writing_weight"]
+    assert published["target_word_count"] == deployed["target_word_count"]
 
 
 # ── Target resolution ────────────────────────────────────────────────────────

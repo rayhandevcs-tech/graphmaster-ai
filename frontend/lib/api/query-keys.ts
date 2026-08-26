@@ -67,6 +67,7 @@ export const queryKeys = {
 
   ocrStatus: () => ["ocr", "status"] as const,
   engineStatus: () => ["analysis", "engine"] as const,
+  rubric: () => ["analysis", "rubric"] as const,
 } as const;
 
 /**
