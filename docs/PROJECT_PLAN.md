@@ -8,17 +8,17 @@
 
 ## 1. Delivery status
 
-**Last updated:** Sprint 19 (writing consistency). Sprints 11–14 remain
-outstanding; see §1.3.
+**Last updated:** Sprint 20 (the assessment read surface). The backend is
+complete; sprints 11–14 build the interface. See §1.3 for exactly what is left.
 
 ### 1.1 Snapshot
 
 | Item | State |
 |---|---|
-| Backend sprints complete | **9 of 9** (Sprints 1–9) |
+| Backend sprints complete | **9 of 9** core (Sprints 1–9), plus the assessment engine (Sprints 15–20) |
 | Frontend sprints complete | **1 of 5** (Sprint 10) |
-| API endpoints | 75 operations across 59 paths |
-| Application modules | 152 Python files · 60 TypeScript modules |
+| API endpoints | 80 operations across 64 paths |
+| Application modules | 156 Python files · 60 TypeScript modules |
 | Tests | **1,571 passing** — 1,513 backend (1,509 in the default run, 4 performance budgets behind a marker) and 58 frontend |
 | Coverage | **99%** (target 80%, NFR-5.2) |
 | Migrations | 4, forward-only, upgraded from empty and round-tripped in CI |
@@ -51,6 +51,7 @@ schema looks the way it does.
 | **17** | Graph accuracy: chart facts, claims extracted from the vocabulary the detector already located, four claim kinds and their verdicts, and the claims table | Reaches a verdict only where both the attribution and the fact are unambiguous — everything else is recorded as unverified and shown to nobody |
 | **18** | The grammar provider chain (`none` / `local` / `remote`), the LanguageTool client, the grammar analyzer, and the teacher-analytics queries the class report will compose | No migration: `grammar_score` was reserved in migration 4. Off by default, and a regression suite proves a noisy engine moves neither the score, the tier, nor a single point of XP |
 | **19** | Writing consistency: the `writing_profile` analyzer, the read-time comparison layer with its four comparability gates, the profile series query, and the `NEVER_STUDENT_ANALYZERS` floor | No migration and no endpoint. It measures and never judges — no verdict, no composite, no threshold, no ranking — and a student cannot see it whatever the environment says |
+| **20** | The assessment read surface: five endpoints under `/assessment`, the shared audience predicate wired to both the live and the stored path, per-analyzer class means and trends, and the teacher-facing consistency read | The first surface to apply the audience filter — a student's payload is *built* without what they may not see, from the audiences frozen on the row rather than the server's current rollout stage |
 
 ### 1.3 What remains
 
@@ -66,7 +67,48 @@ function in the specification — practising, marking, rewards, ranking,
 analytics and exports — is reachable over the API today, tested, and built by
 CI on every push. A student can now sign in, and the interface knows who they
 are; what they cannot yet do is practise. Sprints 11–14 build the screens on
-top of a client that already covers all 75 operations.
+top of a client that already covers all 80 operations.
+
+### 1.3a Feature by feature
+
+Read down the middle column: everything marked **done** is reachable over the
+API, covered by tests and green in CI. Everything marked **not started** is
+frontend work — there is no backend gap behind any of it.
+
+| Capability | Backend | Interface |
+|---|---|---|
+| Registration, login, refresh, roles | ✅ done | ❌ not started (11) |
+| Gender → avatar assignment | ✅ done | ❌ not started (11) |
+| Vocabulary library, 7 categories | ✅ done | ❌ not started (13) |
+| Graph management, Chart.js data, target curation | ✅ done | ❌ not started (13) |
+| Class management and enrolment | ✅ done | ❌ not started (13) |
+| Practising: typed answers | ✅ done | ❌ not started (11) |
+| Practising: handwriting + OCR preview | ✅ done | ❌ not started (11) |
+| Marking: 70/30 scoring, tiers, feedback | ✅ done | ❌ not started (11) |
+| Rewards: XP, levels, achievements, badges, streaks | ✅ done | ❌ not started (12) |
+| Reward animations (crown / flower / steady / hammer) | n/a | ❌ not started (12) |
+| Leaderboards, four scopes | ✅ done | ❌ not started (13) |
+| Analytics: class, platform, vocabulary, trends | ✅ done | ❌ not started (13) |
+| Exports: CSV always, Excel and PDF optional | ✅ done | ❌ not started (13) |
+| Assessment: spelling, sentence, word usage, graph accuracy | ✅ done | ❌ not started (11) |
+| Assessment: grammar (optional engine, off by default) | ✅ done | ❌ not started (11) |
+| Writing consistency (teacher-facing, stage 1 of 3) | ✅ done | ❌ not started (13) |
+| Deployment guides, accessibility and responsive audit | — | ❌ not started (14) |
+
+### 1.3b What is deliberately not built
+
+Not gaps. Each is a decision with its reasoning recorded, and none of them is
+waiting on engineering.
+
+| Not built | Why |
+|---|---|
+| Any AI-detection or academic-misconduct engine | Ruled out in the Sprint 19 design review. At 150–250 words the statistics are unreliable, the platform's own teaching causes the changes such an engine would react to, and no baseline is known clean. What exists instead is measurement a teacher reads. |
+| `app/integrity` | Superseded by the above. The package was planned and never created. |
+| Writes to `analytics_snapshots` | Analytics are computed live: a cached figure is stale exactly when a teacher wants it, in the minutes after a lesson. |
+| A migration for the writing profile | The measurements live in the `analyzer_status` JSONB the assessment row already carries. `alembic check` proves none is needed. |
+| Cross-student text comparison | Collusion detection under another name. It needs an institutional policy decision, not an engineering one. |
+| Timing or keystroke telemetry | Moves the platform from analysing submitted work to recording how it was produced. No mandate. |
+| A frontend for writing consistency | Stage 2 (dark) has to run for a term first — the feature needs history before it has anything to show, and its false-positive distributions are unmeasured. |
 
 ### 1.4 Decisions still open
 

@@ -109,6 +109,35 @@ class AnalyticsRepository:
             clauses.append(Submission.scored_at < end)
         return clauses
 
+    async def scored_submission_ids(
+        self, window: AnalyticsWindow, *, timezone: str
+    ) -> list[uuid.UUID]:
+        """Which submissions a window covers, as ids.
+
+        The assessment aggregates take a set of ids the caller has already
+        established the viewer may read, rather than a scope of their own —
+        that is what keeps "which class may this teacher see" in one place
+        instead of restated in every query that narrows by class. This is the
+        bridge between the two: the window resolves to ids here, and
+        :class:`~app.repositories.assessment.AssessmentRepository` answers
+        questions about them without knowing what a class is.
+
+        Ordered by id rather than by date. Nothing downstream depends on the
+        order, and a stable one keeps a report run twice on unchanged data
+        from reshuffling.
+        """
+        stmt = (
+            select(Submission.id)
+            .select_from(Submission)
+            .where(and_(*self._conditions(window, timezone)))
+            .order_by(Submission.id)
+        )
+        if window.class_id is not None:
+            stmt = stmt.join(User, User.id == Submission.user_id).where(
+                User.class_id == window.class_id
+            )
+        return list((await self.db.execute(stmt)).scalars().all())
+
     def _population(self, window: AnalyticsWindow) -> Select[Any]:
         """Active students in scope, whether or not they have submitted.
 

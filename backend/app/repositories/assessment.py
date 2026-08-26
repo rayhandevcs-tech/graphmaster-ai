@@ -195,6 +195,21 @@ class AssessmentRepository(BaseRepository[AssessmentDetail]):
     # caller has already established the teacher may see, and none of them can
     # be reached with a student's own submission alone.
 
+    async def assessed_count(self, submission_ids: list[uuid.UUID]) -> int:
+        """How many of these submissions actually carry an assessment.
+
+        The denominator behind every figure in this section. No submission
+        marked before Sprint 16 has one and there is no backfill, so a report
+        over a term is always over a subset — and an issue count printed
+        without this reads as though the whole cohort had been checked and
+        found nearly clean.
+        """
+        if not submission_ids:
+            return 0
+
+        stmt = select(func.count()).where(AssessmentDetail.submission_id.in_(submission_ids))
+        return int((await self.db.execute(stmt)).scalar_one())
+
     async def issue_frequency(
         self,
         submission_ids: list[uuid.UUID],

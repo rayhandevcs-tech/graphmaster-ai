@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.assessment.audience import visible_analyzers
 from app.assessment.claims import GraphClaim
 from app.assessment.issues import AssessmentIssue
 from app.assessment.protocol import AnalyzerOutput
@@ -77,17 +78,16 @@ class AssessmentResult:
         what has been promoted all the way. Nothing is hidden from an
         administrator that is hidden from a teacher — an administrator's extra
         power is over accounts and content, not over another student's writing.
+
+        The predicate itself lives in :mod:`app.assessment.audience`, shared
+        with the path that filters a *stored* assessment. Two copies of this
+        rule would be two chances to get it wrong, and only one of them is the
+        copy a person actually reads from.
         """
-        if audience is AnalyzerAudience.TEACHER:
-            visible = {
-                name for name, stage in self.audiences.items() if stage is not AnalyzerAudience.DARK
-            }
-        elif audience is AnalyzerAudience.STUDENT:
-            visible = {
-                name for name, stage in self.audiences.items() if stage is AnalyzerAudience.STUDENT
-            }
-        else:  # DARK sees everything; it is the internal, unfiltered view.
+        if audience is AnalyzerAudience.DARK:
             return self
+
+        visible = visible_analyzers(self.audiences, audience)
 
         return AssessmentResult(
             version=self.version,
