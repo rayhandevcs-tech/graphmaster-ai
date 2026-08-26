@@ -26,11 +26,15 @@ const buttonVariants = cva(
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         link: "text-primary underline-offset-4 hover:underline",
       },
+      // Two densities, not one. A 32px control is comfortable with a mouse and
+      // below the 44px minimum a thumb needs, so every size is at least 44px
+      // until `sm:` — where a pointer is the likely input and the extra height
+      // only costs vertical rhythm.
       size: {
-        sm: "h-8 px-3 text-xs",
-        md: "h-10 px-4 py-2",
+        sm: "h-11 px-3 text-xs sm:h-8",
+        md: "h-11 px-4 py-2 sm:h-10",
         lg: "h-12 px-6 text-base",
-        icon: "size-10",
+        icon: "size-11 sm:size-10",
       },
     },
     defaultVariants: { variant: "primary", size: "md" },
