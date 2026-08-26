@@ -40,8 +40,8 @@ frontend/
 │   ├── (student)/practice, practice/[graphId]
 │   ├── (student)/submissions/[submissionId]  # Result + reward animation
 │   ├── (student)/leaderboard, achievements
-│   ├── (teacher)/teacher/{dashboard,students,submissions,graphs,vocabulary,analytics,reports}
-│   ├── (admin)/admin/{users,classes,analytics}
+│   ├── (teacher)/teacher/{dashboard,submissions,submissions/[submissionId],graphs,vocabulary,analytics}
+│   ├── (admin)/admin/users
 │   ├── profile, settings
 │   ├── globals.css                    # The palette; there is no tailwind.config
 │   ├── providers.tsx                  # Query client, theme, auth
@@ -454,7 +454,79 @@ Sound and motion are separate preferences. A student who has asked their
 system to stop animating has not asked it to be quiet, and the reverse is at
 least as common.
 
-## 9. Accessibility (NFR-4.3 – NFR-4.6)
+## 9. The teaching surfaces
+
+The staff half of the product is not a loop. A teacher opens it between
+lessons with one question — *who needs me, and what do I say to them* — and
+every decision below follows from answering that before anything else.
+
+The design record, with wireframes and the tradeoffs, is
+[`docs/proposals/sprint-13-teaching-surfaces.md`](../proposals/sprint-13-teaching-surfaces.md).
+
+### 9.1 The attention signal
+
+`lib/insights/attention.ts` derives who needs the teacher from the roster
+`GET /analytics/class/{id}` already returns. There is no endpoint for it and
+none was added: the thresholds are pedagogical judgements a deployment may
+want to differ on, and isolating them in one tested pure module is cheaper
+than a migration.
+
+| Group | Rule | Ordered by |
+|---|---|---|
+| Not started | `submission_count === 0` | Name |
+| Finding it hard | `average_final_score !== null && < 50` | Lowest average first |
+| Gone quiet | Nothing marked for ≥ 7 days | Longest silence first |
+
+A student matches the first group they qualify for and appears once. `50` is
+the platform's own practice-tier boundary, not a second threshold. And the
+`null` guard is explicit because `null < 50` is `true` in JavaScript — without
+it, every student who has not started is described as one who scored badly.
+
+### 9.2 The card contract
+
+Every analytics section is an `InsightCard`: a question, an answer, and an
+interpretation. The interpretation is derived in `lib/insights/narrate.ts` and
+is never written by hand — the same discipline `app/nlp/feedback.py` applies to
+a student. It refuses a direction from fewer than four buckets of marked work,
+measures participation against enrolment, and describes the tier spread as
+*attempts* rather than as students.
+
+Grids of these use `items-start`. A card holding one sentence beside one
+holding a list of eight would otherwise stretch to match it, and the emptier
+the finding the larger the hole.
+
+### 9.3 Absence, drawn honestly
+
+`GET /analytics/trends` groups by bucket, so a day nobody submitted produces
+**no row at all** rather than a zero. `lib/charts/series.ts` expands the rows
+onto the calendar the teacher asked for and leaves `null` where nothing was
+marked; the existing `spanGaps: false` then breaks the line. The card says how
+many buckets were empty, because a reader who assumes an unbroken calendar
+reads the break as a fault.
+
+`Sparkline` does the same in forty pixels, with one SVG subpath per run of
+known values.
+
+### 9.4 Invariants as affordances
+
+| Rule | How it appears |
+|---|---|
+| A graph needs ≥1 required target term to publish | Publish disabled, reason on the card, target picker beside it |
+| Vocabulary is soft-deleted | "Deactivate", deactivated terms still listed behind a switch, "Reactivate" in the row |
+| `is_phrase` is derived | A badge, never a control |
+| A hand-set lemma is not re-derived | The form says so when the term changes |
+| Excel and PDF are optional | Formats disabled from `GET /reports/capabilities` |
+| A submission export carries no answers | Stated on the dialog before the click |
+| A leaderboard never publishes a tier | Asserted by a test reading the rendered text |
+
+### 9.5 Two presentations, not one compromise
+
+Dense staff data is a list of cards below `md` and a table at `md` and above —
+the queue, the vocabulary manager and the user list all ship both. A table at
+390px is horizontal scroll; cards on a wide monitor throw away the
+column-to-column comparison the screen exists for.
+
+## 10. Accessibility (NFR-4.3 – NFR-4.6)
 
 - Semantic landmarks and a skip link on every page.
 - Full keyboard operability; visible focus rings; focus trapped in modals and
@@ -466,8 +538,16 @@ least as common.
   the outcome without seeing the animation.
 - AA contrast verified in both themes, including tier colours.
 - Reward tiers are distinguished by icon and text, never by colour alone.
+- Attention groups are named in words; the dot beside each repeats the label and
+  carries nothing on its own.
+- The podium's DOM order is 1, 2, 3; only CSS `order` centres first place, so a
+  screen reader and the tab sequence receive the ranking in rank order.
+- Changing a class or a period announces the resulting figures politely —
+  otherwise a keyboard user's only feedback is numbers they cannot see moving.
+- Every button is at least 44px until `sm:`, where a pointer is the likely
+  input.
 
-## 10. Responsiveness
+## 11. Responsiveness
 
 Mobile-first, 320 px to 2560 px (NFR-4.1).
 
@@ -484,7 +564,7 @@ collapsible, so a phone user is not scrolling past a chart to reach the textarea
 on every keystroke. Handwriting upload accepts the device camera directly, which
 is the likeliest way a student submits.
 
-## 11. Performance
+## 12. Performance
 
 - Reward animation components are dynamically imported — Lottie and the confetti
   library are large, and no one needs them before a result exists.
@@ -493,7 +573,7 @@ is the likeliest way a student submits.
 - Server Components keep the client bundle to what genuinely needs interactivity,
   supporting the 2-second first paint of NFR-1.5.
 
-## 12. Testing
+## 13. Testing
 
 Vitest with jsdom, under `tests/`. The suite covers the foundation's risky
 parts rather than aiming at a coverage number:
@@ -511,7 +591,7 @@ parts rather than aiming at a coverage number:
 test: the rule is a list in the test file, and relaxing it means adding a line
 with a reason.
 
-## 13. Continuous integration
+## 14. Continuous integration
 
 The `frontend` job runs Prettier, ESLint, a production build, `tsc --noEmit`
 and the tests, in that order — the build comes before the typecheck because it
