@@ -317,6 +317,44 @@ Framer Motion · Lottie · Chart.js · TanStack Query
 78. **LanguageTool offsets are UTF-16 code units.** It is a Java service. One
     emoji in an answer shifts every subsequent offset by one, and every
     highlight after it lands on the wrong words.
+79. **The writing profile measures; it never judges.** Nothing computes a
+    probability that text was machine-generated, an authorship decision, or a
+    risk, integrity or suspicion value under any name — and no flag, ranking
+    or ordering of students by any measure, because a review flag with no
+    label is a verdict with the wording removed.
+80. **`NEVER_STUDENT_ANALYZERS` is a floor no environment can raise.**
+    `analyzer_audience` answers `STUDENT` for anything no list names, so
+    keeping an analyzer away from students by configuration alone is one
+    forgotten variable from failing silently. The floor still allows an
+    analyzer to be pushed *down* to `dark`.
+81. **A versioned assessment must be a pure function of text and
+    configuration.** That is why the profile analyzer measures one submission
+    and the comparison happens at read time: an analyzer that read history
+    would answer differently a month later under an unchanged
+    `assessment_version`, and the fingerprint would still look like a
+    guarantee.
+82. **No comparison is ever stored.** A stored comparison is a stored
+    judgement with a timestamp — stale the moment the next submission lands,
+    outliving the submission it was drawn from, and the artefact that ends up
+    quoted in a meeting.
+83. **A comparison never crosses an `assessment_version` boundary**, and never
+    mixes input methods or graph types. The series *breaks* there. Excluded
+    pairs are counted and reported: "built from 2 of 9" is the difference
+    between a figure a teacher can weigh and one they cannot.
+84. **The measures are never combined.** A composite across dimensions is a
+    risk score with a friendly name — one number, orderable, whose components
+    cannot be recovered from it. There are no thresholds either: there is no
+    ground truth here to calibrate one against.
+85. **"Earlier" is the timestamp *and* the submission id.**
+    `assessment_details.created_at` is the transaction clock, so two
+    assessments can share an instant; on the timestamp alone neither precedes
+    the other and both vanish from each other's baselines.
+86. **The platform causes the changes it measures, and a settled profile
+    proves nothing.** Feedback names the missing terms on every submission, so
+    a student who is taught a word and then uses it has shifted their profile
+    because the system said to. And a student assisted from their first
+    submission has a perfectly stable baseline. Any surface must say both, or
+    "consistent" will be read as "cleared".
 
 ## Conventions
 

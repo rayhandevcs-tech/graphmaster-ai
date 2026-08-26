@@ -10,13 +10,34 @@ Nothing outside this module reads ``os.environ`` directly.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Final, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.models.enums import AnalyzerAudience
+
+#: Analyzers whose output may never reach a student, whatever the environment
+#: says.
+#:
+#: The staged-rollout lists move an analyzer *down* the ladder — a name in
+#: ``ASSESSMENT_DARK_ANALYZERS`` or ``ASSESSMENT_TEACHER_ONLY_ANALYZERS``
+#: withdraws it from an audience. Nothing in the environment moves one *up*,
+#: because :meth:`Settings.analyzer_audience` answers ``STUDENT`` for any
+#: analyzer it has never heard of, and that default is right for the six
+#: analyzers that produce corrections a student should read.
+#:
+#: It is wrong for ``writing_profile``, and wrong in the one direction that
+#: cannot be allowed: a deployment that adds it to ``ASSESSMENT_ANALYZERS``
+#: and forgets ``ASSESSMENT_TEACHER_ONLY_ANALYZERS`` would publish every
+#: student's own writing profile to that student, with no error and no
+#: warning. One missing environment variable.
+#:
+#: The rule is that a student never sees it. A default a missing variable can
+#: flip is not "never", so the floor lives here in code where no environment
+#: can raise it.
+NEVER_STUDENT_ANALYZERS: Final = frozenset({"writing_profile"})
 
 
 class Settings(BaseSettings):
@@ -133,6 +154,32 @@ class Settings(BaseSettings):
     GRAMMAR_HEALTH_TTL_SECONDS: float = Field(default=60.0, gt=0)
     GRAMMAR_LANGUAGE: str = "en-GB"
 
+    # ── Writing consistency ──────────────────────────────────────────────────
+    # Teacher-facing measurement of how one student's writing moves across
+    # their own submissions. Diagnostic like everything else in the assessment
+    # package, and additionally never visible to a student — see
+    # NEVER_STUDENT_ANALYZERS above and docs/architecture/10 §15.
+    #
+    # `writing_profile` is deliberately absent from ASSESSMENT_ANALYZERS'
+    # default. Two switches rather than one because the useful order is
+    # *collect first, expose later*: profiles must accumulate for weeks before
+    # any student has a baseline, so measurement has to be able to run while
+    # the comparison stays off.
+    CONSISTENCY_ANALYTICS_ENABLED: bool = False
+    #: Answers shorter than this are not profiled, and never take part in a
+    #: comparison. Lexical diversity and issue density are dominated by noise
+    #: at short lengths, and a 60-word answer beside a 240-word one is not two
+    #: samples of one distribution. Set below TARGET_WORD_COUNT_MIN so a
+    #: slightly short answer still counts.
+    CONSISTENCY_MIN_WORDS: int = Field(default=120, ge=1)
+    #: Comparable prior submissions needed before a baseline exists at all.
+    #: Below it the answer is "no baseline yet", never a number.
+    CONSISTENCY_MIN_BASELINE: int = Field(default=3, ge=2)
+    #: Students with a profile needed before a class distribution is shown.
+    #: With three students a "distribution" identifies individuals and means
+    #: nothing statistically.
+    CONSISTENCY_MIN_CLASS_SAMPLES: int = Field(default=5, ge=2)
+
     # ── Gamification ─────────────────────────────────────────────────────────
     XP_PER_SUBMISSION: int = 20
     XP_HIGH_SCORE_BONUS: int = 30
@@ -161,9 +208,16 @@ class Settings(BaseSettings):
         The most restrictive listing wins. An analyzer named in both lists is
         a deployment mid-way through a rollback, and answering "teacher" there
         would show a student output that someone has just decided to withdraw.
+
+        The floor is checked first and cannot be raised: an analyzer in
+        :data:`NEVER_STUDENT_ANALYZERS` may still be pushed *down* to ``DARK``
+        by configuration, but nothing promotes it to ``STUDENT``. See the note
+        on that constant for why one of the rungs has to be nailed shut.
         """
         if name in self._named("ASSESSMENT_DARK_ANALYZERS"):
             return AnalyzerAudience.DARK
+        if name in NEVER_STUDENT_ANALYZERS:
+            return AnalyzerAudience.TEACHER
         if name in self._named("ASSESSMENT_TEACHER_ONLY_ANALYZERS"):
             return AnalyzerAudience.TEACHER
         return AnalyzerAudience.STUDENT

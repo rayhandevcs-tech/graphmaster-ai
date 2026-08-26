@@ -10,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import Settings
+from app.models.enums import AnalyzerAudience
 
 BASE = {
     "SECRET_KEY": "a-perfectly-fine-secret-key-over-32-chars",
@@ -162,3 +163,77 @@ class TestGrammarProvider:
         # what lets a result say "grammar was not checked here" rather than
         # implying the writing was clean.
         assert "grammar" in make().assessment_analyzers
+
+
+class TestTheStudentFloor:
+    """C2: a student never sees their own writing profile.
+
+    The staged-rollout lists are how an analyzer is *withdrawn* from an
+    audience. They cannot be how it is kept out of one, because the default
+    for an analyzer nobody named is ``STUDENT`` — right for the six that
+    produce corrections a student should read, and catastrophic for one whose
+    whole point is that they must not see it.
+    """
+
+    def test_the_profile_analyzer_can_never_be_student_visible(self):
+        """Under every configuration, including the ones that get it wrong."""
+        configurations = [
+            # Nothing named at all — the case a deployment falls into by
+            # forgetting a variable, and the one the floor exists for.
+            {},
+            {"ASSESSMENT_DARK_ANALYZERS": "", "ASSESSMENT_TEACHER_ONLY_ANALYZERS": ""},
+            # Named correctly.
+            {"ASSESSMENT_TEACHER_ONLY_ANALYZERS": "writing_profile"},
+            # Named in a list of other analyzers, but not its own.
+            {"ASSESSMENT_TEACHER_ONLY_ANALYZERS": "grammar,spelling"},
+            # Someone has explicitly tried to promote it. The environment does
+            # not get to make this call.
+            {
+                "ASSESSMENT_TEACHER_ONLY_ANALYZERS": "grammar",
+                "ASSESSMENT_ANALYZERS": "writing_profile",
+            },
+        ]
+
+        for overrides in configurations:
+            audience = make(**overrides).analyzer_audience("writing_profile")
+            assert audience is not AnalyzerAudience.STUDENT, (
+                f"writing_profile resolved to {audience} under {overrides}. "
+                f"No environment may raise it to student visibility."
+            )
+
+    def test_the_floor_still_allows_it_to_be_pushed_dark(self):
+        """The floor stops promotion, not withdrawal.
+
+        A dark launch is the stage before teacher visibility, so the most
+        restrictive listing has to keep winning — otherwise the floor would
+        force output onto teachers during the stage that exists to check it
+        before anyone sees it.
+        """
+        s = make(ASSESSMENT_DARK_ANALYZERS="writing_profile")
+
+        assert s.analyzer_audience("writing_profile") is AnalyzerAudience.DARK
+
+    def test_the_floor_does_not_touch_the_other_analyzers(self):
+        s = make()
+
+        for name in ("vocabulary", "writing", "spelling", "sentence", "grammar"):
+            assert s.analyzer_audience(name) is AnalyzerAudience.STUDENT
+
+    def test_the_profile_analyzer_is_not_in_the_default_roster(self):
+        """Measurement is switched on per deployment, never by pulling a release."""
+        assert "writing_profile" not in make().assessment_analyzers
+
+    def test_the_comparison_layer_is_off_by_default(self):
+        assert make().CONSISTENCY_ANALYTICS_ENABLED is False
+
+    def test_the_word_floor_sits_below_the_target_minimum(self):
+        """A slightly short answer is still profiled; a fragment is not."""
+        s = make()
+
+        assert s.CONSISTENCY_MIN_WORDS < s.TARGET_WORD_COUNT_MIN
+
+    def test_a_baseline_of_one_is_refused(self):
+        # A "baseline" from a single prior submission is that submission, and
+        # a difference from it is noise with a decimal point.
+        with pytest.raises(ValidationError):
+            make(CONSISTENCY_MIN_BASELINE=1)

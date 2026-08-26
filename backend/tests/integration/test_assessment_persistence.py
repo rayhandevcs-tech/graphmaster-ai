@@ -886,3 +886,301 @@ class TestGrammarAnalytics:
 
         with pytest.raises(ValueError, match="vocabulary"):
             await AssessmentRepository(db).score_summary([], "vocabulary")
+
+
+# ── Sprint 19: the writing profile ───────────────────────────────────────────
+
+
+def measure_profiles(monkeypatch):
+    """Put the profile analyzer on the roster for the duration of a test.
+
+    The pipeline is patched rather than the settings because the service
+    receives its ``Settings`` by injection — rebinding the module-level
+    ``get_settings`` would leave the instance already in the request
+    untouched, and the analyzer would silently not run while the test read as
+    though it had.
+    """
+    from app.assessment import registry
+    from app.assessment.analyzers.writing_profile import WritingProfileAnalyzer
+    from app.core.config import get_settings
+
+    real = registry.build_analyzers
+
+    def build(settings=None):
+        settings = settings or get_settings()
+        analyzers = real(settings)
+        # The word floor is dropped so the fixture's answers are actually
+        # measured. At its real value they would all be skipped, and the
+        # assertions would be about an analyzer that declined to run.
+        analyzers.append(
+            WritingProfileAnalyzer(settings.model_copy(update={"CONSISTENCY_MIN_WORDS": 1}))
+        )
+        return analyzers
+
+    monkeypatch.setattr(registry, "build_analyzers", build)
+    monkeypatch.setattr("app.assessment.engine.build_analyzers", build)
+
+
+@pytest.fixture
+def measuring(monkeypatch):
+    """Run the API with the profile analyzer configured.
+
+    It ships switched off, so every test below has to turn it on. That is the
+    shape of the guarantee as much as it is a fixture: a deployment gets
+    today's behaviour until someone decides otherwise.
+    """
+    from app.core.config import get_settings
+
+    measure_profiles(monkeypatch)
+    return get_settings()
+
+
+class TestProfilePersistence:
+    async def test_the_profile_lands_in_analyzer_status_with_no_new_column(
+        self, client, seeded_graph, student, db, measuring
+    ):
+        """Migration 5 was not written, and this is why it was not needed."""
+        _user, headers = student
+        submission_id = await score_answer(client, headers, seeded_graph, FLAWED)
+
+        detail = (
+            await db.execute(
+                select(AssessmentDetail).where(AssessmentDetail.submission_id == submission_id)
+            )
+        ).scalar_one()
+
+        stored = detail.analyzer_status["writing_profile"]
+        assert stored["status"] == "ok"
+        assert stored["score"] is None
+        assert stored["issue_count"] == 0
+        assert "lexical_diversity" in stored["metrics"]
+
+    async def test_the_profile_writes_no_score_to_any_column(
+        self, client, seeded_graph, student, db, measuring
+    ):
+        _user, headers = student
+        submission_id = await score_answer(client, headers, seeded_graph, FLAWED)
+
+        detail = (
+            await db.execute(
+                select(AssessmentDetail).where(AssessmentDetail.submission_id == submission_id)
+            )
+        ).scalar_one()
+
+        # Every score column belongs to some other analyzer. There is no
+        # column this one could have written to, which is the point.
+        assert not hasattr(detail, "writing_profile_score")
+        assert not hasattr(detail, "consistency_score")
+
+    async def test_the_profile_is_frozen_onto_the_row_as_teacher_only(
+        self, client, seeded_graph, student, db, measuring
+    ):
+        """The audience is recorded at assessment time, not read at display time."""
+        _user, headers = student
+        submission_id = await score_answer(client, headers, seeded_graph, FLAWED)
+
+        detail = (
+            await db.execute(
+                select(AssessmentDetail).where(AssessmentDetail.submission_id == submission_id)
+            )
+        ).scalar_one()
+
+        assert detail.analyzer_audiences["writing_profile"] == "teacher"
+
+    async def test_a_profile_produces_no_issue_rows(
+        self, client, seeded_graph, student, db, measuring
+    ):
+        _user, headers = student
+        submission_id = await score_answer(client, headers, seeded_graph, FLAWED)
+
+        detail = (
+            await db.execute(
+                select(AssessmentDetail).where(AssessmentDetail.submission_id == submission_id)
+            )
+        ).scalar_one()
+        sources = (
+            (
+                await db.execute(
+                    select(AssessmentIssue.source).where(AssessmentIssue.assessment_id == detail.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        assert not any(source.startswith("writing_profile") for source in sources)
+
+
+class TestProfileChangesNothingAwarded:
+    """Regression protection 7: the guarantee, through the API.
+
+    The unit tests prove the score object is identical. This proves the same
+    of everything downstream — the stored row, the XP ledger, the cached
+    total, and the tier that drives the badge and the animation.
+    """
+
+    async def test_the_same_answer_earns_the_same_score_and_xp_with_the_profile_running(
+        self, client, seeded_graph, db, user_factory, auth_headers, monkeypatch
+    ):
+        from sqlalchemy import func
+
+        from app.models.gamification import XPEvent
+
+        async def score_as(email: str) -> tuple[Score, int, int]:
+            user = await user_factory(role=UserRole.STUDENT, email=email)
+            submission_id = await score_answer(client, auth_headers(user), seeded_graph, FLAWED)
+            score = (
+                await db.execute(select(Score).where(Score.submission_id == submission_id))
+            ).scalar_one()
+            awarded = (
+                await db.execute(
+                    select(func.coalesce(func.sum(XPEvent.amount), 0)).where(
+                        XPEvent.user_id == user.id
+                    )
+                )
+            ).scalar_one()
+            await db.refresh(user)
+            return score, int(awarded), user.total_xp
+
+        without = await score_as("profile-off@test.edu")
+
+        measure_profiles(monkeypatch)
+
+        with_it = await score_as("profile-on@test.edu")
+
+        assert with_it[0].final_score == without[0].final_score
+        assert with_it[0].vocabulary_score == without[0].vocabulary_score
+        assert with_it[0].writing_score == without[0].writing_score
+        assert with_it[0].vocabulary_percentage == without[0].vocabulary_percentage
+        # The tier drives the badge and the animation the student is shown.
+        assert with_it[0].reward_tier == without[0].reward_tier
+        # XP follows the score, and the leaderboard follows XP.
+        assert with_it[1] == without[1]
+        assert with_it[2] == without[2]
+        # …and the rubric fingerprint did not move, so the two remain comparable.
+        assert with_it[0].engine_version == without[0].engine_version
+
+
+class TestAStudentNeverSeesTheirProfile:
+    """C2, at the object a student's result page would be built from."""
+
+    async def test_a_student_result_never_carries_a_profile(
+        self, client, seeded_graph, student, db, measuring
+    ):
+        from app.models.enums import AnalyzerAudience
+        from app.nlp.analyzer import analyse
+
+        _user, headers = student
+        await score_answer(client, headers, seeded_graph, FLAWED)
+
+        result = analyse(FLAWED, [], settings=measuring).assessment
+        assert result is not None
+        assert "writing_profile" in result.analyzers
+
+        student_view = result.for_audience(AnalyzerAudience.STUDENT)
+
+        assert "writing_profile" not in student_view.analyzers
+        assert "writing_profile" not in student_view.audiences
+        assert not any(issue.analyzer == "writing_profile" for issue in student_view.issues)
+
+    async def test_a_teacher_sees_it_and_a_dark_rollout_hides_it_from_them_too(
+        self, seeded_graph, measuring
+    ):
+        from app.core.config import get_settings
+        from app.models.enums import AnalyzerAudience
+        from app.nlp.analyzer import analyse
+
+        visible = analyse(FLAWED, [], settings=get_settings()).assessment
+        assert visible is not None
+        assert "writing_profile" in visible.for_audience(AnalyzerAudience.TEACHER).analyzers
+
+        dark = get_settings().model_copy(update={"ASSESSMENT_DARK_ANALYZERS": "writing_profile"})
+        hidden = analyse(FLAWED, [], settings=dark).assessment
+        assert hidden is not None
+        assert "writing_profile" not in hidden.for_audience(AnalyzerAudience.TEACHER).analyzers
+        assert "writing_profile" not in hidden.for_audience(AnalyzerAudience.STUDENT).analyzers
+
+
+class TestProfileSeries:
+    """The read the comparison layer is built on."""
+
+    async def test_a_series_carries_everything_a_gate_reads(
+        self, client, seeded_graph, student, db, measuring
+    ):
+        from app.repositories.assessment import AssessmentRepository
+
+        _user, headers = student
+        first = await score_answer(client, headers, seeded_graph, FLAWED)
+        second = await score_answer(client, headers, seeded_graph, FLAWED)
+
+        rows = await AssessmentRepository(db).profile_series([first, second])
+
+        assert len(rows) == 2
+        for row in rows:
+            assert row.user_id == _user.id
+            assert row.graph_type == seeded_graph.graph_type
+            assert row.input_method == "typed"
+            assert row.assessment_version
+            assert row.profile is not None
+            assert row.profile.word_count > 0
+
+    async def test_a_series_comes_back_oldest_first(
+        self, client, seeded_graph, student, db, measuring
+    ):
+        from app.repositories.assessment import AssessmentRepository
+
+        _user, headers = student
+        ids = [await score_answer(client, headers, seeded_graph, FLAWED) for _ in range(3)]
+
+        rows = await AssessmentRepository(db).profile_series(ids)
+
+        assert [r.assessed_at for r in rows] == sorted(r.assessed_at for r in rows)
+
+    async def test_an_empty_request_reads_nothing(self, db):
+        from app.repositories.assessment import AssessmentRepository
+
+        assert await AssessmentRepository(db).profile_series([]) == []
+
+    async def test_a_submission_assessed_without_the_analyzer_has_no_profile(
+        self, client, seeded_graph, student, db
+    ):
+        """The pre-Sprint-19 corpus, and every deployment that leaves it off.
+
+        The row is still returned — it is still a submission the student made,
+        and it still counts toward "considered". The gates are what exclude
+        it, not a silent omission here that would make a baseline look
+        better-founded than it is.
+        """
+        from app.repositories.assessment import AssessmentRepository
+
+        _user, headers = student
+        submission_id = await score_answer(client, headers, seeded_graph, FLAWED)
+
+        rows = await AssessmentRepository(db).profile_series([submission_id])
+
+        assert len(rows) == 1
+        assert rows[0].profile is None
+        assert rows[0].value("lexical_diversity") is None
+
+    async def test_a_real_series_compares_without_a_database(
+        self, client, seeded_graph, student, db, measuring
+    ):
+        """End to end: measured through the API, compared as pure functions."""
+        from app.assessment.consistency import compare_student
+        from app.repositories.assessment import AssessmentRepository
+
+        _user, headers = student
+        ids = [await score_answer(client, headers, seeded_graph, FLAWED) for _ in range(4)]
+
+        rows = await AssessmentRepository(db).profile_series(ids)
+        comparison = compare_student(rows[-1], rows[:-1], min_words=1, min_baseline=3)
+
+        assert comparison.considered_count == 3
+        assert comparison.compared_count == 3
+        assert comparison.excluded == {}
+        lexical = next(c for c in comparison.changes if c.measure == "lexical_diversity")
+        assert lexical.baseline is not None
+        assert lexical.baseline.n == 3
+        # The same answer four times: the difference is zero, and zero here is
+        # a measured result rather than a stand-in for a missing one.
+        assert lexical.difference == pytest.approx(0.0, abs=1e-6)

@@ -15,6 +15,7 @@ actually finds something.
 from __future__ import annotations
 
 import inspect
+import re
 
 import pytest
 
@@ -238,8 +239,17 @@ def test_every_registered_analyzer_can_fail_alone(targets):
             RuntimeError(f"{broken} is broken"), name=broken
         )
         registry.BUILDERS = builders
+        # The analyzer under test is put on the roster explicitly. Registered
+        # and configured are no longer the same thing: `writing_profile` ships
+        # switched off, and iterating the registry alone would look for a
+        # result from an analyzer this deployment never asked to run.
+        configured = get_settings()
+        if name not in configured.assessment_analyzers:
+            configured = configured.model_copy(
+                update={"ASSESSMENT_ANALYZERS": f"{configured.ASSESSMENT_ANALYZERS},{name}"}
+            )
         try:
-            result = analyse(text, targets)
+            result = analyse(text, targets, settings=configured)
         finally:
             registry.BUILDERS = BUILDERS
 
@@ -500,3 +510,186 @@ def test_the_severity_scale_is_ordered():
         IssueSeverity.MEDIUM,
         IssueSeverity.HIGH,
     ]
+
+
+# ── D5: the writing profile changes nothing about a score ────────────────────
+#
+# The same guarantee as D1, asserted separately because the profile analyzer
+# is the first one whose output is meant for a teacher rather than the student
+# who wrote the answer. An analyzer nobody shows to a student is exactly the
+# one whose effect on a score is least likely to be noticed by hand.
+
+
+def with_profile(settings, **extra):
+    """The deployment's settings with profile measurement switched on.
+
+    The word floor is dropped to one so the analyzer actually runs over the
+    corpus. Left at its real value, most of these answers would be skipped and
+    a test that proved the score was unchanged would be proving it about an
+    analyzer that had not run.
+    """
+    roster = f"{settings.ASSESSMENT_ANALYZERS},writing_profile"
+    return settings.model_copy(
+        update={"ASSESSMENT_ANALYZERS": roster, "CONSISTENCY_MIN_WORDS": 1, **extra}
+    )
+
+
+@pytest.mark.parametrize("text", CORPUS)
+def test_the_score_is_identical_whether_or_not_the_profile_analyzer_runs(text: str, targets):
+    """Field by field, with the analyzer genuinely running."""
+    settings = get_settings()
+
+    without = analyse(text, targets, settings=settings).to_score_fields()
+    with_it = analyse(text, targets, settings=with_profile(settings)).to_score_fields()
+
+    assert with_it == without
+
+
+@pytest.mark.parametrize("text", CORPUS)
+def test_the_profile_analyzer_emits_no_issues_and_no_score(text: str, targets):
+    """Structural, not incidental.
+
+    No issues because there is nothing here to correct and, by C2, nothing
+    here a student may be shown. No score because a 0–100 consistency figure
+    is a risk score inverted — one number, orderable, whose components cannot
+    be recovered from it.
+    """
+    result = analyse(text, targets, settings=with_profile(get_settings())).assessment
+
+    assert result is not None
+    output = result.analyzers["writing_profile"]
+    assert output.score is None
+    assert output.issues == ()
+    assert not any(issue.analyzer == "writing_profile" for issue in result.issues)
+
+
+def test_no_score_column_exists_for_the_profile_analyzer():
+    """The absence is load-bearing, so it is asserted rather than assumed.
+
+    With no column mapped to the analyzer, a scalar has nowhere to go even if
+    a later change starts returning one — the repository would simply not
+    write it, instead of quietly creating a rankable per-student number.
+    """
+    from app.repositories.assessment import PROFILE_ANALYZER, SCORE_COLUMNS
+
+    assert PROFILE_ANALYZER not in SCORE_COLUMNS
+
+
+@pytest.mark.parametrize("text", CORPUS)
+def test_the_profile_analyzer_is_deterministic(text: str, targets):
+    """The same answer measures the same way twice.
+
+    This is what ``assessment_version``'s reproducibility rests on, and it is
+    the property that would be lost the moment the analyzer read the student's
+    history: the same submission would then measure differently a month later
+    under an unchanged version string.
+    """
+    settings = with_profile(get_settings())
+
+    first = analyse(text, targets, settings=settings).assessment
+    second = analyse(text, targets, settings=settings).assessment
+
+    assert first is not None and second is not None
+    assert dict(first.analyzers["writing_profile"].metrics) == dict(
+        second.analyzers["writing_profile"].metrics
+    )
+    assert first.analyzers["writing_profile"].status is second.analyzers["writing_profile"].status
+
+
+#: Words that would turn a measurement into an accusation.
+#:
+#: Checked against what the code *emits* — identifiers, stable slugs and the
+#: strings a teacher reads — rather than against the source text, because the
+#: documentation in these modules discusses risk scores and AI verdicts at
+#: length in order to rule them out. Prose that explains why a thing is
+#: forbidden is not the thing.
+#: Matched as whole words, because these are short and hide inside innocent
+#: ones — "ai" is in "retained", "risk" is not, but the next short word added
+#: here would be. A substring rule would either miss verdicts or ban ordinary
+#: English, and both failures are silent.
+VERDICT_TOKENS = frozenset(
+    {
+        "ai",
+        "gpt",
+        "chatgpt",
+        "cheat",
+        "cheating",
+        "risk",
+        "integrity",
+        "authentic",
+        "authenticity",
+        "generated",
+        "probability",
+        "human",
+        "written",
+        "flag",
+        "flagged",
+    }
+)
+
+#: Matched anywhere, because no ordinary word contains them.
+VERDICT_FRAGMENTS = ("plagiar", "suspicio", "misconduct", "chatgpt")
+
+
+def _words(text: str) -> set[str]:
+    """Words in an identifier or a sentence, snake_case and CamelCase alike."""
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text)
+    return set(re.findall(r"[a-z]+", spaced.lower()))
+
+
+def _offends(text: str) -> bool:
+    lowered = text.lower()
+    if any(fragment in lowered for fragment in VERDICT_FRAGMENTS):
+        return True
+    return bool(_words(text) & VERDICT_TOKENS)
+
+
+def test_no_verdict_vocabulary_anywhere_in_the_consistency_surface():
+    """C1 and C5, as a property of the names rather than of the copy.
+
+    Metric keys and exclusion slugs are stable analytics identifiers: they
+    outlive every rewrite of the wording around them, and a key called
+    ``ai_probability`` would still be in the database in three years when
+    somebody builds a report from column names.
+    """
+    import dataclasses
+
+    from app.assessment import consistency
+    from app.assessment.analyzers.writing_profile import CONTEXT_METRICS, MEASURES
+
+    names: set[str] = set()
+    names.update(MEASURES)
+    names.update(CONTEXT_METRICS)
+    names.update(consistency.COMPARED_MEASURES)
+    names.update(consistency.REASONS)
+    names.update(consistency.__all__)
+
+    for exported in consistency.__all__:
+        obj = getattr(consistency, exported)
+        if dataclasses.is_dataclass(obj) and isinstance(obj, type):
+            names.update(f.name for f in dataclasses.fields(obj))
+
+    for name in names:
+        assert not _offends(name), (
+            f"{name!r} reads as a verdict. This package measures writing and "
+            f"never judges it: no name here may assert cheating, AI use or risk."
+        )
+
+
+def test_no_verdict_vocabulary_in_what_the_analyzer_says(targets):
+    """The same rule applied to the one string this analyzer produces.
+
+    A skipped profile carries a ``detail`` explaining why. It reaches an
+    operator log and a teacher's screen, so it is held to the same standard as
+    the identifiers: it may say the answer was short, never what that means.
+    """
+    settings = with_profile(get_settings(), CONSISTENCY_MIN_WORDS=500)
+
+    result = analyse(CORPUS[1], targets, settings=settings).assessment
+
+    assert result is not None
+    output = result.analyzers["writing_profile"]
+    assert output.status is AnalyzerStatus.SKIPPED
+    assert output.detail is not None
+    assert not _offends(output.detail)
+    assert output.metrics == {}

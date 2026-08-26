@@ -15,9 +15,12 @@ from typing import TYPE_CHECKING
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import selectinload
 
+from app.assessment.consistency import Profile, ProfileRow
 from app.assessment.result import AssessmentResult
 from app.models.assessment import AssessmentDetail, AssessmentIssue, GraphAccuracyClaim
+from app.models.content import Graph
 from app.models.enums import AssessmentStatus, ClaimVerdict, IssueCategory
+from app.models.submission import Submission
 from app.repositories.base import BaseRepository
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -35,6 +38,13 @@ SCORE_COLUMNS = {
     "word_usage": "word_usage_score",
     "graph_accuracy": "graph_accuracy_score",
 }
+
+#: The analyzer whose metrics hold the writing profile.
+#:
+#: Absent from ``SCORE_COLUMNS`` on purpose, and that absence is load-bearing:
+#: the profile analyzer returns no score, and with no column mapped to it a
+#: scalar would have nowhere to go even if a later change returned one.
+PROFILE_ANALYZER = "writing_profile"
 
 
 @dataclass(frozen=True, slots=True)
@@ -280,6 +290,96 @@ class AssessmentRepository(BaseRepository[AssessmentDetail]):
             (created_at, float(score)) for created_at, score in (await self.db.execute(stmt)).all()
         ]
 
+    async def profile_series(self, submission_ids: list[uuid.UUID]) -> list[ProfileRow]:
+        """Every assessed submission's writing profile, oldest first.
+
+        One query, because every comparability gate needs something the
+        profile itself does not carry: the graph type, the input method and
+        the assessment version each decide whether two submissions may be
+        compared at all, and a row without them would force a second read per
+        comparison.
+
+        The metrics are extracted in Python rather than with a JSONB path
+        expression, for the same reason ``score_series`` buckets in the
+        service layer: the unit suite runs on SQLite, where ``JSONType``
+        degrades to plain ``JSON``, and this repository does not write
+        dialect-specific SQL. The volume is a class's submissions, which is
+        the same order this file already reads for a trend line.
+
+        A row whose profile is missing or unreadable comes back with
+        ``profile=None`` rather than being dropped. It is still a submission
+        the student made, it still counts in "considered", and the gates are
+        what decide it cannot be compared — silently omitting it here would
+        make a baseline look better-founded than it is.
+        """
+        if not submission_ids:
+            return []
+
+        stmt = (
+            select(
+                AssessmentDetail.submission_id,
+                Submission.user_id,
+                Submission.graph_id,
+                Graph.graph_type,
+                Submission.input_method,
+                AssessmentDetail.assessment_version,
+                AssessmentDetail.created_at,
+                AssessmentDetail.analyzer_status,
+                AssessmentDetail.spelling_score,
+                AssessmentDetail.grammar_score,
+            )
+            .join(Submission, Submission.id == AssessmentDetail.submission_id)
+            .join(Graph, Graph.id == Submission.graph_id)
+            .where(AssessmentDetail.submission_id.in_(submission_ids))
+            # Submission id breaks the tie so a series read twice on unchanged
+            # data cannot reorder two assessments written in the same instant.
+            .order_by(AssessmentDetail.created_at, AssessmentDetail.submission_id)
+        )
+
+        return [
+            ProfileRow(
+                submission_id=submission_id,
+                user_id=user_id,
+                graph_id=graph_id,
+                graph_type=str(graph_type),
+                input_method=str(input_method),
+                assessment_version=str(assessment_version),
+                assessed_at=created_at,
+                profile=Profile.from_metrics(_profile_metrics(analyzer_status)),
+                spelling_score=None if spelling is None else float(spelling),
+                grammar_score=None if grammar is None else float(grammar),
+            )
+            for (
+                submission_id,
+                user_id,
+                graph_id,
+                graph_type,
+                input_method,
+                assessment_version,
+                created_at,
+                analyzer_status,
+                spelling,
+                grammar,
+            ) in (await self.db.execute(stmt)).all()
+        ]
+
+
+def _profile_metrics(analyzer_status: object) -> object:
+    """The profile analyzer's metrics out of a stored ``analyzer_status`` blob.
+
+    Every step is guarded and none of them raises. This column is written by
+    whatever release assessed the submission, so a row from before the
+    analyzer existed, or from a release that shaped the blob differently, is
+    ordinary rather than exceptional. ``Profile.from_metrics`` turns whatever
+    comes back into either a usable profile or ``None``.
+    """
+    if not isinstance(analyzer_status, dict):
+        return None
+    entry = analyzer_status.get(PROFILE_ANALYZER)
+    if not isinstance(entry, dict):
+        return None
+    return entry.get("metrics")
+
 
 def _score_column(analyzer: str):
     """The column holding ``analyzer``'s score, or a clear failure.
@@ -298,4 +398,4 @@ def _score_column(analyzer: str):
     return getattr(AssessmentDetail, name)
 
 
-__all__ = ["SCORE_COLUMNS", "AssessmentRepository", "ScoreSummary"]
+__all__ = ["PROFILE_ANALYZER", "SCORE_COLUMNS", "AssessmentRepository", "ScoreSummary"]

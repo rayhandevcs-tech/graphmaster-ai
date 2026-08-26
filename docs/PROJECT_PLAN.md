@@ -8,7 +8,7 @@
 
 ## 1. Delivery status
 
-**Last updated:** Sprint 18 (grammar engine). Sprints 11–14 remain
+**Last updated:** Sprint 19 (writing consistency). Sprints 11–14 remain
 outstanding; see §1.3.
 
 ### 1.1 Snapshot
@@ -18,8 +18,8 @@ outstanding; see §1.3.
 | Backend sprints complete | **9 of 9** (Sprints 1–9) |
 | Frontend sprints complete | **1 of 5** (Sprint 10) |
 | API endpoints | 75 operations across 59 paths |
-| Application modules | 146 Python files · 60 TypeScript modules |
-| Tests | **1,459 passing** — 1,401 backend (1,397 in the default run, 4 performance budgets behind a marker) and 58 frontend |
+| Application modules | 152 Python files · 60 TypeScript modules |
+| Tests | **1,571 passing** — 1,513 backend (1,509 in the default run, 4 performance budgets behind a marker) and 58 frontend |
 | Coverage | **99%** (target 80%, NFR-5.2) |
 | Migrations | 4, forward-only, upgraded from empty and round-tripped in CI |
 | Lint / format | `ruff` and `black` clean, enforced by CI |
@@ -50,6 +50,7 @@ schema looks the way it does.
 | **16** | Migration 4 and three tables, the spelling, sentence-quality and word-usage analyzers, the four-level severity scale, per-analyzer rollout flags, and persistence inside the scoring transaction | Every issue is located in the student's own text; the subject of the chart is exempt from both the spelling and the repetition checks |
 | **17** | Graph accuracy: chart facts, claims extracted from the vocabulary the detector already located, four claim kinds and their verdicts, and the claims table | Reaches a verdict only where both the attribution and the fact are unambiguous — everything else is recorded as unverified and shown to nobody |
 | **18** | The grammar provider chain (`none` / `local` / `remote`), the LanguageTool client, the grammar analyzer, and the teacher-analytics queries the class report will compose | No migration: `grammar_score` was reserved in migration 4. Off by default, and a regression suite proves a noisy engine moves neither the score, the tier, nor a single point of XP |
+| **19** | Writing consistency: the `writing_profile` analyzer, the read-time comparison layer with its four comparability gates, the profile series query, and the `NEVER_STUDENT_ANALYZERS` floor | No migration and no endpoint. It measures and never judges — no verdict, no composite, no threshold, no ranking — and a student cannot see it whatever the environment says |
 
 ### 1.3 What remains
 
@@ -84,6 +85,9 @@ place; say the word and it changes.
 | 8 | The performance budgets run in CI as an advisory step, because a shared runner cannot certify a latency figure. Should they instead be measured on the deployment host during Sprint 14 and recorded as the project's evidence for NFR-1.1? | Advisory in CI; `make perf` on real hardware |
 | 9 | The browser talks to the API directly, so the refresh cookie belongs to the API's origin. Serving both behind one origin (a Next rewrite, or one reverse proxy) would make it first-party, allow server-side data fetching, and let route protection move into middleware — at the cost of a hop on every request. Decide in Sprint 14's deployment pass? | Direct, with the guard in the browser |
 | 10 | **Settled.** Historical submissions carry no assessment and there is no backfill, so every assessment metric reports an `assessed_count`, trend lines break where it is zero, and missing data renders as unavailable rather than zero. | Approved before Sprint 17 |
+| 12 | A student's subject access request reaches their writing profile — it is their personal data. What is the platform's answer, and is it documented before the dark stage begins? | Undecided; must be settled before stage 2 |
+| 13 | The largest cause of a profile shift is the platform's own feedback naming the terms the student then used. Showing that feedback beside the change would turn the biggest false-positive source into the most useful teaching output — Sprint 20's surface, or later? | Designed now, surfaced in Sprint 20 |
+| 14 | How long must the dark stage run, and against what evidence, before writing consistency is promoted to teacher visibility? | One full teaching term, with the §15.7 distributions reviewed by a person |
 | 11 | `analyse()` is synchronous and is called straight from an async service, so a grammar check occupies the worker for its duration — bounded by `GRAMMAR_TIMEOUT_SECONDS`, but real on a remote provider. Moving `analyse()` onto a worker thread would fix it (and would take the spaCy parse off the loop too), but it changes the scoring path and wants load-testing on its own rather than bundled with a feature. Schedule it as its own change? | Kept synchronous; the budget is bounded, the limit is documented, and `remote` in production wants more workers |
 
 ---
