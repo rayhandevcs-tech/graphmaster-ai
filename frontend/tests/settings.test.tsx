@@ -129,12 +129,29 @@ describe("the settings page", () => {
     expect(warning.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("offers no control over a feature that does not exist yet", () => {
-    // Sound is muted by default and nothing plays it until the reward
-    // sequences land. A switch that toggled nothing would read as a bug in the
-    // audio rather than as a sprint boundary.
-    const { container } = renderSettings();
-    expect(container.textContent).not.toMatch(/sound|volume|mute/i);
+  it("offers reward sound, and offers it muted", () => {
+    // FR-7.11. The control exists now that there is something to play, and it
+    // is the *muted* option that starts selected — a student has to ask for
+    // audio, on every browser, every time.
+    renderSettings();
+
+    const muted = screen.getByRole("radio", { name: /muted/i });
+    expect(muted).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /^on/i })).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("keeps sound and motion as separate preferences", () => {
+    // Asking a system to stop animating is not asking it to be quiet, and the
+    // reverse is at least as common. Two headings, two controls.
+    renderSettings();
+
+    expect(screen.getByRole("heading", { name: /^sound$/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^motion$/i })).toBeInTheDocument();
+  });
+
+  it("says the sound preference belongs to the browser, not the account", () => {
+    renderSettings();
+    expect(screen.getByText(/stored in this browser/i)).toBeInTheDocument();
   });
 
   it("describes reduced motion as losing nothing", () => {

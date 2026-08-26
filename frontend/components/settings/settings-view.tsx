@@ -8,6 +8,7 @@ import { isStudent } from "@/lib/auth/roles";
 import { useRubric, weightingSentence, wordBandLabel } from "@/lib/hooks/use-rubric";
 import { Reveal } from "@/components/motion/reveal";
 import { ChangePasswordCard, SessionsCard } from "@/components/settings/security-cards";
+import { SoundChoice } from "@/components/settings/sound-choice";
 import { ThemeChoice } from "@/components/settings/theme-choice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,11 +20,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
  * another, and a page that answers both is the one where changing a password
  * sits under a heading about your photograph.
  *
- * There is no sound control here, and that is deliberate rather than an
- * oversight. Sound is muted by default and the reward sequences that would use
- * it are the next sprint's work; a switch that toggles nothing is worse than
- * no switch, because a student who turns it on and hears nothing concludes the
- * app is broken.
+ * Sound and motion are two cards rather than one preference. A student who has
+ * asked their system to stop animating has not asked it to be quiet, and the
+ * reverse is at least as common.
  */
 export function SettingsView() {
   const { user } = useAuth();
@@ -90,8 +89,26 @@ export function SettingsView() {
         </Card>
       </Reveal>
 
+      <Reveal delay={0.12}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Sound</CardTitle>
+            <CardDescription>
+              A short cue when a result is marked. Off everywhere until you turn it on.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <SoundChoice />
+            <p className="text-muted-foreground text-xs text-pretty">
+              Stored in this browser rather than on your account, so a shared or library computer
+              stays quiet even after you have turned sound on elsewhere.
+            </p>
+          </CardContent>
+        </Card>
+      </Reveal>
+
       {isStudent(user?.role) && weighting ? (
-        <Reveal delay={0.12}>
+        <Reveal delay={0.18}>
           <Card>
             <CardHeader>
               <CardTitle>How your work is marked</CardTitle>
@@ -117,11 +134,11 @@ export function SettingsView() {
         </Reveal>
       ) : null}
 
-      <Reveal delay={0.18}>
+      <Reveal delay={0.24}>
         <ChangePasswordCard />
       </Reveal>
 
-      <Reveal delay={0.24}>
+      <Reveal delay={0.3}>
         <SessionsCard />
       </Reveal>
     </div>

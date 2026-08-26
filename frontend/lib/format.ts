@@ -76,3 +76,18 @@ export function formatWhen(iso: string, now: number = Date.now()): string {
 export function daysLabel(count: number): string {
   return count === 1 ? "1 day" : `${count} days`;
 }
+
+/**
+ * "AY" — a name reduced to the letters that fit in a circle.
+ *
+ * First and last initials rather than the first two: "Amina Yusuf" and "Amina
+ * Yakubu" are different people in the same class, and "AM" for both defeats
+ * the point of showing anything.
+ */
+export function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const first = parts[0]?.[0] ?? "";
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
+  return (first + last).toUpperCase();
+}

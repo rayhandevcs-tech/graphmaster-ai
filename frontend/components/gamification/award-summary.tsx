@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Flame, Sparkles, Trophy } from "lucide-react";
 
 import { XpBar } from "./xp-bar";
+import { CountUp } from "@/components/motion/count-up";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -46,7 +47,11 @@ export function AwardSummary({ awards }: { awards: GamificationOut }) {
 
       <CardContent className="flex flex-col gap-5">
         <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-semibold tabular-nums">+{xp.toLocaleString()}</span>
+          {/* Counts up from zero, sharing the dashboard's component so the
+              number behaves the same way in both places. */}
+          <span className="text-3xl font-semibold tabular-nums">
+            +<CountUp value={xp} format={(value) => Math.round(value).toLocaleString()} />
+          </span>
           <span className="text-muted-foreground text-sm">XP</span>
           {awards.leveled_up ? (
             <Badge className="ml-auto gap-1">
