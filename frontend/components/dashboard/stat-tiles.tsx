@@ -73,7 +73,16 @@ function StatTile({
 
       <div className="flex flex-col gap-0.5">
         <span className="text-2xl leading-none font-semibold tabular-nums sm:text-3xl">
-          {value === null ? "—" : <CountUp value={value} format={format} />}
+          {value === null ? (
+            <>
+              <span aria-hidden>—</span>
+              {/* An em dash is read out inconsistently, and by some readers not
+                  at all — which would leave the label with no value beside it. */}
+              <span className="sr-only">Nothing marked yet</span>
+            </>
+          ) : (
+            <CountUp value={value} format={format} />
+          )}
         </span>
         <span className="text-muted-foreground text-xs sm:text-sm">{label}</span>
       </div>

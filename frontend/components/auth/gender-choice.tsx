@@ -44,6 +44,10 @@ export function GenderChoice({
         role="radiogroup"
         aria-label="Your avatar set"
         aria-invalid={Boolean(error)}
+        /* Focusable only programmatically: the form moves the caret to the
+           first invalid control on submit, and a group that cannot take focus
+           would leave a keyboard user with no indication of what was wrong. */
+        tabIndex={-1}
         className="mt-1 grid grid-cols-2 gap-3"
       >
         {OPTIONS.map((option) => {
