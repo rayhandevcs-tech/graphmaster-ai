@@ -187,12 +187,14 @@ switch.
 ### F10 · P2 · A 500 shows a skeleton for several seconds
 **Screens:** all query-backed screens. **Component:** `app/providers.tsx`.
 
-While auditing, `GET /submissions/{id}` returned 500 (seeded data, since
-repaired). The result page rendered a **bare skeleton with no indication
-anything was wrong** for the duration of TanStack's default retry schedule
-before reaching its error state. Retrying a 5xx once is defensible; retrying
-three times with backoff turns a fast failure into a long ambiguous wait, and
-4xx should not be retried at all.
+**Partly withdrawn on implementation.** The symptom was real: while auditing,
+`GET /submissions/{id}` returned 500 and the result page rendered a **bare
+skeleton with no indication anything was wrong** for about three seconds.
+
+The diagnosis was not. `app/providers.tsx` already refuses to retry any 4xx
+(`error.status < 500` returns false) and caps the rest at two attempts. There
+is no default-schedule bug to fix, and the remaining wait is the deliberate
+price of retrying genuine transport failures. Left as it is.
 
 ### F11 · P2 · Authentication pages have no `<h1>`
 **Screens:** `/login`, `/register`. Measured `h1=0` on both.

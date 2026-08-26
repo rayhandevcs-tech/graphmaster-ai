@@ -39,7 +39,13 @@ export function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" aria-label="Account menu">
-          <AvatarCharacter code={avatarCodeFor(user)} className="size-8 rounded-full" />
+          {/* size-9 with a ring, not size-8 bare: the character is drawn to fill
+              its box, so at 32px the hat clipped against the circle and the
+              whole thing read as a smudge rather than a face. */}
+          <AvatarCharacter
+            code={avatarCodeFor(user)}
+            className="ring-border size-9 rounded-full ring-1"
+          />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
