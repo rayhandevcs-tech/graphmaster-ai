@@ -1,5 +1,11 @@
 # Frontend Architecture
 
+> **Revision 2.2** — records the practice loop as built in sprint 11: the
+> chart layer and why its colours are resolved at runtime (§7.1), the
+> submission-per-input-method rule the composer is built around, and the
+> result screen's split between what the submission carries and what only the
+> `analyze` reply does.
+>
 > **Revision 2.1** — records the foundation as built in sprint 10: the
 > generated API types, the refresh-and-retry client, and why route
 > protection runs in the browser rather than in middleware.
@@ -20,7 +26,7 @@ frontend/
 │   ├── (auth)/login, register
 │   ├── (student)/dashboard
 │   ├── (student)/practice, practice/[graphId]
-│   ├── (student)/submissions/[id]     # Result + reward animation
+│   ├── (student)/submissions/[submissionId]  # Result + reward animation
 │   ├── (student)/leaderboard, achievements
 │   ├── (teacher)/teacher/{dashboard,students,submissions,graphs,vocabulary,analytics,reports}
 │   ├── (admin)/admin/{users,classes,analytics}
@@ -32,12 +38,17 @@ frontend/
 │   ├── ui/                            # shadcn primitives
 │   ├── charts/                        # Chart.js wrappers
 │   ├── practice/                      # Editor, upload, OCR preview
-│   ├── gamification/                  # Avatar, rewards, XP bar, badges
+│   ├── results/                       # Score, feedback, highlighted answer
+│   ├── gamification/                  # Avatar, rewards, XP bar, badges, tiers
 │   ├── auth/                          # Route guard and role gate
 │   ├── theme/, layout/, dashboard/, teacher/
 ├── lib/
 │   ├── api/                           # Typed client, one module per resource
 │   ├── auth/                          # Token store, context, role helpers
+│   ├── charts/                        # Palette resolution, normalisation, config
+│   ├── hooks/                         # Debounce, reduced motion
+│   ├── results/                       # Highlight offsets → segments
+│   ├── text/                          # Word counting, matching the server's rule
 │   └── utils.ts
 ├── scripts/generate-api-types.mjs     # OpenAPI → types/api.ts
 ├── tests/                             # Vitest
@@ -185,6 +196,47 @@ stateDiagram-v2
 
 `Previewing` is a real state the student acts on, not a spinner — FR-4.7
 requires the extraction to be editable before analysis.
+
+Three things about the implementation are not obvious from the diagram.
+
+**A submission exists per input method, not per visit.** `input_method` is
+fixed when a submission is opened and never flips, so switching between the
+typed and handwriting tabs cannot move an attempt between them: each opens its
+own submission lazily, the first time there is something to save.
+`UploadFailed → Choosing` therefore continues *that* submission — "type it
+instead" lives inside the handwriting tab — and the record still shows that
+handwriting was attempted and did not read.
+
+**Drafts are resumed rather than duplicated.** The API reuses a draft only
+while it is pristine, so the workspace reads the open attempts on the graph
+once and adopts them. Without that, writing two paragraphs and reloading would
+silently start a second attempt and abandon the first.
+
+**`Analyzing` shows no progress bar.** Marking is one request with nothing to
+report. A bar that fills on a timer is a claim about a duration nobody knows,
+and it reads as broken the moment it fills and waits.
+
+### 7.1 The chart layer
+
+Chart.js paints onto a canvas, and a canvas cannot read `var(--chart-1)`. A
+literal in a component would be invisible to the theme — the same colour on a
+dark ground, where the light-theme purple is unreadable — and
+`tests/design-tokens.test.ts` fails the build for one. So the token is resolved
+at runtime by painting it into a 1×1 canvas and reading the pixel back: the
+value still comes from `globals.css`, and what reaches Chart.js is plain sRGB
+it can derive a fill and a hover state from.
+
+The chart is rebuilt, not mutated, on a theme change: every colour in the
+configuration is a resolved token and half of them sit inside nested plugin
+options, so patching each one is how a tooltip keeps the previous theme's
+border. Controllers are registered per graph type rather than through
+`chart.js/auto`, and the module is imported dynamically, so the library is not
+in the first load of any route.
+
+The y-axis is deliberately **not** forced to zero. A series moving between 230
+and 250 flattens into a straight line against a zero baseline, and describing
+exactly that movement is the exercise. Gaps are not spanned either: joining
+across a missing reading draws a value nobody measured.
 
 ## 8. Reward animations
 

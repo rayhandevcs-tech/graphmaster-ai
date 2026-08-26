@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { Protected } from "@/components/auth/protected";
 import { useAuth } from "@/lib/auth/context";
 import { ROLE_LABELS } from "@/lib/auth/roles";
@@ -9,11 +11,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 /**
  * The student's home.
  *
- * Sprint 11 fills this with the dashboard aggregate — attempts, average,
- * streak, recent activity and the score trend, all of which
- * `GET /users/me/dashboard` already returns. What is here now is the part
- * sprint 10 is responsible for: that a signed-in student, and only a signed-in
- * student, reaches this route with their profile loaded.
+ * Still the sprint 10 version: proof that a signed-in student, and only a
+ * signed-in student, reaches this route with their profile loaded. The
+ * dashboard aggregate — attempts, average, streak, recent activity and the
+ * score trend, all of which `GET /users/me/dashboard` already returns — is
+ * the next thing to land here. Sprint 11 built the practice loop instead,
+ * because a student could sign in but not practise.
  */
 export default function DashboardPage() {
   return (
@@ -51,9 +54,14 @@ function SessionSummary() {
         </CardContent>
       </Card>
 
-      <p className="text-muted-foreground text-sm">
-        <Badge variant="muted">Sprint 11</Badge> Practice, results and the reward animations arrive
-        next.
+      <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
+        <Badge variant="muted">Sprint 12</Badge>
+        <span>
+          The attempts, average and score trend land here next, with the reward animations.{" "}
+          <Link href="/practice" className="text-primary underline-offset-4 hover:underline">
+            Practice is ready now.
+          </Link>
+        </span>
       </p>
     </div>
   );

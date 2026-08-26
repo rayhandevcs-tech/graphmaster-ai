@@ -16,10 +16,10 @@ complete; sprints 11–14 build the interface. See §1.3 for exactly what is lef
 | Item | State |
 |---|---|
 | Backend sprints complete | **9 of 9** core (Sprints 1–9), plus the assessment engine (Sprints 15–20) |
-| Frontend sprints complete | **1 of 5** (Sprint 10) |
+| Frontend sprints complete | **1 of 5** (Sprint 10), plus the practice loop from Sprint 11 |
 | API endpoints | 80 operations across 64 paths |
-| Application modules | 156 Python files · 60 TypeScript modules |
-| Tests | **1,571 passing** — 1,513 backend (1,509 in the default run, 4 performance budgets behind a marker) and 58 frontend |
+| Application modules | 156 Python files · 99 TypeScript modules |
+| Tests | **1,633 passing** — 1,513 backend (1,509 in the default run, 4 performance budgets behind a marker) and 120 frontend |
 | Coverage | **99%** (target 80%, NFR-5.2) |
 | Migrations | 4, forward-only, upgraded from empty and round-tripped in CI |
 | Lint / format | `ruff` and `black` clean, enforced by CI |
@@ -46,6 +46,7 @@ schema looks the way it does.
 | **8** | Class and platform analytics, vocabulary usage, score trends, student dashboard, four report types in CSV / Excel / PDF | Computed live; exports carry the screens' access rules |
 | **9** | API-surface invariants, the optional S3 and OCR backends tested against fakes, session-management endpoints, the request transaction, performance budgets, five-job CI | Every endpoint is proved to demand a token, by the same test |
 | **10** | Next.js 15 App Router, Tailwind 4 palette with dark mode, shadcn primitives, the generated API types and typed client for all 75 operations, the in-memory token store, auth context, route guard, Docker image and two more CI jobs | The types are generated from the OpenAPI document, and CI fails if the committed copy has drifted |
+| **11** *(part)* | The practice loop: the graph library, a themed Chart.js layer with its data-table alternative, the practice workspace with typed and handwriting routes and the editable OCR preview, and the result screen | Handwriting is hidden where no engine is configured; a failed read is recovered by typing into the *same* submission, so `input_method` never flips |
 | **15** | The assessment framework: unified issue model, analyzer protocol, supervisor with failure containment, `assessment_version` fingerprint, and vocabulary and writing wrapped as analyzers | Diagnostic only — a regression suite asserts field by field that no assessment can move a score, and reads `build_score`'s signature so the wiring cannot be added |
 | **16** | Migration 4 and three tables, the spelling, sentence-quality and word-usage analyzers, the four-level severity scale, per-analyzer rollout flags, and persistence inside the scoring transaction | Every issue is located in the student's own text; the subject of the chart is exempt from both the spelling and the repetition checks |
 | **17** | Graph accuracy: chart facts, claims extracted from the vocabulary the detector already located, four claim kinds and their verdicts, and the claims table | Reaches a verdict only where both the attribution and the fact are unambiguous — everything else is recorded as unverified and shown to nobody |
@@ -57,7 +58,7 @@ schema looks the way it does.
 
 | Sprint | Still to build | Depends on |
 |---|---|---|
-| **11** | Registration with gender and avatar selection, the designed landing and auth pages, student dashboard, practice page with live Chart.js, typed editor, handwriting upload with OCR preview, result page, profile, settings | 10 |
+| **11** *(rest)* | Registration with gender and avatar selection, the designed landing and auth pages, the student dashboard aggregate, profile and settings | 10 |
 | **12** | Framer Motion reward sequences (crown + confetti / flower / hammer bonk-dizzy-fall-**recovery**), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal | 11 |
 | **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management | 12 |
 | **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit | 13 |
@@ -65,9 +66,11 @@ schema looks the way it does.
 Roughly: **the backend is complete and the frontend has a foundation.** Every
 function in the specification — practising, marking, rewards, ranking,
 analytics and exports — is reachable over the API today, tested, and built by
-CI on every push. A student can now sign in, and the interface knows who they
-are; what they cannot yet do is practise. Sprints 11–14 build the screens on
-top of a client that already covers all 80 operations.
+CI on every push. A student can now sign in, browse the published graphs, describe one —
+typed, or photographed and corrected — and read the mark, the tier and the
+vocabulary they missed. What is still missing is the surroundings: the
+dashboard that aggregates those results, the reward animations, and every
+teacher and administrator screen.
 
 ### 1.3a Feature by feature
 
@@ -77,15 +80,15 @@ frontend work — there is no backend gap behind any of it.
 
 | Capability | Backend | Interface |
 |---|---|---|
-| Registration, login, refresh, roles | ✅ done | ❌ not started (11) |
+| Registration, login, refresh, roles | ✅ done | ⚠️ working, not yet designed (11) |
 | Gender → avatar assignment | ✅ done | ❌ not started (11) |
 | Vocabulary library, 7 categories | ✅ done | ❌ not started (13) |
 | Graph management, Chart.js data, target curation | ✅ done | ❌ not started (13) |
 | Class management and enrolment | ✅ done | ❌ not started (13) |
-| Practising: typed answers | ✅ done | ❌ not started (11) |
-| Practising: handwriting + OCR preview | ✅ done | ❌ not started (11) |
-| Marking: 70/30 scoring, tiers, feedback | ✅ done | ❌ not started (11) |
-| Rewards: XP, levels, achievements, badges, streaks | ✅ done | ❌ not started (12) |
+| Practising: typed answers | ✅ done | ✅ done |
+| Practising: handwriting + OCR preview | ✅ done | ✅ done |
+| Marking: 70/30 scoring, tiers, feedback | ✅ done | ✅ done |
+| Rewards: XP, levels, achievements, badges, streaks | ✅ done | ⚠️ shown on the result screen; the dashboard and achievements pages remain (12) |
 | Reward animations (crown / flower / steady / hammer) | n/a | ❌ not started (12) |
 | Leaderboards, four scopes | ✅ done | ❌ not started (13) |
 | Analytics: class, platform, vocabulary, trends | ✅ done | ❌ not started (13) |
