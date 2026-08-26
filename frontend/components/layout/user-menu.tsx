@@ -5,7 +5,7 @@ import { LogOut, Settings, User as UserIcon } from "lucide-react";
 
 import { useAuth } from "@/lib/auth/context";
 import { ROLE_LABELS } from "@/lib/auth/roles";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarCharacter, avatarCodeFor } from "@/components/avatars/character";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,15 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 export function UserMenu() {
   const { status, user, signOut } = useAuth();
@@ -48,10 +39,7 @@ export function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" aria-label="Account menu">
-          <Avatar>
-            {user.avatar?.image_url ? <AvatarImage src={user.avatar.image_url} alt="" /> : null}
-            <AvatarFallback>{initials(user.full_name)}</AvatarFallback>
-          </Avatar>
+          <AvatarCharacter code={avatarCodeFor(user)} className="size-8 rounded-full" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

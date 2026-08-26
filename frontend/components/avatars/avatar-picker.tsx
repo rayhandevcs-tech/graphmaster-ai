@@ -7,7 +7,7 @@ import { Check, Lock } from "lucide-react";
 import { avatarsApi, errorMessage, queryKeys } from "@/lib/api";
 import { useAuth } from "@/lib/auth/context";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarCharacter } from "./character";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { AvatarWithLock, UUID } from "@/types/api";
@@ -101,6 +101,14 @@ export function AvatarPicker({
   );
 }
 
+/** Exported for tests: the tile is where the locked/selected contradiction
+ *  lived, and it is worth asserting directly rather than through the picker's
+ *  data fetching. */
+export { AvatarTile as AvatarTileForTests };
+
+/** Selected, choosable, or not yet earned. Never two of them. */
+type TileState = "selected" | "available" | "locked";
+
 function AvatarTile({
   avatar,
   busy,
@@ -110,47 +118,55 @@ function AvatarTile({
   busy: boolean;
   onChoose: () => void;
 }) {
-  const locked = !avatar.is_unlocked;
+  // One state, not two booleans. `is_selected` and `!is_unlocked` could both be
+  // true, and the tile rendered both — a checkmark over a padlock, which is a
+  // contradiction rather than an edge case. A single value has no
+  // representation for the impossible pair, so the bug cannot come back.
+  const state: TileState = avatar.is_selected
+    ? "selected"
+    : avatar.is_unlocked
+      ? "available"
+      : "locked";
 
   return (
     <button
       type="button"
-      disabled={locked || busy}
-      aria-pressed={avatar.is_selected}
+      disabled={state === "locked" || busy}
+      aria-pressed={state === "selected"}
       onClick={onChoose}
       className={cn(
         "group relative flex w-full flex-col items-center gap-2 rounded-xl border p-3 transition-all",
-        locked
-          ? "cursor-not-allowed opacity-60"
-          : "hover:border-primary/50 hover:shadow-sm active:scale-[0.98]",
-        avatar.is_selected && "border-primary bg-primary/5 ring-primary/30 ring-2",
+        state === "locked" && "cursor-not-allowed opacity-60",
+        state === "available" && "hover:border-primary/50 hover:shadow-sm active:scale-[0.98]",
+        state === "selected" && "border-primary bg-primary/5 ring-primary/30 ring-2",
         busy && "opacity-70",
       )}
     >
-      <Avatar className="size-14">
-        <AvatarImage src={avatar.image_url} alt="" />
-        <AvatarFallback>{avatar.name.slice(0, 2).toUpperCase()}</AvatarFallback>
-      </Avatar>
+      <AvatarCharacter
+        code={avatar.code}
+        expression={state === "selected" ? "happy" : "neutral"}
+        className={cn("size-14", state === "locked" && "grayscale")}
+      />
 
       <span className="text-xs leading-tight font-medium text-balance">{avatar.name}</span>
 
-      {locked ? (
+      {state === "locked" ? (
         <span className="text-muted-foreground flex items-center gap-1 text-[0.6875rem]">
           <Lock className="size-3" aria-hidden />
           Level {avatar.unlock_level}
         </span>
       ) : null}
 
-      {avatar.is_selected ? (
+      {state === "selected" ? (
         <span className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full">
           <Check className="size-3" aria-hidden />
         </span>
       ) : null}
 
       <span className="sr-only">
-        {avatar.is_selected
+        {state === "selected"
           ? " — your current avatar"
-          : locked
+          : state === "locked"
             ? ` — locked until level ${avatar.unlock_level}`
             : ""}
       </span>
