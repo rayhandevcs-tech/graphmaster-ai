@@ -46,6 +46,23 @@ const LOOKS: Record<string, { hair: Hair; accessory: Accessory }> = {
   girl_explorer: { hair: "long", accessory: "hat" },
 };
 
+/**
+ * The avatar code hiding in a stored `image_url`.
+ *
+ * `/avatars/girl-scholar.svg` names `girl_scholar`. The file itself has never
+ * existed in this repository — which is why the character is drawn rather than
+ * served — but the *path* is still the only place a leaderboard entry carries
+ * which avatar its student chose, so it is read as an identifier and never
+ * fetched.
+ */
+export function avatarCodeFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const file = url.split("/").pop();
+  if (!file) return null;
+  const code = file.replace(/\.[a-z0-9]+$/i, "").replace(/-/g, "_");
+  return code in LOOKS ? code : null;
+}
+
 function lookFor(code: string): { hair: Hair; accessory: Accessory } {
   return LOOKS[code] ?? { hair: code.startsWith("girl") ? "long" : "short", accessory: "none" };
 }
