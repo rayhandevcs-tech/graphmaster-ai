@@ -115,6 +115,18 @@ Every push runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
 `docker.yml` builds both images and boots them whenever the image inputs
 change.
 
+## Deployment
+
+Running it locally needs Docker and one command; deploying needs Docker, a
+domain and about forty minutes. Both are written out step by step in
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md), including the production compose
+overlay, HTTPS, and the backup you should set up before anyone uses it.
+
+```bash
+echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
+docker compose up --build          # http://localhost:3000
+```
+
 ## Documentation
 
 | Document | Contents |
