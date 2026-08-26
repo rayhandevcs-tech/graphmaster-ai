@@ -106,3 +106,59 @@ class TestOptionalEngineSettings:
 
     def test_a_trailing_separator_does_not_produce_an_empty_language(self):
         assert make(EASYOCR_LANGUAGES="en,").easyocr_languages == ["en"]
+
+
+class TestGrammarProvider:
+    """The one setting whose value sends student writing outside the building."""
+
+    def test_the_default_is_no_grammar_provider(self):
+        # Neither engine is a decision to make silently inside an image: the
+        # local one needs a JVM and a large download, and the remote one posts
+        # student writing to a third party.
+        assert make().GRAMMAR_PROVIDER == "none"
+
+    def test_remote_without_an_endpoint_is_refused_at_boot(self):
+        """Deliberately fatal rather than a quiet fall back to 'none'.
+
+        Choosing 'remote' is a decision that student writing leaves the
+        institution, and a deployment that made it needs to know immediately
+        if it is not actually happening — a server quietly running without the
+        checker someone switched on would look identical to one that had it.
+        """
+        with pytest.raises(ValidationError, match="GRAMMAR_API_URL"):
+            make(GRAMMAR_PROVIDER="remote")
+
+    def test_remote_with_an_endpoint_is_accepted(self):
+        assert (
+            make(
+                GRAMMAR_PROVIDER="remote", GRAMMAR_API_URL="https://api.example.test"
+            ).GRAMMAR_PROVIDER
+            == "remote"
+        )
+
+    def test_local_needs_no_endpoint_because_it_has_a_host_and_a_port(self):
+        settings = make(GRAMMAR_PROVIDER="local")
+
+        assert (settings.GRAMMAR_HOST, settings.GRAMMAR_PORT) == ("localhost", 8081)
+
+    def test_an_unknown_provider_name_is_refused(self):
+        with pytest.raises(ValidationError):
+            make(GRAMMAR_PROVIDER="chatgpt")
+
+    def test_the_timeout_is_bounded_at_both_ends(self):
+        """It is a *total* budget, spent inside the request that scores a
+        submission. An unbounded one is an unbounded stall."""
+        with pytest.raises(ValidationError):
+            make(GRAMMAR_TIMEOUT_SECONDS=0)
+        with pytest.raises(ValidationError):
+            make(GRAMMAR_TIMEOUT_SECONDS=120)
+
+    def test_the_retry_count_is_bounded(self):
+        with pytest.raises(ValidationError):
+            make(GRAMMAR_MAX_RETRIES=50)
+
+    def test_grammar_is_in_the_default_analyzer_roster(self):
+        # Configured but unavailable is a different fact from absent: it is
+        # what lets a result say "grammar was not checked here" rather than
+        # implying the writing was clean.
+        assert "grammar" in make().assessment_analyzers

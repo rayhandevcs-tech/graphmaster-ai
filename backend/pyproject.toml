@@ -104,6 +104,15 @@ ignore = [
 "app/assessment/analyzers/sentence.py" = ["RUF001", "RUF002", "RUF003"]
 "app/assessment/analyzers/spelling.py" = ["RUF001", "RUF002", "RUF003"]
 "app/assessment/analyzers/word_usage.py" = ["RUF001", "RUF002", "RUF003"]
+# Same convention across the grammar package: "0-1", "4xx" and "en-GB" ranges
+# in developer-facing docstrings and error messages.
+"app/assessment/analyzers/grammar.py" = ["RUF001", "RUF002", "RUF003"]
+"app/assessment/grammar/base.py" = ["RUF001", "RUF003"]
+"app/assessment/grammar/languagetool.py" = ["RUF001", "RUF002", "RUF003"]
+"app/assessment/grammar/providers.py" = ["RUF001", "RUF002", "RUF003"]
+"app/assessment/grammar/rules.py" = ["RUF001", "RUF002", "RUF003"]
+# The test asserts on the module's own "0-1" message, en dash included.
+"tests/unit/test_grammar_providers.py" = ["E501", "RUF001"]
 # Typographic quotes and en dashes appear in these tests as deliberate input:
 # a curly apostrophe is exactly what normalisation has to survive.
 "tests/unit/test_assessment_spelling.py" = ["E501", "RUF001"]

@@ -52,6 +52,12 @@ def assessment_version(settings: Settings) -> str:
         (
             ",".join(sorted(settings.assessment_analyzers)),
             settings.GRAMMAR_PROVIDER,
+            # The variety, not the endpoint. en-GB and en-US disagree about
+            # enough that two answers checked under them are not comparable,
+            # so it belongs in the fingerprint — whereas which host serves
+            # LanguageTool changes nothing about what it finds, and putting it
+            # here would make two identical deployments look incomparable.
+            settings.GRAMMAR_LANGUAGE,
             f"{settings.ASSESSMENT_ISSUE_CONFIDENCE_FLOOR:.3f}",
             str(settings.ASSESSMENT_MAX_ISSUES_PER_CATEGORY),
         )

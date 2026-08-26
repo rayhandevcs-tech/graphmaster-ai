@@ -293,6 +293,30 @@ Framer Motion · Lottie · Chart.js · TanStack Query
     is over a subset — and interpolating across the gap puts a step change on
     the day the engine was enabled, which reads as a sudden improvement in the
     cohort. Missing assessment data is *unavailable*, never zero.
+73. **No analyzer names a grammar engine.** The provider is chosen by
+    `build_grammar_provider` and injected, which is what lets a timeout, a
+    502, a truncated response and "no engine at all" each be a test rather
+    than a reasoned-about branch.
+74. **A grammar timeout is a total budget, not a per-attempt one.** The check
+    runs inside the request that is scoring a submission, so the configured
+    number must be the worst case however many retries happen inside it. Only
+    transient failures retry — a 4xx means the request itself is wrong.
+75. **The grammar analyzer reports less than LanguageTool finds.**
+    Misspellings belong to `spelling`, which knows the curated vocabulary and
+    the chart's labels; style and register belong to `word_usage`, which knows
+    the register the exercise teaches. Two analyzers on the same ground is how
+    a result page starts contradicting itself.
+76. **An engine that is absent is `unavailable`; one that fails is `failed`.**
+    The first leaves the assessment complete — a deployment without a grammar
+    checker is not one producing partial results — and only the second is
+    worth waking someone for.
+77. **Nothing about the student travels to a grammar engine, and nothing
+    about the engine travels back to a classroom.** No identifier goes out
+    with the text; no endpoint, credential or hostname appears in an issue, a
+    failure detail, or anything a teacher's screen renders.
+78. **LanguageTool offsets are UTF-16 code units.** It is a Java service. One
+    emoji in an answer shifts every subsequent offset by one, and every
+    highlight after it lands on the wrong words.
 
 ## Conventions
 

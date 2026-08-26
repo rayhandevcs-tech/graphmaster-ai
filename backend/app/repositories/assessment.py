@@ -9,14 +9,19 @@ assessment and the score it accompanies land together or not at all.
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import selectinload
 
 from app.assessment.result import AssessmentResult
 from app.models.assessment import AssessmentDetail, AssessmentIssue, GraphAccuracyClaim
 from app.models.enums import AssessmentStatus, ClaimVerdict, IssueCategory
 from app.repositories.base import BaseRepository
+
+if TYPE_CHECKING:  # pragma: no cover
+    import datetime
 
 #: Which analyzer's score goes in which column.
 #:
@@ -30,6 +35,26 @@ SCORE_COLUMNS = {
     "word_usage": "word_usage_score",
     "graph_accuracy": "graph_accuracy_score",
 }
+
+
+@dataclass(frozen=True, slots=True)
+class ScoreSummary:
+    """One analyzer's score across a set of submissions.
+
+    ``assessed_count`` is reported beside every figure and is not decoration.
+    A cohort where four submissions of thirty were checked for grammar and a
+    cohort where all thirty were are not the same evidence, and an average
+    printed without the count reads as though they were.
+
+    ``average`` is ``None`` — never ``0.0`` — when nothing was assessed. A
+    class whose grammar was never checked is not a class that scored nothing,
+    and a zero would sort them below a class that genuinely struggled. It is
+    also the signal a trend line must break on rather than interpolate across:
+    missing assessment data is *unavailable*, not a value.
+    """
+
+    assessed_count: int
+    average: float | None
 
 
 class AssessmentRepository(BaseRepository[AssessmentDetail]):
@@ -152,5 +177,125 @@ class AssessmentRepository(BaseRepository[AssessmentDetail]):
         # a finding.
         return {category.value: int(found.get(category.value, 0)) for category in IssueCategory}
 
+    # ── Teacher analytics ────────────────────────────────────────────────────
+    #
+    # Foundation, not presentation: these answer the questions a class report
+    # asks, and the report itself composes them. They are teacher-facing by
+    # construction — every one of them takes a set of submission ids that the
+    # caller has already established the teacher may see, and none of them can
+    # be reached with a student's own submission alone.
 
-__all__ = ["SCORE_COLUMNS", "AssessmentRepository"]
+    async def issue_frequency(
+        self,
+        submission_ids: list[uuid.UUID],
+        *,
+        category: IssueCategory | None = None,
+        limit: int = 10,
+    ) -> list[tuple[str, int]]:
+        """The commonest mistakes across a set of submissions, most frequent first.
+
+        Grouped by ``subtype``, which is why that column is a stable slug
+        rather than display wording: the human phrasing in ``explanation`` can
+        be rewritten between releases without invalidating a year of "the
+        mistakes this class makes most".
+
+        Counted in the database. A class report over a term would otherwise
+        read every correction the cohort has ever received into memory to
+        build one histogram.
+        """
+        if not submission_ids:
+            return []
+
+        counter = func.count().label("occurrences")
+        stmt = (
+            select(AssessmentIssue.subtype, counter)
+            .join(AssessmentDetail, AssessmentDetail.id == AssessmentIssue.assessment_id)
+            .where(AssessmentDetail.submission_id.in_(submission_ids))
+            .group_by(AssessmentIssue.subtype)
+            # Subtype breaks the tie so a report run twice on unchanged data
+            # does not reorder equally common mistakes between runs.
+            .order_by(desc(counter), AssessmentIssue.subtype)
+            .limit(limit)
+        )
+        if category is not None:
+            stmt = stmt.where(AssessmentIssue.category == category.value)
+
+        return [
+            (str(subtype), int(count)) for subtype, count in (await self.db.execute(stmt)).all()
+        ]
+
+    async def score_summary(self, submission_ids: list[uuid.UUID], analyzer: str) -> ScoreSummary:
+        """One analyzer's mean score, and how many submissions it actually ran on.
+
+        Rows where the score is NULL are excluded from both figures rather
+        than counted as zero. NULL means the analyzer did not run for that
+        submission — no engine configured, or it failed — and averaging it in
+        as a nought would report a class as failing at grammar because their
+        server has no grammar checker.
+        """
+        column = _score_column(analyzer)
+        if not submission_ids:
+            return ScoreSummary(assessed_count=0, average=None)
+
+        stmt = (
+            select(func.count(column), func.avg(column))
+            .where(AssessmentDetail.submission_id.in_(submission_ids))
+            .where(column.is_not(None))
+        )
+        assessed, average = (await self.db.execute(stmt)).one()
+
+        assessed = int(assessed or 0)
+        return ScoreSummary(
+            assessed_count=assessed,
+            average=round(float(average), 2) if assessed and average is not None else None,
+        )
+
+    async def score_series(
+        self, submission_ids: list[uuid.UUID], analyzer: str
+    ) -> list[tuple[datetime.datetime, float]]:
+        """Every assessed score with the moment it was produced, oldest first.
+
+        Returned unbucketed on purpose. A trend line's periods are boundaries
+        in ``PLATFORM_TIMEZONE`` — a cohort must roll over together — and
+        expressing that in SQL would push a timezone conversion into the
+        database, where SQLite and PostgreSQL disagree about how to do it. The
+        service layer buckets these in the platform's zone, the way every
+        other date in the platform is already handled.
+
+        Submissions with no score for this analyzer are absent rather than
+        present with a zero, so a period with nothing in it comes out empty —
+        which is what a broken line is drawn from.
+        """
+        column = _score_column(analyzer)
+        if not submission_ids:
+            return []
+
+        stmt = (
+            select(AssessmentDetail.created_at, column)
+            .where(AssessmentDetail.submission_id.in_(submission_ids))
+            .where(column.is_not(None))
+            .order_by(AssessmentDetail.created_at)
+        )
+        return [
+            (created_at, float(score)) for created_at, score in (await self.db.execute(stmt)).all()
+        ]
+
+
+def _score_column(analyzer: str):
+    """The column holding ``analyzer``'s score, or a clear failure.
+
+    Raises rather than returning None: an analyzer name that has no column is
+    a programming error in the caller, and answering "no data" for it would
+    report an empty class report as a real finding — the same lie an empty
+    forbidden report tells.
+    """
+    name = SCORE_COLUMNS.get(analyzer)
+    if name is None:
+        raise ValueError(
+            f"No assessment score column for analyzer {analyzer!r}. "
+            f"Known: {', '.join(sorted(SCORE_COLUMNS))}."
+        )
+    return getattr(AssessmentDetail, name)
+
+
+__all__ = ["SCORE_COLUMNS", "AssessmentRepository", "ScoreSummary"]

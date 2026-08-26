@@ -278,8 +278,18 @@ class TestAnalysisLatency:
 
         assert len(three_hundred_words.split()) == 300
 
-        # The model loads once per process; a first-call measurement would be
-        # measuring the load, which startup already pays for.
+        # Warmed the way a running server is: `main.py` calls this during
+        # startup, so a budget measured without it describes a process that has
+        # just booted rather than one serving students.
+        #
+        # It is not, on its own, what makes this pass. The measurement was six
+        # seconds until the spelling analyzer stopped asking the dictionary the
+        # same question once per *occurrence* of a word — an answer about
+        # terawatt hours contains "terawatt" a dozen times, and each one paid
+        # the full half-second edit-distance-2 expansion. See `_correction`.
+        from app.assessment.registry import warm_up as warm_up_assessment
+
+        warm_up_assessment()
         analyse("A short warm-up sentence about a rising trend.", targets)
 
         started = time.perf_counter()

@@ -1,9 +1,9 @@
 # Assessment Architecture
 
-> **Revision 1.2** — the framework (Sprint 15), the first three diagnostic
-> analyzers and their storage (Sprint 16), and graph accuracy (Sprint 17). The
-> API surface is proposed but not yet built; no endpoint in this document
-> exists.
+> **Revision 1.3** — the framework (Sprint 15), the first three diagnostic
+> analyzers and their storage (Sprint 16), graph accuracy (Sprint 17), and the
+> grammar provider chain (Sprint 18). The API surface is proposed but not yet
+> built; no endpoint in this document exists.
 
 ## 1. What this package is for
 
@@ -133,7 +133,7 @@ checker crashed", and only one of those is worth waking someone for. It also
 prevents the worst UI failure available here: telling a student their grammar
 is perfect on a server that never checked it.
 
-## 6. The three diagnostic analyzers
+## 6. The diagnostic analyzers
 
 ### 6.1 Spelling
 
@@ -264,6 +264,101 @@ Corrections are phrased as what the chart shows, never as an accusation. A
 misread trend is the most useful thing this platform can tell somebody, and it
 is only useful if they read it.
 
+### 6.5 Grammar
+
+The only analyzer with an outbound dependency, and the only one a deployment
+can switch off without editing the analyzer list. Both facts shape it.
+
+#### The provider chain
+
+`app/assessment/grammar/` holds a provider abstraction modelled on the OCR
+chain, for the same reasons:
+
+| Provider | `GRAMMAR_PROVIDER` | What it is |
+|---|---|---|
+| `DisabledGrammarProvider` | `none` *(default)* | No engine here. A real object, not a null check. |
+| `LocalLanguageToolProvider` | `local` | A LanguageTool HTTP server inside your own network. |
+| `RemoteLanguageToolProvider` | `remote` | A hosted LanguageTool. Student writing leaves the building. |
+
+`is_available()` answers a *configuration* question and is probed at startup;
+`check()` answers a *per-submission* question and may fail at any time.
+Keeping them apart is what lets a server with no grammar engine report "not
+installed here" while a server whose engine has just fallen over reports a
+fault — and only one of those is worth waking someone for.
+
+The analyzer never names an implementation. `build_grammar_provider` chooses
+one and the analyzer receives it, so every path through the analyzer — a
+timeout, a 502, a truncated JSON document, no engine at all — is exercised
+against a fake with no network, no JVM and no container.
+
+A misconfiguration degrades to `none` rather than raising, with the exception
+of `remote` without an endpoint, which is refused at boot. Choosing `remote`
+is a decision that student writing leaves the institution, and a deployment
+that made it needs to know immediately if it is not actually happening.
+
+#### The findings are narrower than LanguageTool's
+
+Three kinds of match are dropped rather than reported, and each is dropped
+because another analyzer already owns that ground:
+
+- **Misspellings.** `spelling` owns them, with an exemption set built from
+  this exercise's curated vocabulary and the chart's own labels — information
+  LanguageTool does not have. It would flag "Sylhet" and half the target
+  terms, and reporting them under `grammar` would relabel a spelling mistake
+  as a grammar mistake and corrupt the analytics slug.
+- **Style and register.** LanguageTool's style rules are tuned for general
+  English prose: they object to the passive voice, to long sentences and to
+  hedging, which is the register academic graph description is *taught in*.
+  `word_usage` covers register with domain knowledge instead. FR-5's rule
+  that acceptable variation is never penalised is not served by reporting
+  those quietly — it is served by not reporting them.
+- **Locale violations.** en-GB versus en-US is a deployment's choice, not a
+  student's error.
+
+Anything the rule table has never seen is still reported, as `grammar_error`
+at `LOW` — kept, but not guessed into a specific subtype whose analytics would
+then be wrong.
+
+The subtype is derived from LanguageTool's **rule identifier**, which it keeps
+stable, rather than from the message, which is localised and rewritten between
+releases. A year of "the mistakes this class makes most" is grouped by that
+slug.
+
+#### Two things that only show up in production
+
+**The timeout is a total budget, not a per-attempt one.** A three-second
+timeout with one retry would otherwise permit six seconds of waiting, and this
+call happens inside the request that is scoring a submission. Each attempt
+gets whatever is left, so the configured number is the worst case however many
+attempts are made. Only transient failures are retried: a 4xx means the
+request itself is wrong, and repeating it spends the budget to be told so
+again.
+
+**Offsets arrive in UTF-16 code units.** LanguageTool is a Java service, and
+Java counts strings in UTF-16. For ordinary prose that is identical to
+Python's indexing, but one emoji in an answer shifts every subsequent offset
+by one and every highlight after it lands on the wrong words. The conversion
+table is built only when the text actually contains a character outside the
+basic plane, so the common case pays nothing.
+
+#### The grammar figure
+
+`grammar_score` is on `assessment_details` beside the other diagnostic scores,
+and `grammar_accuracy_percentage` and `grammar_issue_count` sit in that row's
+`analyzer_status` metrics. Accuracy is measured per **word** rather than per
+sentence: sentence counts come from the parser's own segmentation, and a
+run-on sentence — itself a grammar finding — would shrink the denominator and
+flatter the answer that contained it.
+
+Only findings that assert a mistake *and* clear the confidence floor count
+against it. Marking a student down for a note captioned "we are not sure about
+this", or for one that explicitly says they did nothing wrong, is the
+contradiction the severity scale exists to prevent.
+
+Answers under 25 words are checked but not scored. One error in six words is
+83% accuracy, and printed beside work a student did well that number says more
+about the answer's length than about its grammar.
+
 ## 7. The supervisor
 
 Every call into an analyzer goes through `app/assessment/supervisor.py`, which:
@@ -352,13 +447,20 @@ endpoints and its own role dependency.
 | Setting | Default | Effect |
 |---|---|---|
 | `ASSESSMENT_ENABLED` | `true` | Master switch. Off is exactly today's behaviour. |
-| `ASSESSMENT_ANALYZERS` | `vocabulary,writing,spelling,sentence,word_usage` | Names, in order. Same idiom as `OCR_PROVIDER_ORDER`. |
+| `ASSESSMENT_ANALYZERS` | `vocabulary,writing,spelling,sentence,word_usage,graph_accuracy,grammar` | Names, in order. Same idiom as `OCR_PROVIDER_ORDER`. |
 | `ASSESSMENT_DARK_ANALYZERS` | *(empty)* | Runs and is stored; shown to nobody. |
 | `ASSESSMENT_TEACHER_ONLY_ANALYZERS` | *(empty)* | Shown to teachers, withheld from students. |
 | `ASSESSMENT_ISSUE_CONFIDENCE_FLOOR` | `0.6` | Below it, recorded but not shown. |
 | `ASSESSMENT_MAX_ISSUES_PER_CATEGORY` | `25` | A wall of corrections teaches nothing. |
 | `ASSESSMENT_ANALYZER_BUDGET_MS` | `250` | Observed; see §6.1. |
-| `GRAMMAR_PROVIDER` | `none` | `none` · `local` · `remote`. |
+| `GRAMMAR_PROVIDER` | `none` | `none` · `local` · `remote`. See §6.5. |
+| `GRAMMAR_HOST` / `GRAMMAR_PORT` | `localhost` / `8081` | Where the local engine listens. |
+| `GRAMMAR_API_URL` | *(empty)* | Base URL. Required for `remote`; overrides host/port for `local`. |
+| `GRAMMAR_TIMEOUT_SECONDS` | `3.0` | **Total** budget for one check, retries included. |
+| `GRAMMAR_MAX_RETRIES` | `1` | Remote only, inside the budget above. Local never retries. |
+| `GRAMMAR_MAX_CHARS` | `20000` | Longer answers are truncated, not refused. |
+| `GRAMMAR_HEALTH_TTL_SECONDS` | `60` | A negative health probe expires, so a late-starting engine recovers. |
+| `GRAMMAR_LANGUAGE` | `en-GB` | Part of the assessment fingerprint — see §3. |
 
 An unknown analyzer name is logged and skipped rather than raising: a typo in
 a deployment's environment must not cost a student the submission that
@@ -428,7 +530,89 @@ product decisions rather than inferred:
 Missing assessment data is rendered as **unavailable**, never as zero. A
 student who was marked before this existed did not score nothing.
 
-## 12. What is built
+## 12. Privacy, deployment and operational limits
+
+Grammar is the first part of this platform that can send a student's writing
+somewhere else, so its constraints are recorded here rather than left to a
+deployment to discover.
+
+### 12.1 Privacy
+
+`GRAMMAR_PROVIDER=remote` posts the student's answer to a third party. That is
+a data-protection decision for whoever runs the institution's deployment, and
+it is why:
+
+- the default is `none`, and neither engine is enabled by an image;
+- `local` exists at all — a LanguageTool container inside your own network
+  gives the same findings with nothing leaving it;
+- nothing about the student travels with the text. No name, no identifier, no
+  submission id, no class. The request carries the answer, the language and a
+  service-level user agent, and nothing else;
+- the endpoint never appears in an issue, a failure detail or anything a
+  teacher's screen renders. Failure messages name the *type* of failure, and
+  `tests/unit/test_grammar_providers.py` asserts the hostname is absent.
+
+### 12.2 Deployment
+
+    docker compose --profile grammar up
+
+starts a LanguageTool container and nothing else changes; set
+`GRAMMAR_PROVIDER=local` to use it. It is deliberately outside the default
+stack: it is a JVM with a few hundred megabytes of dictionaries, which is a
+poor trade for a developer working on the submission pipeline.
+
+n-gram data is not configured. It is several gigabytes and buys confusion-pair
+rules this analyzer does not report anyway.
+
+### 12.3 Operational limitations
+
+Two, both real and both worth stating plainly.
+
+**The check blocks the event loop.** `analyse()` is synchronous and is called
+directly from an async service, so a grammar request occupies the worker for
+its duration — up to `GRAMMAR_TIMEOUT_SECONDS`. With the default provider this
+costs nothing, and with a local engine it is a few tens of milliseconds. With
+a remote engine on a slow link it is the whole budget, and other requests on
+that worker wait. The bounded total budget is what keeps this survivable
+rather than unbounded; moving `analyse()` onto a worker thread is the actual
+fix, and it belongs in a change that can be load-tested on its own rather than
+bundled with a feature. Until then, `remote` in production wants more workers
+than `none` does.
+
+**The health probe is per-process.** Each worker probes and caches
+independently, so an engine that comes back up is noticed within
+`GRAMMAR_HEALTH_TTL_SECONDS` by each worker separately rather than all at
+once.
+
+## 13. Teacher analytics
+
+`AssessmentRepository` carries the aggregation a class report is built from.
+No endpoint exposes it yet — that is the next sprint — but the queries exist,
+are tested against a real database, and obey §11.1:
+
+| Method | Answers |
+|---|---|
+| `issue_frequency(ids, category=…)` | The commonest mistakes, most frequent first. Grouped by `subtype`. |
+| `score_summary(ids, analyzer)` | A mean, **with** the `assessed_count` it was taken over. |
+| `score_series(ids, analyzer)` | Every assessed score with its timestamp, unbucketed. |
+
+`score_summary` returns `average=None` — never `0.0` — when nothing was
+assessed, and rows with a NULL score are excluded from both figures rather
+than averaged in as noughts. A class whose grammar was never checked is not a
+class that scored nothing.
+
+`score_series` is deliberately unbucketed. A trend line's periods are
+boundaries in `PLATFORM_TIMEZONE` — a cohort must roll over together — and
+expressing that in SQL would push a timezone conversion into the database,
+where SQLite and PostgreSQL disagree about how to do it. The service layer
+buckets in the platform's zone, the way every other date already is.
+
+Asking for an analyzer with no score column raises rather than returning
+nothing: answering "no data" for a misspelled name would report a working
+class as one with nothing to show, which is the same lie an empty forbidden
+report tells.
+
+## 14. What is built
 
 `vocabulary` and `writing` are adapters over what the engine already computes,
 and they emit **no issues**. Missing vocabulary is already carried by
@@ -438,8 +622,10 @@ is to put the existing scores into the assessment's shape so a consumer sees
 one complete picture.
 
 `spelling`, `sentence`, `word_usage` and `graph_accuracy` are the analyzers
-that find something. All six run in roughly three milliseconds on a warmed
-process, because they share the parse that has already happened.
+that find something without help. `grammar` finds something when an engine is
+configured, and says so plainly when one is not. The six that need no network
+run in roughly three milliseconds on a warmed process, because they share the
+parse that has already happened.
 
-Still to come: the grammar provider (sprint 18), the integrity engine
-(sprint 19), and the API and analytics surfaces that read any of it.
+Still to come: the integrity engine (sprint 19), and the API and analytics
+surfaces that read any of it.

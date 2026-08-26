@@ -36,12 +36,53 @@ services:
       STORAGE_LOCAL_PATH: /app/storage
       EASYOCR_MODEL_DIR: /opt/easyocr
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      # Diagnostic only, and off unless asked for. `--profile grammar` starts
+      # the engine below; without it this stays "none" and the assessment
+      # simply records that grammar was not checked. Nothing about a score,
+      # an XP award or a leaderboard changes either way.
+      GRAMMAR_PROVIDER: ${GRAMMAR_PROVIDER:-none}
+      GRAMMAR_HOST: ${GRAMMAR_HOST:-languagetool}
+      GRAMMAR_PORT: ${GRAMMAR_PORT:-8010}
+      GRAMMAR_API_URL: ${GRAMMAR_API_URL:-}
+      GRAMMAR_LANGUAGE: ${GRAMMAR_LANGUAGE:-en-GB}
     volumes:
       - uploads_data:/app/storage
     ports:
       - "${API_PORT:-8000}:8000"
     entrypoint: ["/app/scripts/entrypoint.sh"]
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+
+  # Optional, and deliberately not part of the default stack:
+  #
+  #     docker compose --profile grammar up
+  #
+  # It is a JVM with a few hundred megabytes of dictionaries, which is a poor
+  # trade for a developer who is working on the submission pipeline. Run it
+  # and set GRAMMAR_PROVIDER=local to see grammar findings.
+  #
+  # Local rather than the hosted service on purpose: student writing stays
+  # inside the deployment's own network. See
+  # docs/architecture/10-assessment-architecture.md §12.
+  languagetool:
+    image: erikvl87/languagetool:6.4
+    container_name: graphmaster-languagetool
+    profiles: ["grammar"]
+    environment:
+      # No n-gram data: it is several gigabytes and buys confusion-pair rules
+      # this analyzer does not report anyway.
+      langtool_languageModel: ""
+      Java_Xms: 512m
+      Java_Xmx: 1g
+    ports:
+      - "${GRAMMAR_PORT:-8010}:8010"
+    healthcheck:
+      # The same endpoint the provider's own health probe uses, so a container
+      # reporting healthy and a provider reporting available mean one thing.
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8010/v2/languages > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     restart: unless-stopped
 
   web:
