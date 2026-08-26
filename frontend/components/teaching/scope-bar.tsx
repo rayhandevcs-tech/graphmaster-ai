@@ -15,6 +15,10 @@ import { cn } from "@/lib/utils";
  * `scroll-margin-top` from the pages so the browser never parks it out of
  * sight behind this bar.
  *
+ * The two selects share one row on a phone rather than stacking. Stacked, plus
+ * an action button, the bar cost four rows before any content — a teacher on a
+ * phone would scroll past the whole control they came to read.
+ *
  * `summary` is the screen's headline figures in words — "18 of 31 students,
  * 214 marked attempts". It is rendered visibly *and* announced politely,
  * because changing a filter otherwise gives a keyboard or screen-reader user
@@ -41,7 +45,7 @@ export function ScopeBar({
       )}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:items-end">
           {scope.isEmpty ? null : (
             <div className="flex min-w-0 flex-col gap-1 sm:w-56">
               <Label htmlFor="scope-class" className="text-muted-foreground text-xs">
@@ -62,7 +66,7 @@ export function ScopeBar({
             </div>
           )}
 
-          <div className="flex flex-col gap-1 sm:w-44">
+          <div className="flex min-w-0 flex-col gap-1 sm:w-44">
             <Label htmlFor="scope-range" className="text-muted-foreground text-xs">
               Period
             </Label>

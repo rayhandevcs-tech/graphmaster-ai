@@ -14,6 +14,12 @@ import { cn } from "@/lib/utils";
  * cannot support a claim, the sentence says so — `lib/insights/narrate.ts`
  * returns "Not enough marked work yet to show a direction" rather than
  * nothing, because an absent interpretation is itself a finding.
+ *
+ * Grids of these use `items-start` rather than the default stretch. A card
+ * whose answer is one sentence, sat beside one holding a list of eight, would
+ * otherwise be a sentence and six hundred pixels of nothing — the emptier the
+ * finding, the larger the hole. Tops align; bottoms fall where the content
+ * ends.
  */
 export function InsightCard({
   question,
@@ -36,7 +42,7 @@ export function InsightCard({
     <Card className={cn("flex flex-col gap-4 p-6", className)}>
       <h3 className="text-base font-semibold tracking-tight text-balance">{question}</h3>
 
-      <div className="flex flex-col gap-3">{children}</div>
+      <div className="flex flex-1 flex-col justify-center gap-3">{children}</div>
 
       <div className="mt-auto flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <p className="text-muted-foreground max-w-prose text-sm text-pretty">{interpretation}</p>

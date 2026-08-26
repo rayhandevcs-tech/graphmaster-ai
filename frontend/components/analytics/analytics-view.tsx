@@ -162,12 +162,11 @@ export function AnalyticsView() {
             />
           </Reveal>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid items-start gap-4 md:grid-cols-2">
             <Reveal delay={0.1}>
               <InsightCard
                 question="Which words are they reaching for?"
                 interpretation="Counted from the terms the marker detected, never from a re-scan of the answers — a second detector that disagreed with the first would make these figures unusable as evidence."
-                className="h-full"
               >
                 <FindingList
                   findings={(vocabulary.data?.most_used ?? []).slice(0, 8).map((row) => ({
@@ -192,7 +191,6 @@ export function AnalyticsView() {
                     ? describeVocabularyReach(vocabulary.data)
                     : "Loading vocabulary coverage."
                 }
-                className="h-full"
               >
                 <FindingList
                   findings={(vocabulary.data?.least_used ?? []).slice(0, 8).map((row) => ({
@@ -286,7 +284,7 @@ function AnalyticsSkeleton() {
       <Skeleton className="h-9 w-40" />
       <Skeleton className="h-40 rounded-xl" />
       <Skeleton className="h-80 rounded-xl" />
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid items-start gap-4 md:grid-cols-2">
         <Skeleton className="h-64 rounded-xl" />
         <Skeleton className="h-64 rounded-xl" />
       </div>

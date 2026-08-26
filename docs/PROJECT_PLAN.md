@@ -9,7 +9,7 @@ and rewarded
 
 ## 1. Delivery status
 
-**Last updated:** Sprint 12 (the reward layer). The backend is complete, and
+**Last updated:** Sprint 13 (the teaching surfaces). The backend is complete, and
 the student's half of the product is finished — practising, marking, the
 celebrations that answer a result, and the catalogue of what is still to earn.
 Sprints 13–14 build every teacher and administrator screen and the deployment
@@ -20,10 +20,10 @@ pass. See §1.3 for exactly what is left.
 | Item | State |
 |---|---|
 | Backend sprints complete | **9 of 9** core (Sprints 1–9), plus the assessment engine (Sprints 15–20) |
-| Frontend sprints complete | **3 of 5** (Sprints 10–12) |
+| Frontend sprints complete | **4 of 5** (Sprints 10–13) |
 | API endpoints | 81 operations across 65 paths |
-| Application modules | 156 Python files · 144 TypeScript modules |
-| Tests | **1,766 passing** — 1,580 backend (1,576 in the default run, 4 performance budgets behind a marker) and 186 frontend |
+| Application modules | 156 Python files · 189 TypeScript modules |
+| Tests | **1,847 passing** — 1,580 backend (1,576 in the default run, 4 performance budgets behind a marker) and 267 frontend |
 | Coverage | **99%** (target 80%, NFR-5.2) |
 | Migrations | 4, forward-only, upgraded from empty and round-tripped in CI |
 | Lint / format | `ruff` and `black` clean, enforced by CI |
@@ -64,7 +64,6 @@ schema looks the way it does.
 
 | Sprint | Still to build | Depends on |
 |---|---|---|
-| **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management | 12 |
 | **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit | 13 |
 
 Roughly: **the backend is complete and the student's half of the product is
@@ -80,9 +79,16 @@ A result now answers back: the tier plays its sequence, the character reacts,
 XP counts up, a level-up says so, and the catalogue shows what is still to
 earn. Sound is there and muted until asked for.
 
-What is still missing is the staff side — the leaderboard and every teacher and
-administrator screen — and the deployment pass. None of it is blocked on the
-backend.
+The staff side is now built too. A teacher lands on a triage list of the
+students who need them, reads five analytics cards that each answer a question
+rather than display a number, reviews any attempt with the assessment's
+findings marked in the student's own writing, authors graphs by pasting a
+table, curates the vocabulary each one is marked against, and exports what the
+deployment can actually build. An administrator manages roles and accounts.
+Students have a leaderboard that is a board rather than a spreadsheet.
+
+What remains is the deployment pass: production images, hosting guides, and the
+formal accessibility and responsive audit.
 
 ### 1.3a Feature by feature
 
@@ -94,20 +100,20 @@ frontend work — there is no backend gap behind any of it.
 |---|---|---|
 | Registration, login, refresh, roles | ✅ done | ✅ done — including the password-reset screens |
 | Gender → avatar assignment and selection | ✅ done | ✅ done |
-| Vocabulary library, 7 categories | ✅ done | ❌ not started (13) |
-| Graph management, Chart.js data, target curation | ✅ done | ❌ not started (13) |
-| Class management and enrolment | ✅ done | ❌ not started (13) |
+| Vocabulary library, 7 categories | ✅ done | ✅ done — soft delete, derived `is_phrase`, lemma warning |
+| Graph management, Chart.js data, target curation | ✅ done | ✅ done — pasted figures, live preview, publish precondition |
+| Class management and enrolment | ✅ done | ◐ creation and scoping done; enrolment by join code only |
 | Practising: typed answers | ✅ done | ✅ done |
 | Practising: handwriting + OCR preview | ✅ done | ✅ done |
 | Marking: 70/30 scoring, tiers, feedback | ✅ done | ✅ done |
 | Rewards: XP, levels, achievements, badges, streaks | ✅ done | ✅ done — result screen, dashboard, profile and the catalogue |
 | Reward animations (crown / flower / steady / hammer) | n/a | ✅ done — with sound, muted by default |
-| Leaderboards, four scopes | ✅ done | ❌ not started (13) |
-| Analytics: class, platform, vocabulary, trends | ✅ done | ❌ not started (13) |
-| Exports: CSV always, Excel and PDF optional | ✅ done | ❌ not started (13) |
-| Assessment: spelling, sentence, word usage, graph accuracy | ✅ done | ❌ not started (13) |
-| Assessment: grammar (optional engine, off by default) | ✅ done | ❌ not started (13) |
-| Writing consistency (teacher-facing, stage 1 of 3) | ✅ done | ❌ not started (13) |
+| Leaderboards, four scopes | ✅ done | ✅ done — podium, sticky own rank, no tier published |
+| Analytics: class, platform, vocabulary, trends | ✅ done | ✅ done — five question-shaped cards |
+| Exports: CSV always, Excel and PDF optional | ✅ done | ✅ done — capability-gated dialog |
+| Assessment: spelling, sentence, word usage, graph accuracy | ✅ done | ✅ done — findings marked in the student's own text |
+| Assessment: grammar (optional engine, off by default) | ✅ done | ✅ done — reported as not installed, never as clean |
+| Writing consistency (teacher-facing, stage 1 of 3) | ✅ done | ❌ not surfaced — endpoint exists, no screen |
 | Student dashboard, profile and settings | ✅ done | ✅ done |
 | Marking criteria a student may read (`/analysis/rubric`) | ✅ done | ✅ done — the composer's length guide and the settings page |
 | Deployment guides, accessibility and responsive audit | — | ❌ not started (14) |
@@ -332,9 +338,9 @@ conventional commit.
 | ✔ | Sprint | Deliverable |
 |---|---|---|
 | ✅ | **10** | Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui, purple/blue/gold tokens, dark mode, typed API client, auth context and route protection |
-| ☐ | **11** | Landing, login, register (gender + avatar), student dashboard, practice page with live Chart.js rendering, typed editor, handwriting upload with OCR preview, result page, profile, settings |
-| ☐ | **12** | Framer Motion reward sequences (crown+confetti / flower / hammer bonk-dizzy-fall-recovery), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal |
-| ☐ | **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management |
+| ✅ | **11** | Landing, login, register (gender + avatar), student dashboard, practice page with live Chart.js rendering, typed editor, handwriting upload with OCR preview, result page, profile, settings |
+| ✅ | **12** | Framer Motion reward sequences (crown+confetti / flower / hammer bonk-dizzy-fall-recovery), avatar components, sound manager honouring mute and `prefers-reduced-motion`, XP bar, level-up modal |
+| ✅ | **13** | Teacher dashboard, submission review, vocabulary manager, graph manager, export UI, leaderboard (4 scopes), analytics charts, admin user management |
 | ☐ | **14** | Full-stack compose, production Dockerfiles, VPS/Render/Railway/DigitalOcean guides, API docs, README, accessibility and responsive audit |
 
 ---
