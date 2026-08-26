@@ -1,6 +1,8 @@
 "use client";
 
-import { domAnimation, LazyMotion, m } from "framer-motion";
+import { m } from "framer-motion";
+
+import { MotionStage } from "./stage";
 
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 
@@ -40,7 +42,7 @@ export function Reveal({
   const reducedMotion = useReducedMotion();
 
   return (
-    <LazyMotion features={domAnimation} strict>
+    <MotionStage>
       <m.div
         className={className}
         initial={reducedMotion ? false : { opacity: 0, y: 10 }}
@@ -49,6 +51,6 @@ export function Reveal({
       >
         {children}
       </m.div>
-    </LazyMotion>
+    </MotionStage>
   );
 }
