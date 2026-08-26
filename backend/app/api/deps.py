@@ -10,6 +10,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.exceptions import (
     AccountInactiveError,
     InsufficientRoleError,
@@ -41,6 +42,7 @@ from app.repositories.vocabulary import (
 )
 from app.services.analysis import AnalysisService
 from app.services.analytics import AnalyticsService
+from app.services.assessment import AssessmentService
 from app.services.auth import AuthService
 from app.services.class_ import ClassService
 from app.services.gamification import GamificationService
@@ -213,6 +215,15 @@ def get_submission_service(
     return SubmissionService(submissions, graph_service, analysis, ocr, gamification, assessments)
 
 
+def get_assessment_service(
+    assessments: AssessmentRepo,
+    analytics_repo: AnalyticsRepo,
+    submissions: SubmissionSvc,
+    analytics: AnalyticsSvc,
+) -> AssessmentService:
+    return AssessmentService(assessments, analytics_repo, submissions, analytics, get_settings())
+
+
 def get_ocr_service() -> OCRService:
     # Both dependencies are process-wide singletons: the chain holds the
     # loaded recognition models, and rebuilding either per request would add
@@ -232,6 +243,7 @@ LeaderboardSvc = Annotated[LeaderboardService, Depends(get_leaderboard_service)]
 AnalyticsSvc = Annotated[AnalyticsService, Depends(get_analytics_service)]
 ReportSvc = Annotated[ReportService, Depends(get_report_service)]
 SubmissionSvc = Annotated[SubmissionService, Depends(get_submission_service)]
+AssessmentSvc = Annotated[AssessmentService, Depends(get_assessment_service)]
 
 
 # ── Authentication ───────────────────────────────────────────────────────────

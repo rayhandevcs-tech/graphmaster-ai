@@ -211,6 +211,64 @@ read the preview carefully.
 | GET | `/analysis/graphs/{id}/targets` | The target set a submission would be scored against | T A |
 | POST | `/analysis/graphs/{id}/preview` | Score arbitrary text against a graph, recording nothing | T A |
 
+### 3.6d Assessment — what the student should do differently
+
+The scoring surface answers *what was this worth*. This one answers *what went
+wrong, where, and why*.
+
+| Method | Path | Description | Roles |
+|---|---|---|---|
+| GET | `/assessment/submissions/{id}` | One submission's findings, **filtered by audience** | S T A |
+| GET | `/assessment/issues` | The commonest mistakes across a class | T A |
+| GET | `/assessment/scores` | Every analyzer's mean, with the count behind each | T A |
+| GET | `/assessment/trend/{analyzer}` | One analyzer's score over time | T A |
+| GET | `/assessment/submissions/{id}/consistency` | How a submission sits against the student's own history | T A |
+
+**The audience filter is the point of this surface.** A student receives only
+the analyzers promoted all the way to them; staff receive everything except
+what is still in a dark rollout. Withheld analyzers are *absent* from the
+payload rather than blanked — the response is assembled from the visible ones,
+so a field added to a schema later cannot carry through something withheld.
+
+The decision comes from the audiences recorded on the row when the work was
+marked, never from the server's current rollout stage. A stage that has since
+moved must not retroactively reveal what was dark at the time.
+
+A submission with no assessment is `404`, not an empty assessment: an empty one
+would claim the work was checked and nothing found. A submission the caller may
+not read is also `404` rather than `403`, so the error code does not confirm
+that another student's work exists.
+
+The three class reads are teacher-facing and take `class_id`, `date_from`,
+`date_to`. A teacher must name a class — the unscoped view is an
+administrator's. A class the caller does not teach is `403`, refused rather
+than returned empty (FR-11.6).
+
+Two rules govern every figure, and both are approved product decisions rather
+than implementation details:
+
+1. **Every metric reports the count it was taken over.** No submission marked
+   before the engine existed carries an assessment and there is no backfill,
+   so every average is over a subset. `assessed_count` sits beside
+   `submission_count` for that reason, and the counts differ *between*
+   analyzers — a server with no grammar engine reports `assessed_count: 0` and
+   `average: null` for grammar while spelling covers the cohort.
+2. **A trend line breaks where that count is zero.** Periods with nothing
+   assessed are absent from `points` rather than present with a zero.
+   Interpolating would draw a step change on the day the engine was switched
+   on and render it as a sudden improvement in the class.
+
+`GET /assessment/submissions/{id}/consistency` is measurement, not judgement.
+It returns no probability that text was machine-generated, no authorship
+decision, and no risk value under any name; there is no composite across the
+measures, no threshold and no ordering of students. A `baseline` is `null` —
+never zero, never "consistent" — until the student has enough comparable prior
+submissions, which is the normal state for most of a term. `excluded` reports
+how many prior submissions each comparability gate set aside and why. The
+response carries its own limitations in the payload rather than in a help page,
+because they change how every figure should be read. It is `503` on a
+deployment that has not enabled the comparison layer.
+
 `GET /analysis/engine`:
 
 ```json

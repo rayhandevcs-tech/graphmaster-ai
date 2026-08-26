@@ -109,12 +109,88 @@ export interface AnalyticsReport {
   average_word_count: number;
   reward_tier_distribution: Record<string, number>;
   engagement: EngagementOut;
-  trend: TrendPoint[];
+  trend: app__schemas__analytics__TrendPoint[];
   /** Empty for the platform scope, which has no roster */
   students?: StudentRow[];
 }
 
 export type AnalyticsScope = "platform" | "class" | "student";
+
+export interface AnalyzerScoreReport {
+  scope: string;
+  class_id?: UUID | null;
+  submission_count: number;
+  summaries?: AnalyzerScoreSummary[];
+}
+
+/** One analyzer's mean, with the count it was taken over. */
+export interface AnalyzerScoreSummary {
+  analyzer: string;
+  assessed_count: number;
+  /** Null — never zero — when nothing in scope was assessed for this analyzer. A class whose grammar was never checked is not one that scored nothing. */
+  average?: number | null;
+}
+
+/** How one analyzer's run ended, and what it measured. */
+export interface AnalyzerStatusOut {
+  /** `ok`, `unavailable` (not configured on this server), `skipped`, or `failed`. `unavailable` and `failed` are deliberately different: the first is a deployment fact and the second is a fault. */
+  status: string;
+  /** 0-100 diagnostic figure. Null where the analyzer produces none. */
+  score?: number | null;
+  issue_count?: number;
+  duration_ms?: number;
+  metrics?: Record<string, number>;
+}
+
+export interface AnalyzerTrendReport {
+  scope: string;
+  class_id?: UUID | null;
+  analyzer: string;
+  interval: string;
+  /** Periods roll over together in this zone. */
+  timezone: string;
+  points?: app__schemas__assessment__TrendPoint[];
+}
+
+/** One finding, located in the student's own text. */
+export interface AssessmentIssueOut {
+  category: string;
+  /** Stable slug, and the grouping key for class analytics. */
+  subtype: string;
+  /** `info` is a preference, not a mistake. */
+  severity: string;
+  original_text: string;
+  /** Null where there is no single right answer. */
+  suggested_text?: string | null;
+  explanation: string;
+  /** Half-open, into the submitted answer: `answer_text[start:end]` is the span. */
+  start_index: number;
+  end_index: number;
+  confidence: number;
+  /** Which analyzer found it. Never names a provider. */
+  analyzer: string;
+}
+
+/** One submission's assessment, filtered to what the caller may see. */
+export interface AssessmentResponse {
+  submission_id: UUID;
+  assessment_version: string;
+  /** `complete`, `partial` (an analyzer failed), or `pending`. */
+  status: string;
+  /** Issues shown to this caller. */
+  issue_count: number;
+  /** Of those, the ones asserting a mistake. */
+  error_count: number;
+  /** Found but below this server's confidence floor. Counted, not shown. */
+  suppressed_count: number;
+  /** Categories where the per-submission cap dropped issues. */
+  truncated_categories?: string[];
+  /** Per-analyzer diagnostic scores. Null means the analyzer did not run here, which is a different fact from a score of zero. */
+  scores?: Record<string, number | null>;
+  analyzers?: Record<string, AnalyzerStatusOut>;
+  issues?: AssessmentIssueOut[];
+  assessed_at: DateTimeString;
+}
 
 /** Returned by register and login. */
 export interface AuthResponse {
@@ -173,6 +249,17 @@ export interface BadgeOut {
   icon: string;
   reward_tier: RewardTier;
   earned_count: number;
+}
+
+/** What one measure has looked like for this student until now. */
+export interface BaselineOut {
+  mean: number;
+  /** Population standard deviation. Never divided into anything. */
+  spread: number;
+  /** Comparable prior submissions this was built from. */
+  n: number;
+  lowest: number;
+  highest: number;
 }
 
 /** Per-category vocabulary usage (FR-6.11). */
@@ -290,6 +377,31 @@ export interface ClassUpdate {
   name?: string | null;
   description?: string | null;
   is_active?: boolean | null;
+}
+
+/**
+ * How one submission's measurements sit against the student's own history.
+ *
+ * Observations for a teacher to read. The system draws no conclusion from
+ * them, and two limits belong beside them wherever they are shown: the
+ * platform's own feedback is the largest cause of the changes it measures,
+ * and a settled profile is not evidence of anything, because a baseline can
+ * itself be assisted.
+ */
+export interface ConsistencyResponse {
+  submission_id: UUID;
+  student_id: UUID;
+  /** The comparison's version. Nothing is stored. */
+  model_version: string;
+  /** Prior submissions that passed every gate. */
+  compared_count: number;
+  /** Prior submissions looked at, gates included. */
+  considered_count: number;
+  /** How many prior submissions each gate excluded, and why. */
+  excluded?: Record<string, number>;
+  changes?: MeasureChangeOut[];
+  /** Shown with the figures, not in a help page. */
+  limitations?: string[];
 }
 
 export interface DetectedTermOut {
@@ -464,6 +576,23 @@ export interface HTTPValidationError {
 
 export type InputMethod = "typed" | "handwriting";
 
+export interface IssueFrequencyEntry {
+  subtype: string;
+  occurrences: number;
+}
+
+/** The commonest mistakes across a set of submissions. */
+export interface IssueFrequencyReport {
+  scope: string;
+  class_id?: UUID | null;
+  /** Submissions in scope that actually carry an assessment. */
+  assessed_count: number;
+  /** Submissions in scope, assessed or not. */
+  submission_count: number;
+  entries?: IssueFrequencyEntry[];
+  counts_by_category?: Record<string, number>;
+}
+
 /**
  * One ranked student.
  *
@@ -546,6 +675,16 @@ export interface LevelProgress {
 export interface LoginRequest {
   email: string;
   password: string;
+}
+
+export interface MeasureChangeOut {
+  measure: string;
+  /** Null where this submission has no figure for the measure. */
+  current?: number | null;
+  /** Null when there are too few comparable prior submissions — the normal state for most of a term. Renders as 'no baseline yet', never as zero and never as 'consistent'. */
+  baseline?: BaselineOut | null;
+  /** Current minus the baseline mean, in the measure's own units. Not a z-score. */
+  difference?: number | null;
 }
 
 /** A plain acknowledgement for endpoints with nothing to return. */
@@ -757,7 +896,7 @@ export interface StudentDashboard {
   achievements: AchievementOut[];
   badges: BadgeOut[];
   recent_activity: RecentActivity[];
-  score_trend: TrendPoint[];
+  score_trend: app__schemas__analytics__TrendPoint[];
 }
 
 /** One student's rollup within a class report. */
@@ -892,21 +1031,13 @@ export interface TokenPair {
   expires_in: number;
 }
 
-/** One bucket of the score trend (FR-10.5, FR-12.4). */
-export interface TrendPoint {
-  date: DateString;
-  submission_count: number;
-  average_final_score: number;
-  average_vocabulary_percentage: number;
-}
-
 export interface TrendReport {
   scope: AnalyticsScope;
   class_id?: UUID | null;
   granularity: string;
   date_from?: DateString | null;
   date_to?: DateString | null;
-  points: TrendPoint[];
+  points: app__schemas__analytics__TrendPoint[];
 }
 
 /** A row in the administrator's user list. */
@@ -1117,6 +1248,22 @@ export interface XPEventOut {
 }
 
 export type XPReason = "submission" | "high_score_bonus" | "streak_bonus" | "achievement" | "manual_adjustment";
+
+/** One bucket of the score trend (FR-10.5, FR-12.4). */
+export interface app__schemas__analytics__TrendPoint {
+  date: DateString;
+  submission_count: number;
+  average_final_score: number;
+  average_vocabulary_percentage: number;
+}
+
+/** One period of a trend line. */
+export interface app__schemas__assessment__TrendPoint {
+  period: DateString;
+  assessed_count: number;
+  /** Null where nothing in the period was assessed. The line **breaks** here; it is never interpolated, because bridging the gap would draw a step change on the day the engine was switched on and read as a real one. */
+  average?: number | null;
+}
 
 
 

@@ -245,6 +245,20 @@ class AnalysisEngineUnavailableError(ServiceUnavailableError):
     message = "The language model needed for scoring is not installed on this server."
 
 
+class ConsistencyUnavailableError(ServiceUnavailableError):
+    """Writing-consistency analytics are switched off on this deployment.
+
+    A 503 rather than an empty result, for the same reason a missing export
+    library is: an empty comparison and a switched-off one look identical to
+    the caller, and only the first is a fact about the student. Reported this
+    way, a caller knows the same request against a server with the feature
+    enabled would answer.
+    """
+
+    code = "CONSISTENCY_UNAVAILABLE"
+    message = "Writing-consistency analytics are not enabled on this server."
+
+
 # ── 429 ──────────────────────────────────────────────────────────────────────
 
 

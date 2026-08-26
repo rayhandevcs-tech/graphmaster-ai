@@ -1,10 +1,9 @@
 # Assessment Architecture
 
-> **Revision 1.4** — the framework (Sprint 15), the first three diagnostic
+> **Revision 1.5** — the framework (Sprint 15), the first three diagnostic
 > analyzers and their storage (Sprint 16), graph accuracy (Sprint 17), the
-> grammar provider chain (Sprint 18), and writing consistency (Sprint 19). The
-> API surface is proposed but not yet built; no endpoint in this document
-> exists.
+> grammar provider chain (Sprint 18), writing consistency (Sprint 19), and the
+> read surface (Sprint 20). Every endpoint described here now exists.
 
 ## 1. What this package is for
 
@@ -866,13 +865,55 @@ being written, stored ones become inert data in a JSON blob nothing reads,
 "no baseline". No data loss and no migration to reverse — the dividend of
 storing nothing but measurements.
 
-### 15.9 No endpoint
+### 15.9 The endpoint
 
-Sprint 19 ships the analyzer, the comparison functions, the repository read
-and the tests. It ships **no route, no schema and no frontend**.
+Sprint 19 deliberately shipped no route: `for_audience()` had no call site,
+and the first endpoint to read assessment data had to be the one that wired
+it — for every analyzer at once, rather than a consistency-only surface that
+would have wired the filter twice with two chances to get it wrong.
 
-`AssessmentResult.for_audience()` has no call site in the application today,
-because nothing reads assessment data over HTTP yet. The first endpoint that
-does must wire it, and that is the general assessment read surface. Building a
-consistency-only endpoint first would wire the audience filter twice, in two
-places, with two chances to get it wrong.
+Sprint 20 built that surface, and
+`GET /assessment/submissions/{id}/consistency` came with it. It is
+teacher-facing, `503` where the deployment has not enabled the comparison
+layer, and `404` where the submission carries no profile — an empty comparison
+would read as "this student has no history" rather than "nothing was measured
+here". See §16.
+
+## 16. The read surface
+
+Built in Sprint 20. Five endpoints under `/assessment`, described in
+`04-api-design.md` §3.6d; this section covers the two decisions behind them.
+
+### 16.1 One filter, two callers
+
+`AssessmentResult.for_audience()` filters the result a scoring request has
+just built. The service filters a row read back weeks later. **Both call the
+same predicate**, in `app/assessment/audience.py`, because a rule that is
+right in one and wrong in the other is a leak nobody notices: the live path is
+the one every engine test exercises, and the stored path is the one a person
+actually reads from. A unit test asserts the two agree for every audience.
+
+Filtering is applied on the way *into* the schema, so the withheld analyzers
+are absent from the payload rather than serialised and blanked. That covers
+the per-analyzer score columns too — `spelling_score` and its siblings are a
+second copy of what `analyzer_status` holds, and a dark analyzer whose column
+came through would publish exactly the figure the stage exists to withhold.
+
+An audience the running build cannot parse resolves to `dark`. The row cannot
+say who was meant to see that analyzer, and the honest answer to "who may see
+this" when the record does not say is nobody.
+
+### 16.2 Access is delegated, never restated
+
+Whose assessment a caller may read is exactly whose submission they may read,
+so the service calls `SubmissionService.get_for` and inherits the rule —
+including its `404`-not-`403` for another student's work, which keeps the
+error code from confirming that the submission exists.
+
+The class reads reuse `AnalyticsService.require_class` for the same reason. A
+class the caller does not teach is refused rather than returned empty, and
+that rule needs exactly one home.
+
+`AnalyticsRepository.scored_submission_ids` is the bridge between the two
+layers: a window resolves to ids there, and `AssessmentRepository` answers
+questions about a set of ids without knowing what a class is.
