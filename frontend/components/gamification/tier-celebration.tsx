@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { m } from "framer-motion";
-import { Crown, Hammer, RotateCcw, SkipForward } from "lucide-react";
+import { Crown, Hammer, RotateCcw, SkipForward, Volume2, VolumeX } from "lucide-react";
 
 import { AvatarCharacter, type Expression } from "@/components/avatars/character";
 import { MotionStage } from "@/components/motion/stage";
@@ -10,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { useSequence, type SequenceState } from "@/lib/motion/use-sequence";
 import { HAMMER_MESSAGE, HAMMER_RECOVERY, TIER_STORYBOARDS } from "@/lib/motion/storyboards";
 import { DURATION, EASE, SPRING, SPRING_SOFT } from "@/lib/motion/tokens";
+import { useSound } from "@/lib/sound/use-sound";
+import type { Cue } from "@/lib/sound/cues";
 import { cn } from "@/lib/utils";
 import type { RewardTier } from "@/types/api";
 
@@ -44,6 +47,16 @@ export function TierCelebration({
   className?: string;
 }) {
   const sequence = useSequence(TIER_STORYBOARDS[tier]);
+  const { play } = useSound();
+  const { beatId } = sequence;
+
+  // One cue per tier, fired as its beat arrives. `playCue` is a no-op while
+  // sound is off, which is the default — so this runs on every celebration and
+  // is silent for almost all of them.
+  useEffect(() => {
+    const [cue, beat] = CUES_BY_TIER[tier];
+    if (beatId === beat) play(cue);
+  }, [beatId, tier, play]);
 
   return (
     <MotionStage>
@@ -55,6 +68,20 @@ export function TierCelebration({
     </MotionStage>
   );
 }
+
+/**
+ * The cue each tier plays, and the beat it plays on.
+ *
+ * The sound lands *with* the visual event rather than at the start of the
+ * sequence: the crown's fanfare on the confetti, the hammer's blip on the
+ * contact. A cue that leads its picture reads as a different sound entirely.
+ */
+const CUES_BY_TIER: Record<RewardTier, [Cue, string]> = {
+  crown: ["victory", "confetti"],
+  flower: ["chime", "spin"],
+  steady: ["soft", "nod"],
+  hammer: ["bonk", "bonk"],
+};
 
 function Stage({
   tier,
