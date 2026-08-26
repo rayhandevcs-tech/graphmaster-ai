@@ -34,19 +34,19 @@ export function StatTiles({ dashboard }: { dashboard: StudentDashboard }) {
         icon={TrendingUp}
         label="Average score"
         value={marked ? dashboard.average_score : null}
-        format={(value) => formatPercent(value)}
+        format={(value) => formatPercent(value, 0)}
       />
       <StatTile
         icon={Trophy}
         label="Best score"
         value={marked ? dashboard.highest_score : null}
-        format={(value) => formatPercent(value)}
+        format={(value) => formatPercent(value, 0)}
       />
       <StatTile
         icon={Target}
         label="Target words used"
         value={marked ? dashboard.average_vocabulary_percentage : null}
-        format={(value) => formatPercent(value)}
+        format={(value) => formatPercent(value, 0)}
       />
     </div>
   );

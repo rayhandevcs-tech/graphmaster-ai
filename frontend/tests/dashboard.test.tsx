@@ -65,9 +65,11 @@ describe("the headline figures", () => {
     render(<StatTiles dashboard={dashboard()} />);
 
     expect(screen.getByText("6")).toBeInTheDocument();
-    expect(screen.getByText("68.4%")).toBeInTheDocument();
-    expect(screen.getByText("81.0%")).toBeInTheDocument();
-    expect(screen.getByText("62.5%")).toBeInTheDocument();
+    // Whole numbers: a decimal place on a 30px dashboard figure carries no
+    // decision and costs the tile its scannability.
+    expect(screen.getByText("68%")).toBeInTheDocument();
+    expect(screen.getByText("81%")).toBeInTheDocument();
+    expect(screen.getByText("63%")).toBeInTheDocument();
   });
 });
 

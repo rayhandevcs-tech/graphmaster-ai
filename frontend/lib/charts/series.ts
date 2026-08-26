@@ -86,7 +86,9 @@ export function chooseGranularity(from: DateString, to: DateString): Granularity
   if (!start || !end) return "day";
 
   const days = Math.round((end.getTime() - start.getTime()) / DAY_MS) + 1;
-  if (days <= 45) return "day";
+  // 31 rather than 45: a 30-day range prints 30 date labels, which is legible
+  // at 1440px and cramped by 768. Weekly at a month keeps every width readable.
+  if (days <= 31) return "day";
   if (days <= 365) return "week";
   return "month";
 }

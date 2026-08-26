@@ -29,7 +29,9 @@ export function HeroPanel({ user, dashboard }: { user: UserProfile; dashboard: S
   return (
     <section
       className={cn(
-        "from-primary/10 via-primary/5 to-secondary/10 relative overflow-hidden rounded-2xl",
+        // `rounded-xl`, like every other card. The hero is already distinct by
+        // its gradient; a second radius made it distinct by accident too.
+        "from-primary/10 via-primary/5 to-secondary/10 relative overflow-hidden rounded-xl",
         "border bg-gradient-to-br p-6 sm:p-8",
       )}
     >

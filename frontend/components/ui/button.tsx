@@ -15,7 +15,10 @@ const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium " +
     "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
     "focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none " +
-    "disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+    // A washed `primary` still scans as a live call to action — the submit
+    // button on the practice page looked pressable with an empty answer.
+    // Disabled means muted, not faded.
+    "disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 disabled:shadow-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {

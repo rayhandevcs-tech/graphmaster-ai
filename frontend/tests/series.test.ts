@@ -77,6 +77,8 @@ describe("calendar buckets", () => {
 describe("choosing a granularity", () => {
   it("keeps a short range daily and a long one coarser", () => {
     expect(chooseGranularity("2026-08-01", "2026-08-30")).toBe("day");
+    // A month is the last daily range; past it the labels stop being readable.
+    expect(chooseGranularity("2026-08-01", "2026-09-10")).toBe("week");
     expect(chooseGranularity("2026-06-01", "2026-08-30")).toBe("week");
     expect(chooseGranularity("2024-06-01", "2026-08-30")).toBe("month");
   });
