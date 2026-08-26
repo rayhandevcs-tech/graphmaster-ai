@@ -98,7 +98,6 @@ export function TeacherDashboard() {
               )
             : undefined
         }
-        actions={<CreateClassDialog />}
       />
 
       {report.isError ? (
@@ -117,9 +116,9 @@ export function TeacherDashboard() {
       ) : (
         <div className={stale ? "opacity-60 transition-opacity" : "transition-opacity"}>
           <div className="flex flex-col gap-6">
-            <section className="grid gap-4 lg:grid-cols-3">
+            <section className="grid items-start gap-4 lg:grid-cols-3">
               <Reveal className="lg:col-span-2">
-                <AttentionPanel students={data.students ?? []} className="h-full" />
+                <AttentionPanel students={data.students ?? []} />
               </Reveal>
 
               <Reveal delay={0.06}>
@@ -127,7 +126,7 @@ export function TeacherDashboard() {
               </Reveal>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-2">
+            <section className="grid items-start gap-4 md:grid-cols-2">
               <Reveal delay={0.1}>
                 <InsightCard
                   question="What is worth a lesson?"
@@ -146,7 +145,6 @@ export function TeacherDashboard() {
                       </Link>
                     </Button>
                   }
-                  className="h-full"
                 >
                   <FindingList
                     findings={(issues.data?.entries ?? []).map((entry) => ({
@@ -176,7 +174,6 @@ export function TeacherDashboard() {
                       </Link>
                     </Button>
                   }
-                  className="h-full"
                 >
                   <FindingList
                     findings={(vocabulary.data?.least_used ?? []).slice(0, 5).map((row) => ({
@@ -200,11 +197,14 @@ export function TeacherDashboard() {
 
 function Heading() {
   return (
-    <div className="flex flex-col gap-1">
-      <h1 className="text-2xl font-semibold tracking-tight">Teaching</h1>
-      <p className="text-muted-foreground text-sm">
-        Computed now, from the work your students have had marked.
-      </p>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Teaching</h1>
+        <p className="text-muted-foreground text-sm">
+          Computed now, from the work your students have had marked.
+        </p>
+      </div>
+      <CreateClassDialog />
     </div>
   );
 }
@@ -220,17 +220,24 @@ function ClassFigures({ report, range }: { report: AnalyticsReport; range: strin
   const trend = readTrend(report.trend);
 
   return (
-    <Card className="flex h-full flex-col gap-5 p-6">
+    <Card className="flex flex-col gap-5 p-6">
       <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{range}</h2>
 
-      <Metric
-        label="Practising"
-        value={`${Math.round(report.engagement.participation_rate)}%`}
-        detail={`${formatCount(report.active_student_count)} of ${formatCount(
-          report.enrolled_student_count,
-        )} enrolled`}
-        emphasis="lg"
-      />
+      <div className="flex flex-col gap-2">
+        <Metric
+          label="Practising"
+          value={`${Math.round(report.engagement.participation_rate)}%`}
+          detail={`${formatCount(report.active_student_count)} of ${formatCount(
+            report.enrolled_student_count,
+          )} enrolled`}
+          emphasis="lg"
+        />
+        {/* Beside the figure it explains rather than orphaned at the foot of
+            the card, where a stretched column left it floating. */}
+        <p className="text-muted-foreground text-xs text-pretty">
+          {describeParticipation(report.engagement)}
+        </p>
+      </div>
 
       <div className="flex flex-col gap-2 border-t pt-4">
         <Metric
@@ -257,10 +264,6 @@ function ClassFigures({ report, range }: { report: AnalyticsReport; range: strin
           emphasis="md"
         />
       </div>
-
-      <p className="text-muted-foreground mt-auto text-xs text-pretty">
-        {describeParticipation(report.engagement)}
-      </p>
     </Card>
   );
 }
