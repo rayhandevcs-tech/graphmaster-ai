@@ -32,7 +32,7 @@ from app.models.enums import (
 
 if TYPE_CHECKING:
     from app.models.assessment import AssessmentDetail
-    from app.models.content import Graph
+    from app.models.content import Assignment, Graph
     from app.models.gamification import UserBadge, XPEvent
     from app.models.identity import User
 
@@ -45,6 +45,21 @@ class Submission(Base, UUIDPrimaryKeyMixin):
     user_id: Mapped[uuid.UUID] = mapped_column(
         GUID, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
+    #: The assignment this was done for, when it was done for one.
+    #:
+    #: **Nullable, and that is the design.** Free practice is the core loop: a
+    #: student who picks a graph from the library creates a submission with no
+    #: assignment, and nothing about scoring, XP, tiers or the leaderboard
+    #: changes. An assignment only labels work that was done for one.
+    #:
+    #: Set once, at creation, and never updated — a scored submission is frozen
+    #: (rule 19), and re-pointing one at a different assignment would move a
+    #: mark between two pieces of work. ``SET NULL`` rather than cascade,
+    #: because deleting an assignment must never delete a student's writing.
+    assignment_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID, ForeignKey("assignments.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     graph_id: Mapped[uuid.UUID] = mapped_column(
         GUID, ForeignKey("graphs.id", ondelete="RESTRICT"), nullable=False
     )
@@ -78,6 +93,7 @@ class Submission(Base, UUIDPrimaryKeyMixin):
 
     user: Mapped[User] = relationship(back_populates="submissions")
     graph: Mapped[Graph] = relationship(back_populates="submissions")
+    assignment: Mapped[Assignment | None] = relationship(back_populates="submissions")
     score: Mapped[Score | None] = relationship(
         back_populates="submission", cascade="all, delete-orphan", uselist=False
     )
