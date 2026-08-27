@@ -52,6 +52,7 @@ class SubmissionRepository(BaseRepository[Submission]):
                 selectinload(Submission.graph),
                 selectinload(Submission.score),
                 selectinload(Submission.user),
+                selectinload(Submission.assignment),
             )
         )
         return (await self.db.execute(stmt)).scalar_one_or_none()
@@ -73,7 +74,12 @@ class SubmissionRepository(BaseRepository[Submission]):
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
     async def reusable_draft(
-        self, *, user_id: uuid.UUID, graph_id: uuid.UUID, input_method: InputMethod
+        self,
+        *,
+        user_id: uuid.UUID,
+        graph_id: uuid.UUID,
+        input_method: InputMethod,
+        assignment_id: uuid.UUID | None = None,
     ) -> Submission | None:
         """An untouched draft this student already opened for this graph.
 
@@ -81,6 +87,13 @@ class SubmissionRepository(BaseRepository[Submission]):
         double-taps "Start practice" gets the same row back instead of
         littering the table with abandoned attempts, but a draft they have
         actually put work into is never silently handed to a second attempt.
+
+        The assignment has to match as well, and ``IS NULL`` when there is
+        none. ``assignment_id`` is set once at creation and never updated
+        (rule 19), so handing a free-practice draft back to a student who
+        opened the same graph *from an assignment* would file the attempt
+        against nothing — the work would be done and the task would still read
+        as not started.
         """
         stmt = (
             select(Submission)
@@ -91,6 +104,9 @@ class SubmissionRepository(BaseRepository[Submission]):
                 Submission.status == SubmissionStatus.DRAFT.value,
                 Submission.answer_text.is_(None),
                 Submission.original_image_path.is_(None),
+                Submission.assignment_id.is_(None)
+                if assignment_id is None
+                else Submission.assignment_id == assignment_id,
             )
             .order_by(Submission.submitted_at.desc())
             .limit(1)

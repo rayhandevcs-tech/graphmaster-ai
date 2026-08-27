@@ -33,6 +33,11 @@ class SubmissionCreate(BaseModel):
         default=InputMethod.TYPED,
         description="`typed` to write in the browser, `handwriting` to photograph a page",
     )
+    assignment_id: uuid.UUID | None = Field(
+        default=None,
+        description="The assignment this attempt is for. Omit for free practice — "
+        "scoring, XP, tiers and the leaderboard are identical either way.",
+    )
 
 
 class SubmissionTextUpdate(BaseModel):
@@ -108,6 +113,10 @@ class SubmissionDetail(BaseModel):
     graph_id: uuid.UUID
     graph_title: str | None = None
     graph_type: GraphType | None = None
+    assignment_id: uuid.UUID | None = Field(
+        default=None, description="Null for free practice, which is most of them"
+    )
+    assignment_title: str | None = None
     user_id: uuid.UUID
     student_name: str | None = None
     input_method: InputMethod

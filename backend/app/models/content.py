@@ -25,7 +25,7 @@ from app.db.types import GUID, JSONType
 from app.models.enums import Difficulty, GraphType, values
 
 if TYPE_CHECKING:
-    from app.models.identity import User
+    from app.models.identity import Class, User
     from app.models.submission import Submission
 
 
@@ -204,6 +204,7 @@ class Assignment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
+    class_: Mapped[Class] = relationship()
     graph: Mapped[Graph] = relationship()
     submissions: Mapped[list[Submission]] = relationship(back_populates="assignment")
 

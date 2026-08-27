@@ -23,6 +23,7 @@ from app.models.identity import User
 from app.ocr.factory import get_ocr_chain
 from app.repositories.analytics import AnalyticsRepository
 from app.repositories.assessment import AssessmentRepository
+from app.repositories.assignment import AssignmentRepository
 from app.repositories.auth_session import AuthSessionRepository
 from app.repositories.avatar import AvatarRepository
 from app.repositories.class_ import ClassRepository
@@ -43,6 +44,7 @@ from app.repositories.vocabulary import (
 from app.services.analysis import AnalysisService
 from app.services.analytics import AnalyticsService
 from app.services.assessment import AssessmentService
+from app.services.assignment import AssignmentService
 from app.services.auth import AuthService
 from app.services.class_ import ClassService
 from app.services.gamification import GamificationService
@@ -93,6 +95,10 @@ def get_class_repository(db: DbSession) -> ClassRepository:
     return ClassRepository(db)
 
 
+def get_assignment_repository(db: DbSession) -> AssignmentRepository:
+    return AssignmentRepository(db)
+
+
 def get_assessment_repository(db: DbSession) -> AssessmentRepository:
     return AssessmentRepository(db)
 
@@ -134,6 +140,7 @@ VocabCategoryRepo = Annotated[
 VocabItemRepo = Annotated[VocabularyItemRepository, Depends(get_vocabulary_item_repository)]
 GraphRepo = Annotated[GraphRepository, Depends(get_graph_repository)]
 ClassRepo = Annotated[ClassRepository, Depends(get_class_repository)]
+AssignmentRepo = Annotated[AssignmentRepository, Depends(get_assignment_repository)]
 SubmissionRepo = Annotated[SubmissionRepository, Depends(get_submission_repository)]
 AssessmentRepo = Annotated[AssessmentRepository, Depends(get_assessment_repository)]
 XPRepo = Annotated[XPRepository, Depends(get_xp_repository)]
@@ -167,6 +174,12 @@ def get_graph_service(graphs: GraphRepo, items: VocabItemRepo) -> GraphService:
 
 def get_class_service(classes: ClassRepo, users: UserRepo) -> ClassService:
     return ClassService(classes, users)
+
+
+def get_assignment_service(
+    assignments: AssignmentRepo, classes: ClassRepo, graphs: GraphRepo, users: UserRepo
+) -> AssignmentService:
+    return AssignmentService(assignments, classes, graphs, users)
 
 
 def get_analysis_service(
@@ -211,8 +224,17 @@ def get_submission_service(
     ocr: OCRSvc,
     gamification: GamificationSvc,
     assessments: AssessmentRepo,
+    assignments: AssignmentSvc,
 ) -> SubmissionService:
-    return SubmissionService(submissions, graph_service, analysis, ocr, gamification, assessments)
+    return SubmissionService(
+        submissions,
+        graph_service,
+        analysis,
+        ocr,
+        gamification,
+        assessments,
+        assignments=assignments,
+    )
 
 
 def get_assessment_service(
@@ -236,6 +258,7 @@ UserSvc = Annotated[UserService, Depends(get_user_service)]
 VocabularySvc = Annotated[VocabularyService, Depends(get_vocabulary_service)]
 GraphSvc = Annotated[GraphService, Depends(get_graph_service)]
 ClassSvc = Annotated[ClassService, Depends(get_class_service)]
+AssignmentSvc = Annotated[AssignmentService, Depends(get_assignment_service)]
 OCRSvc = Annotated[OCRService, Depends(get_ocr_service)]
 AnalysisSvc = Annotated[AnalysisService, Depends(get_analysis_service)]
 GamificationSvc = Annotated[GamificationService, Depends(get_gamification_service)]

@@ -40,7 +40,7 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.logging import get_logger
-from app.models.content import Graph
+from app.models.content import Assignment, Graph
 from app.models.enums import InputMethod, SubmissionStatus
 from app.models.identity import User
 from app.models.submission import Score, Submission
@@ -49,6 +49,7 @@ from app.ocr.postprocess import word_count as count_words
 from app.repositories.assessment import AssessmentRepository
 from app.repositories.submission import SubmissionRepository
 from app.services.analysis import AnalysisService
+from app.services.assignment import AssignmentService
 from app.services.gamification import AwardResult, GamificationService
 from app.services.graph import GraphService
 from app.services.ocr import OCRService
@@ -85,6 +86,7 @@ class SubmissionService:
         ocr: OCRService,
         gamification: GamificationService,
         assessments: AssessmentRepository,
+        assignments: AssignmentService | None = None,
         settings: Settings | None = None,
     ) -> None:
         self.submissions = submissions
@@ -93,22 +95,39 @@ class SubmissionService:
         self.ocr = ocr
         self.gamification = gamification
         self.assessments = assessments
+        # Optional because free practice is the core loop and needs none of
+        # it: a service constructed without assignments still opens, scores
+        # and awards exactly as it did before they existed.
+        self.assignments = assignments
         self.settings = settings or get_settings()
 
     # ── Opening an attempt ───────────────────────────────────────────────────
 
     async def start(
-        self, *, graph_id: uuid.UUID, input_method: InputMethod, student: User
+        self,
+        *,
+        graph_id: uuid.UUID,
+        input_method: InputMethod,
+        student: User,
+        assignment_id: uuid.UUID | None = None,
     ) -> Submission:
         """Open a submission against a graph.
 
         The graph is resolved through the graph service, so an unpublished
         draft reads as absent to a student and cannot be attempted.
+
+        ``assignment_id`` only *labels* the attempt. A student who picked the
+        graph out of the library passes none, and every later step — scoring,
+        the tier, the XP award, the leaderboard — reads the same either way.
         """
         graph = await self.graph_service.get_for(graph_id, viewer=student)
+        assignment_id = await self._resolve_assignment(assignment_id, graph_id, student)
 
         existing = await self.submissions.reusable_draft(
-            user_id=student.id, graph_id=graph.id, input_method=input_method
+            user_id=student.id,
+            graph_id=graph.id,
+            input_method=input_method,
+            assignment_id=assignment_id,
         )
         if existing is not None:
             logger.debug("Reusing pristine draft %s for %s", existing.id, student.id)
@@ -117,6 +136,7 @@ class SubmissionService:
         submission = Submission(
             user_id=student.id,
             graph_id=graph.id,
+            assignment_id=assignment_id,
             input_method=input_method.value,
             status=SubmissionStatus.DRAFT.value,
             word_count=0,
@@ -130,6 +150,24 @@ class SubmissionService:
             input_method.value,
         )
         return await self._reload(submission.id)
+
+    async def _resolve_assignment(
+        self, assignment_id: uuid.UUID | None, graph_id: uuid.UUID, student: User
+    ) -> uuid.UUID | None:
+        """Check the claimed assignment, or return None for free practice.
+
+        A student can name any assignment id in a request body, so it is
+        checked rather than trusted: work set for a class they are not in
+        reads as absent, and an assignment pointing at a different graph is
+        refused outright — accepting it would file this answer against a
+        question nobody asked.
+        """
+        if assignment_id is None or self.assignments is None:
+            return None
+        assignment = await self.assignments.require_open_for(assignment_id, student=student)
+        if assignment.graph_id != graph_id:
+            raise ValidationError("That assignment is set on a different graph.")
+        return assignment.id
 
     # ── Handwriting ──────────────────────────────────────────────────────────
 
@@ -383,11 +421,17 @@ class SubmissionService:
 
     def detail_payload(self, submission: Submission, *, viewer: User) -> dict[str, Any]:
         graph: Graph | None = submission.graph
+        # Eager-loaded by `get_full`; `None` both for free practice and for an
+        # assignment that has since been deleted, which is the same thing to a
+        # student reading their own history back.
+        assignment: Assignment | None = submission.assignment
         payload: dict[str, Any] = {
             "id": submission.id,
             "graph_id": submission.graph_id,
             "graph_title": graph.title if graph else None,
             "graph_type": graph.graph_type if graph else None,
+            "assignment_id": submission.assignment_id,
+            "assignment_title": assignment.title if assignment else None,
             "user_id": submission.user_id,
             "student_name": submission.user.full_name if submission.user else None,
             "input_method": submission.input_method,

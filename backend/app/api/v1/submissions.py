@@ -54,7 +54,10 @@ async def create_submission(
     payload: SubmissionCreate, student: StudentUser, submissions: SubmissionSvc
 ) -> SubmissionDetail:
     submission = await submissions.start(
-        graph_id=payload.graph_id, input_method=payload.input_method, student=student
+        graph_id=payload.graph_id,
+        input_method=payload.input_method,
+        student=student,
+        assignment_id=payload.assignment_id,
     )
     return SubmissionDetail.model_validate(submissions.detail_payload(submission, viewer=student))
 
