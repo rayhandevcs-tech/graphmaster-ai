@@ -44,7 +44,10 @@ async def list_assignments(
     stmt = repo.build_list_query(viewer=user, class_id=class_id, is_active=is_active)
     rows, total = await repo.paginate(stmt, page=page, page_size=page_size)
     return Page[AssignmentSummary].build(
-        [AssignmentSummary.model_validate(a) for a in assignments.summaries(list(rows))],
+        [
+            AssignmentSummary.model_validate(a)
+            for a in await assignments.summaries(list(rows), viewer=user)
+        ],
         page=page,
         page_size=page_size,
         total=total,

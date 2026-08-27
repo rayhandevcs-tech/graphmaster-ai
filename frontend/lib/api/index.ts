@@ -15,6 +15,8 @@ export { analysisApi } from "./analysis";
 export { analyticsApi } from "./analytics";
 export { assessmentApi } from "./assessment";
 export type { AssessmentScope } from "./assessment";
+export { assignmentsApi } from "./assignments";
+export type { AssignmentListParams } from "./assignments";
 export { authApi } from "./auth";
 export { avatarsApi } from "./avatars";
 export { classesApi } from "./classes";

@@ -213,10 +213,12 @@ export interface AssignmentDetail {
   graph_title: string;
   graph_type: GraphType;
   class_name: string;
-  assigned_by: UUID | null;
-  updated_at: DateTimeString;
+  submitted_count?: number | null;
+  enrolled_count?: number | null;
   submission_id?: UUID | null;
   submission_status?: string | null;
+  assigned_by: UUID | null;
+  updated_at: DateTimeString;
 }
 
 /**
@@ -265,6 +267,10 @@ export interface AssignmentSummary {
   graph_title: string;
   graph_type: GraphType;
   class_name: string;
+  submitted_count?: number | null;
+  enrolled_count?: number | null;
+  submission_id?: UUID | null;
+  submission_status?: string | null;
 }
 
 /**

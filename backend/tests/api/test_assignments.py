@@ -52,9 +52,7 @@ async def graph(graph_factory, teacher):
 
 @pytest.fixture
 async def student(user_factory, auth_headers, section):
-    user = await user_factory(
-        role=UserRole.STUDENT, email="student@test.edu", class_id=section.id
-    )
+    user = await user_factory(role=UserRole.STUDENT, email="student@test.edu", class_id=section.id)
     return user, auth_headers(user)
 
 
@@ -108,9 +106,7 @@ async def test_a_teacher_cannot_set_work_for_a_section_they_do_not_teach(
     assert resp.status_code == 403
 
 
-async def test_an_unpublished_graph_cannot_be_set_as_work(
-    client, teacher, section, graph_factory
-):
+async def test_an_unpublished_graph_cannot_be_set_as_work(client, teacher, section, graph_factory):
     owner, headers = teacher
     draft = await graph_factory(created_by=owner.id, is_published=False)
     resp = await client.post(
@@ -497,3 +493,58 @@ async def test_opening_the_same_assignment_twice_reuses_the_draft(
     second = await client.post(SUBMISSIONS, headers=headers, json=body)
     # A double-tap on "Start" still does not litter the table.
     assert first.json()["id"] == second.json()["id"]
+
+
+# ── Two audiences, one response model ────────────────────────────────────────
+
+
+async def test_a_teachers_card_carries_the_class_counts(
+    client,
+    teacher,
+    student,
+    user_factory,
+    assignment_factory,
+    section,
+    graph,
+    scored_submission_factory,
+):
+    assignment = await assignment_factory(class_=section, graph=graph)
+    submitter, _ = student
+    await user_factory(role=UserRole.STUDENT, email="quiet@test.edu", class_id=section.id)
+    await scored_submission_factory(user=submitter, graph=graph, assignment=assignment)
+    _, headers = teacher
+
+    row = (await client.get(ASSIGNMENTS, headers=headers)).json()["items"][0]
+    assert row["submitted_count"] == 1
+    assert row["enrolled_count"] == 2
+
+
+async def test_a_students_card_carries_their_own_state_and_not_the_classs(
+    client, student, user_factory, assignment_factory, section, graph, scored_submission_factory
+):
+    assignment = await assignment_factory(class_=section, graph=graph)
+    me, headers = student
+    classmate = await user_factory(
+        role=UserRole.STUDENT, email="classmate@test.edu", class_id=section.id
+    )
+    await scored_submission_factory(user=classmate, graph=graph, assignment=assignment)
+    mine = await scored_submission_factory(user=me, graph=graph, assignment=assignment)
+
+    row = (await client.get(ASSIGNMENTS, headers=headers)).json()["items"][0]
+    assert row["submission_id"] == str(mine.id)
+    assert row["submission_status"] == "scored"
+    # Telling a student how many classmates have finished is the comparison
+    # FR-7.6 keeps off the leaderboard, arriving by another door.
+    assert row["submitted_count"] is None
+    assert row["enrolled_count"] is None
+
+
+async def test_a_student_who_has_not_started_gets_a_card_with_no_submission(
+    client, student, assignment_factory, section, graph
+):
+    await assignment_factory(class_=section, graph=graph)
+    _, headers = student
+
+    row = (await client.get(ASSIGNMENTS, headers=headers)).json()["items"][0]
+    assert row["submission_id"] is None
+    assert row["submission_status"] is None

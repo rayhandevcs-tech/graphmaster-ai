@@ -85,9 +85,7 @@ class AssignmentRepository(BaseRepository[Assignment]):
         # nobody has set them anything.
         if viewer.class_id is None:
             return stmt.where(false())
-        return stmt.where(
-            Assignment.class_id == viewer.class_id, Assignment.is_active.is_(True)
-        )
+        return stmt.where(Assignment.class_id == viewer.class_id, Assignment.is_active.is_(True))
 
     async def standings(
         self, assignment_id: uuid.UUID, user_ids: Sequence[uuid.UUID]
@@ -136,9 +134,47 @@ class AssignmentRepository(BaseRepository[Assignment]):
     ) -> SubmissionStanding | None:
         return (await self.standings(assignment_id, [user_id])).get(user_id)
 
-    async def submitted_counts(
-        self, assignment_ids: Sequence[uuid.UUID]
-    ) -> dict[uuid.UUID, int]:
+    async def own_standings(
+        self, assignment_ids: Sequence[uuid.UUID], user_id: uuid.UUID
+    ) -> dict[uuid.UUID, SubmissionStanding]:
+        """One student's latest attempt at each of several assignments.
+
+        The task-list counterpart of ``standings``: one query for the whole
+        page, rather than one per card.
+        """
+        if not assignment_ids:
+            return {}
+        stmt = (
+            select(
+                Submission.assignment_id,
+                Submission.id,
+                Submission.status,
+                Submission.submitted_at,
+                Score.final_score,
+            )
+            .outerjoin(Score, Score.submission_id == Submission.id)
+            .where(
+                Submission.assignment_id.in_(list(assignment_ids)),
+                Submission.user_id == user_id,
+            )
+            .order_by(Submission.assignment_id, Submission.submitted_at.desc())
+        )
+        standings: dict[uuid.UUID, SubmissionStanding] = {}
+        for assignment_id, sub_id, status, submitted_at, final_score in (
+            await self.db.execute(stmt)
+        ).all():
+            standings.setdefault(
+                assignment_id,
+                SubmissionStanding(
+                    submission_id=sub_id,
+                    status=status,
+                    submitted_at=submitted_at,
+                    final_score=float(final_score) if final_score is not None else None,
+                ),
+            )
+        return standings
+
+    async def submitted_counts(self, assignment_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, int]:
         """How many distinct students have filed against each assignment.
 
         Distinct students, not submissions: a student who attempted a graph

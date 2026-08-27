@@ -33,6 +33,11 @@ export const queryKeys = {
   class: (classId: UUID) => ["classes", "detail", classId] as const,
   classStudents: (classId: UUID) => ["classes", "detail", classId, "students"] as const,
 
+  assignments: (params: Params = {}) => ["assignments", "list", params] as const,
+  assignment: (assignmentId: UUID) => ["assignments", "detail", assignmentId] as const,
+  assignmentProgress: (assignmentId: UUID) =>
+    ["assignments", "detail", assignmentId, "progress"] as const,
+
   submissions: (params: Params = {}) => ["submissions", "list", params] as const,
   submission: (submissionId: UUID) => ["submissions", "detail", submissionId] as const,
 
@@ -90,4 +95,7 @@ export const INVALIDATED_BY_SCORING = [
   ["submissions"],
   ["gamification"],
   ["leaderboard"],
+  // A marked submission moves its author out of "not started" and gives the
+  // assignment an average it did not have.
+  ["assignments"],
 ] as const;

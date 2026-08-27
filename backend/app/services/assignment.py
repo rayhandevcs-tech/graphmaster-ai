@@ -107,19 +107,48 @@ class AssignmentService:
             "class_name": assignment.class_.name,
         }
 
-    def summaries(self, rows: list[Assignment]) -> list[dict[str, Any]]:
-        return [self._summary(a) for a in rows]
+    async def summaries(self, rows: list[Assignment], *, viewer: User) -> list[dict[str, Any]]:
+        """A page of assignments, told to the audience that asked for it.
+
+        Both branches read in batch rather than per row: a teacher with thirty
+        assignments on screen must not cost thirty count queries, and neither
+        must a student's task list.
+        """
+        payloads = [self._summary(a) for a in rows]
+        if not rows:
+            return payloads
+
+        if viewer.can_manage_content:
+            submitted = await self.assignments.submitted_counts([a.id for a in rows])
+            enrolled = await self.classes.student_counts([a.class_id for a in rows])
+            for payload, assignment in zip(payloads, rows, strict=True):
+                payload["submitted_count"] = submitted.get(assignment.id, 0)
+                payload["enrolled_count"] = enrolled.get(assignment.class_id, 0)
+            return payloads
+
+        standings = await self.assignments.own_standings([a.id for a in rows], viewer.id)
+        for payload, assignment in zip(payloads, rows, strict=True):
+            standing = standings.get(assignment.id)
+            if standing is not None:
+                payload["submission_id"] = standing.submission_id
+                payload["submission_status"] = standing.status
+        return payloads
 
     async def detail_payload(self, assignment: Assignment, *, viewer: User) -> dict[str, Any]:
         payload = self._summary(assignment) | {
             "assigned_by": assignment.assigned_by,
             "updated_at": assignment.updated_at,
         }
-        if not viewer.can_manage_content:
-            standing = await self.assignments.own_standing(assignment.id, viewer.id)
-            if standing is not None:
-                payload["submission_id"] = standing.submission_id
-                payload["submission_status"] = standing.status
+        if viewer.can_manage_content:
+            submitted = await self.assignments.submitted_counts([assignment.id])
+            payload["submitted_count"] = submitted.get(assignment.id, 0)
+            payload["enrolled_count"] = await self.classes.student_count(assignment.class_id)
+            return payload
+
+        standing = await self.assignments.own_standing(assignment.id, viewer.id)
+        if standing is not None:
+            payload["submission_id"] = standing.submission_id
+            payload["submission_status"] = standing.status
         return payload
 
     async def get(self, assignment_id: uuid.UUID, *, viewer: User) -> dict[str, Any]:

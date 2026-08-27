@@ -38,18 +38,35 @@ class AssignmentSummary(ORMModel):
     graph_type: GraphType
     class_name: str
 
+    # ── Two audiences, and never both at once ────────────────────────────────
+    #
+    # A teacher's card answers "how much of the class has done this"; a
+    # student's answers "have I done this". The fields the other audience does
+    # not get are null rather than absent, so one response model serves both
+    # without a client having to guess which shape arrived.
+
+    #: How many enrolled students have filed against this. **Teacher only.**
+    #:
+    #: Null for a student, deliberately: telling them how many classmates have
+    #: finished is the comparison FR-7.6 keeps off the leaderboard, arriving by
+    #: another door. Their own card says whether *they* have started.
+    submitted_count: int | None = None
+    #: The denominator, which is enrolment and never "whoever submitted"
+    #: (rule 35). **Teacher only.**
+    enrolled_count: int | None = None
+
+    #: The reader's own attempt, when they have one. **Student only.**
+    #:
+    #: A teacher reading an assignment sees the whole class through
+    #: ``/progress``; this answers the one question a student has on opening
+    #: it — "have I done this yet?"
+    submission_id: uuid.UUID | None = None
+    submission_status: str | None = None
+
 
 class AssignmentDetail(AssignmentSummary):
     assigned_by: uuid.UUID | None
     updated_at: datetime
-
-    #: The caller's own submission for this assignment, when they have one.
-    #:
-    #: Students only. A teacher reading an assignment sees the whole class's
-    #: progress through ``/progress``; this field answers the one question a
-    #: student has on opening it — "have I done this yet?"
-    submission_id: uuid.UUID | None = None
-    submission_status: str | None = None
 
 
 class AssignmentCreate(BaseModel):
