@@ -189,13 +189,29 @@ The teacher-editable vocabulary library (FR-5.1, FR-5.4).
 | term | TEXT | NOT NULL | Surface form, e.g. `bottom out` |
 | lemma | TEXT | NOT NULL | Normalised match key, e.g. `bottom out` |
 | is_phrase | BOOLEAN | NOT NULL, DEFAULT false | True when the term contains whitespace |
-| weight | NUMERIC(3,2) | NOT NULL, DEFAULT 1.00 | Allows advanced terms to count for more |
+| weight | NUMERIC(3,2) | NOT NULL, DEFAULT 1.00 | Suggestion order, **not** a score multiplier — see below |
 | is_active | BOOLEAN | NOT NULL, DEFAULT true | Soft delete, preserving historical scores |
 | created_by | UUID | FK → users.id, NULL | |
 | created_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | |
 | updated_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | |
 
 Indexes: `UNIQUE (lemma)`, `INDEX (category_id)`, `INDEX (is_active)`.
+
+**`weight` does not affect any score.** This row previously read "allows
+advanced terms to count for more", which was never true of the implementation
+and is where the misunderstanding started: nothing in `nlp/scoring.py` reads
+the column, and FR-6.6 is an unweighted count of unique required terms used —
+so a term at 9.99 and a term at 0.01 move a student's percentage by exactly the
+same amount. A backend test, `test_weight_has_no_effect_on_the_score`, fails if
+that ever stops being so, because wiring weight into the score would silently
+make every historical result incomparable.
+
+What it *does* is order suggestions, lowest first: which missing word a
+struggling student is pointed at (`nlp/feedback.py`, 08-nlp-architecture §9.9)
+and which terms fill an uncurated graph's default target set
+(`services/analysis.py`). The teacher interface therefore labels the column
+**Priority**; the wire name stays `weight`, since renaming a published field
+breaks every client for no gain.
 
 Vocabulary items are **soft-deleted** rather than removed. A hard delete would
 orphan the term references stored inside historical `scores.detected_terms`,

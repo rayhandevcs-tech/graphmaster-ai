@@ -39,6 +39,16 @@ import type { VocabularyItemOut } from "@/types/api";
  *
  * `is_phrase` appears as a badge and never as a control: it is derived from
  * the term by the server (rule 13).
+ *
+ * The column headed **Priority** is the API's `weight`. The rename is
+ * deliberate and stops at the interface: nothing in the scoring engine reads
+ * the field, so a column headed "Weight" told teachers the number moved a
+ * student's mark when the vocabulary score is an unweighted count of unique
+ * required terms used (FR-6.6). What it really does is order the missing
+ * terms a struggling student is shown, lowest first. The wire name is left
+ * alone — renaming a published field breaks every client for no gain — and a
+ * backend test (`test_weight_has_no_effect_on_the_score`) holds the claim
+ * this copy makes.
  */
 const PAGE_SIZE = 25;
 
@@ -94,6 +104,15 @@ export function VocabularyManager() {
           <p className="text-muted-foreground text-sm text-pretty">
             The terms every description is marked against. Removing one deactivates it — past scores
             still point at it.
+          </p>
+          {/* Said once, where the column is. The field is stored as `weight`,
+              and that name taught teachers to read the number as a score
+              multiplier — it has never been one. See the note on the doc
+              comment below. */}
+          <p className="text-muted-foreground max-w-prose text-sm text-pretty">
+            <strong className="text-foreground font-medium">Priority</strong> decides which missing
+            word a struggling student is shown first, lowest number first. Every term counts the
+            same towards the mark.
           </p>
         </div>
         <Button
@@ -209,7 +228,7 @@ export function VocabularyManager() {
                   <TableHead>Term</TableHead>
                   <TableHead>Lemma</TableHead>
                   <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Weight</TableHead>
+                  <TableHead className="text-right">Priority</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -312,7 +331,7 @@ function TermCard({
           {item.is_active ? null : <Badge>deactivated</Badge>}
         </div>
         <p className="text-muted-foreground text-xs">
-          {item.category_name} · lemma {item.lemma} · weight {item.weight}
+          {item.category_name} · lemma {item.lemma} · priority {item.weight}
         </p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={onEdit}>

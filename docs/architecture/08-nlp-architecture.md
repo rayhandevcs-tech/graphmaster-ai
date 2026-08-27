@@ -333,6 +333,12 @@ student is advised to try next, lightest first, so the advice names the most
 basic missing term rather than the most sophisticated. Advice a struggling
 student cannot act on is not advice.
 
+The name has cost more than it is worth. A teacher reading a field called
+"weight" concludes it moves the mark, and 02-database-schema §3.4 said as much
+until it was corrected. The interface now labels it **Priority** and says
+outright that it changes nobody's score;
+`test_weight_has_no_effect_on_the_score` keeps that claim true.
+
 ### 9.10 The engine version fingerprints the rubric
 
 §7 records `engine_version` on every score so historical results stay

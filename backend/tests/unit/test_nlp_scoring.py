@@ -128,6 +128,33 @@ class TestScoreAssembly:
         assert eight_times.score.vocabulary_percentage == once.score.vocabulary_percentage
         assert eight_times.score.detected_count > once.score.detected_count
 
+    def test_weight_has_no_effect_on_the_score(self, term_factory):
+        """The whole reason the field is being renamed in the interface.
+
+        A teacher reading a column headed "Weight" reasonably concludes it
+        moves the mark. It does not: the vocabulary percentage is an unweighted
+        count of unique required terms used (FR-6.6), so a term set to 9.99 and
+        one set to 0.01 are worth exactly the same. If someone later wires
+        weight into ``scoring.py``, this fails — which is the point, because
+        every historical score would silently stop being comparable.
+        """
+        flat = [
+            term_factory("increase"),
+            term_factory("decrease", category="decrease"),
+        ]
+        lopsided = [
+            term_factory("increase", weight=9.99),
+            term_factory("decrease", category="decrease", weight=0.01),
+        ]
+        answer = "Sales increased over the period."
+
+        light = analyse(answer, lopsided)
+        even = analyse(answer, flat)
+
+        assert light.score.vocabulary_percentage == even.score.vocabulary_percentage == 50.0
+        assert light.score.final_score == even.score.final_score
+        assert light.score.reward_tier is even.score.reward_tier
+
     def test_optional_terms_are_credited_but_not_counted_in_the_denominator(self, term_factory):
         targets = [
             term_factory("increase"),

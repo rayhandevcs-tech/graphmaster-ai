@@ -105,6 +105,14 @@ class VocabularyItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # space-joined lemma sequence, e.g. "bottom out" matches "bottomed out".
     lemma: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     is_phrase: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: How basic the term is — a suggestion order, **not a score multiplier**.
+    #:
+    #: Nothing in `nlp/scoring.py` reads this. The vocabulary mark is an
+    #: unweighted count of unique required terms used (FR-6.6), so two terms
+    #: with weights of 0.5 and 5.0 are worth exactly the same to a student.
+    #: It orders the missing terms a struggling student is shown first, and it
+    #: picks the default target set for an uncurated graph. The name is
+    #: historical and has misled teachers; the API descriptions correct it.
     weight: Mapped[float] = mapped_column(Numeric(3, 2), nullable=False, default=1.00)
 
     # Soft delete. Historical scores store term references, so removing a row
