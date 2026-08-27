@@ -1251,6 +1251,7 @@ export interface VocabularyItemCreate {
   category_code: string;
   term: string;
   lemma?: string | null;
+  /** Suggestion priority, lowest first — which missing word a struggling student is pointed at, and which terms fill an uncurated graph's default target set. It has no effect on the score: the vocabulary mark is an unweighted count of unique required terms used (FR-6.6). */
   weight?: number;
 }
 
@@ -1259,6 +1260,7 @@ export interface VocabularyItemOut {
   term: string;
   lemma: string;
   is_phrase: boolean;
+  /** Suggestion priority, lowest first — which missing word a struggling student is pointed at, and which terms fill an uncurated graph's default target set. It has no effect on the score: the vocabulary mark is an unweighted count of unique required terms used (FR-6.6). */
   weight: number;
   is_active: boolean;
   category_id: UUID;

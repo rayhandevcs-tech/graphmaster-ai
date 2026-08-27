@@ -104,9 +104,11 @@ class SubmissionRepository(BaseRepository[Submission]):
                 Submission.status == SubmissionStatus.DRAFT.value,
                 Submission.answer_text.is_(None),
                 Submission.original_image_path.is_(None),
-                Submission.assignment_id.is_(None)
-                if assignment_id is None
-                else Submission.assignment_id == assignment_id,
+                (
+                    Submission.assignment_id.is_(None)
+                    if assignment_id is None
+                    else Submission.assignment_id == assignment_id
+                ),
             )
             .order_by(Submission.submitted_at.desc())
             .limit(1)

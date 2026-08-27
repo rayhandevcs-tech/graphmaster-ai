@@ -1,281 +1,280 @@
-# Running and deploying GraphMaster
+# Deployment — Frontend on Vercel, Backend on Render
 
-Two halves: **running it on your own machine**, and **putting it on a server**.
-The first needs nothing but Docker. The second needs Docker, a domain and about
-forty minutes.
+This guide deploys GraphMaster as two pieces:
 
----
-
-## Part 1 · Run it locally
-
-### 1.1 Get the code
-
-The work is merged into `main`, so:
-
-```bash
-git checkout main
-git pull origin main
-```
-
-If you have local changes you do not want, stash them first (`git stash`).
-
-### 1.2 The easy path — Docker
-
-You need [Docker Desktop](https://docs.docker.com/get-started/get-docker/)
-running. Nothing else: no Python, no Node, no PostgreSQL.
-
-```bash
-# 1. Create the one required secret.
-#    macOS/Linux:
-echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
-#    Windows PowerShell:
-#    "SECRET_KEY=$(-join ((1..64) | ForEach-Object {'{0:x}' -f (Get-Random -Max 16)}))" | Out-File -Encoding ascii .env
-
-# 2. Build and start everything.
-docker compose up --build
-
-# 3. Wait. The first build takes 5–10 minutes: it downloads the spaCy model,
-#    the NLTK data and the OCR weights. Later starts take seconds.
-```
-
-When the log says `Application startup complete`, open:
-
-| | |
-|---|---|
-| **The app** | http://localhost:3000 |
-| API docs (Swagger) | http://localhost:8000/docs |
-| Health | http://localhost:8000/api/v1/health/ready |
-
-The database is migrated and seeded automatically on first start — vocabulary
-categories, terms, avatars and achievement rules are all there.
-
-**Stop it:** `Ctrl-C`, then `docker compose down`.
-**Careful:** `docker compose down -v` also deletes the database volume.
-
-### 1.3 Create your first account
-
-Register at http://localhost:3000/register. New accounts are students.
-
-To make yourself a **teacher** or **administrator**, promote the account once
-from the database:
-
-```bash
-docker compose exec db psql -U graphmaster -d graphmaster \
-  -c "UPDATE users SET role='admin' WHERE email='you@example.com';"
-```
-
-Sign out and back in — the role is in your token. From then on you can manage
-everyone else from the Users screen.
-
-### 1.4 The development path — hot reload
-
-Use this when you are changing code and want the page to refresh as you save.
-It needs **Python 3.12**, **Node 22** and **PostgreSQL 16** installed.
-
-```bash
-# Terminal 1 — database only, from Docker
-docker compose up db
-
-# Terminal 2 — backend
-cp backend/.env.example backend/.env      # then edit SECRET_KEY
-make install                              # virtualenv + dependencies + spaCy model
-make migrate
-make seed
-make dev                                  # http://localhost:8000
-
-# Terminal 3 — frontend
-cp frontend/.env.example frontend/.env.local
-make web-install
-make web-dev                              # http://localhost:3000
-```
-
-Useful while working:
-
-```bash
-make check      # everything CI runs, both halves
-make test       # backend suite with coverage
-make web-check  # prettier, eslint, build, typecheck, tests
-make reset-db   # drop, recreate, migrate and seed
-```
-
-### 1.5 If something goes wrong
-
-| Symptom | Cause | Fix |
+| Piece | Where | What |
 |---|---|---|
-| `SECRET_KEY must be set` | No `.env` at the repo root | §1.2 step 1 |
-| Every request fails with a CORS error | `ALLOWED_ORIGINS` does not match the URL in your browser | It must be the **browser's** origin, exactly — `http://localhost:3000`, not `127.0.0.1` |
-| The app loads but nothing fetches | `NEXT_PUBLIC_API_URL` was wrong **when the image was built** | It is baked in at build time. Change it and rebuild: `docker compose build web` |
-| `port is already allocated` | Something else is on 3000/8000/5432 | Set `WEB_PORT`, `API_PORT` or `DB_PORT` in `.env` |
-| First build seems stuck | It is downloading the language models | Give it ten minutes once |
+| Frontend (`frontend/`) | **Vercel** | Next.js 15, built per deploy |
+| Backend (`backend/`) + PostgreSQL | **Render** | FastAPI in Docker + managed Postgres |
+
+> The repo's `docker-compose.yml` is a **development** stack. It is not used in
+> this deployment. See `docs/proposals/production-readiness-review.md` for the
+> gaps it has as a production target.
 
 ---
 
-## Part 2 · Deploy to a server
+## 0. Before you start
 
-Any host that runs Docker: a £5/month VPS (Hetzner, DigitalOcean, Linode), a
-university VM, or AWS Lightsail. **2 GB RAM minimum, 4 GB comfortable** — spaCy
-and the OCR models are the memory, and the production overlay runs two API
-workers.
+- A GitHub repo Render and Vercel can both read.
+- A Render account and a Vercel account.
+- **Decide the cookie strategy now — read §3 first.** The refresh-token cookie
+  is `SameSite=Lax`. `*.vercel.app` and `*.onrender.com` are *different sites*,
+  so a browser will refuse to store that cookie from a cross-site response and
+  **login breaks after 30 minutes / on every reload**. §3 has three fixes; the
+  clean one needs a domain you control.
 
-### 2.1 Prepare the server
-
-```bash
-ssh you@your-server
-curl -fsSL https://get.docker.com | sh          # Docker + compose plugin
-sudo usermod -aG docker $USER                    # then log out and back in
-
-git clone https://github.com/rayhandevcs-tech/graphmaster-ai.git
-cd graphmaster-ai
-```
-
-### 2.2 Write the production environment
-
-**This is the step that matters.** The base compose file is a development
-stack — it defaults `DEBUG` to true and the database password to
-`graphmaster`. `docker-compose.prod.yml` overrides those and makes the
-dangerous ones *required*, so a missing variable stops the stack instead of
-silently choosing something unsafe.
-
-Create `.env` next to `docker-compose.yml`:
-
-```bash
-cat > .env <<EOF
-SECRET_KEY=$(openssl rand -hex 32)
-POSTGRES_PASSWORD=$(openssl rand -hex 24)
-ALLOWED_ORIGINS=https://graphmaster.example.edu
-NEXT_PUBLIC_API_URL=https://graphmaster.example.edu/api/v1
-EOF
-
-chmod 600 .env
-```
-
-Replace `graphmaster.example.edu` with your real domain, twice. Both URLs are
-what the **browser** will use, not what the server calls itself.
-
-> `.env` is git-ignored and must stay that way. It is the only copy of your
-> database password.
-
-### 2.3 Start it
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-```
-
-Both files, every time — the second one is an *overlay*, not a replacement.
-Make it a habit or put it in a shell alias, because starting with only the base
-file silently reverts you to development defaults.
-
-Check it came up:
-
-```bash
-docker compose ps                    # api should read (healthy) within ~2 min
-docker compose logs -f api
-curl -s localhost:8000/api/v1/health/ready
-```
-
-### 2.4 Put HTTPS in front
-
-The stack listens on 3000 and 8000 over plain HTTP. Do not expose those. Put
-Caddy in front — it gets certificates automatically:
-
-```bash
-sudo apt install -y caddy
-sudo tee /etc/caddy/Caddyfile <<'EOF'
-graphmaster.example.edu {
-    handle /api/* {
-        reverse_proxy localhost:8000
-    }
-    handle {
-        reverse_proxy localhost:3000
-    }
-}
-EOF
-sudo systemctl reload caddy
-```
-
-Then close everything else:
-
-```bash
-sudo ufw allow 22,80,443/tcp
-sudo ufw enable
-```
-
-Postgres is **not** published by the production overlay, so it is unreachable
-from outside the host by design. To attach a client, use
-`docker compose exec db psql -U graphmaster -d graphmaster`.
-
-### 2.5 Back up the database — do this before anyone uses it
-
-There is no automatic backup. Three things live only in these volumes and
-nothing can recompute them: the XP ledger (`xp_events` is append-only), every
-submission and score, and the handwriting uploads.
-
-```bash
-mkdir -p ~/backups
-cat > ~/backup-graphmaster.sh <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-cd ~/graphmaster-ai
-STAMP=$(date +%F-%H%M)
-docker compose exec -T db pg_dump -U graphmaster graphmaster | gzip > ~/backups/db-$STAMP.sql.gz
-docker run --rm -v graphmaster-ai_uploads_data:/data -v ~/backups:/out \
-  alpine tar czf /out/uploads-$STAMP.tar.gz -C /data .
-find ~/backups -name '*.gz' -mtime +30 -delete
-EOF
-chmod +x ~/backup-graphmaster.sh
-
-# Nightly at 03:00
-(crontab -l 2>/dev/null; echo "0 3 * * * ~/backup-graphmaster.sh") | crontab -
-```
-
-**Then rehearse the restore once, before you need it:**
-
-```bash
-gunzip -c ~/backups/db-2026-08-27-0300.sql.gz | \
-  docker compose exec -T db psql -U graphmaster -d graphmaster
-```
-
-A backup you have never restored is a hypothesis, not a backup. Copy the
-`~/backups` directory somewhere off the machine as well — a snapshot on the
-same disk does not survive the disk.
-
-### 2.6 Updating
-
-```bash
-cd ~/graphmaster-ai
-~/backup-graphmaster.sh                          # always first
-git pull origin main
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-```
-
-Migrations run automatically on start and are forward-only.
-
-### 2.7 Optional extras
-
-**Grammar analysis** is off by default — it is a JVM with a few hundred
-megabytes of dictionaries. To enable it:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-  --profile grammar up -d
-# then set GRAMMAR_PROVIDER=local in .env and restart the api
-```
-
-Nothing about a score, an XP award or a leaderboard changes either way — it
-adds diagnostic findings a teacher reads.
-
-**Error tracking.** There is none. Logs are structured JSON with a request id
-on every line, but nothing aggregates or alerts on them, so a 500 in production
-is discovered when somebody tells you. A free Sentry project and one
-`sentry-sdk` initialisation would close that.
+Cost floor: Render `standard` web ($25/mo) + `basic-256mb` Postgres ($6/mo).
+The API image loads spaCy + PyTorch + EasyOCR and OOMs on anything smaller.
+§6 has a lighter build that fits `starter` if cost matters.
 
 ---
 
-## What is deliberately not automated
+## 1. Backend + database on Render
 
-| | Why |
+### 1a. Create the stack from the blueprint
+
+`render.yaml` at the repo root describes both the database and the API.
+
+1. Render dashboard → **New → Blueprint** → select this repo.
+2. Render shows `graphmaster-db` and `graphmaster-api`. Apply.
+3. The first API deploy **will fail or crash-loop** — `DATABASE_URL` and
+   `ALLOWED_ORIGINS` are not set yet. That is expected; finish the next steps.
+
+### 1b. Set `DATABASE_URL`
+
+1. Open **graphmaster-db** → copy the **Internal Database URL**. It looks like
+   `postgresql://graphmaster:xxxx@dpg-xxxx-a/graphmaster`.
+2. Change the scheme to `postgresql+asyncpg://` — the async engine reads the
+   driver from the URL. Alembic and the entrypoint strip it back off themselves.
+   ```
+   postgresql+asyncpg://graphmaster:xxxx@dpg-xxxx-a/graphmaster
+   ```
+3. **graphmaster-api → Environment** → set `DATABASE_URL` to that value.
+
+### 1c. Set `ALLOWED_ORIGINS`
+
+Leave it for now — you need the Vercel URL first. Come back after §2.
+
+### 1d. What the container does on boot
+
+`backend/scripts/entrypoint.sh` runs automatically on every start:
+
+1. waits for the database,
+2. `alembic upgrade head` — creates / migrates all tables,
+3. `python -m app.db.seed.cli` — seeds avatars, vocabulary, badges, achievements
+   (idempotent; sample graphs are skipped until a teacher/admin exists — see §4),
+4. starts uvicorn.
+
+No manual migrate step. Watch **Logs** for `Application startup complete`.
+
+### 1e. Health
+
+Render pings `/api/v1/health/live`. Once green, check:
+`https://graphmaster-api.onrender.com/api/v1/health/ready` → should report
+`database: ok`, `nlp: ok`, and OCR providers.
+
+---
+
+## 2. Frontend on Vercel
+
+1. Vercel → **Add New → Project** → import the repo.
+2. **Root Directory: `frontend`**. Framework preset: Next.js (auto).
+3. Build & output settings: leave defaults (`next build`). `frontend/types/api.ts`
+   is committed, so the build does not need a running API.
+4. **Environment Variables** (Production + Preview):
+
+   | Name | Value |
+   |---|---|
+   | `NEXT_PUBLIC_API_URL` | `https://graphmaster-api.onrender.com/api/v1` |
+
+   `NEXT_PUBLIC_*` is inlined into the browser bundle **at build time**. Vercel
+   rebuilds on every deploy with this set, so it is baked correctly — this is
+   the one place the Docker "build arg" footgun does not bite you. Change it →
+   redeploy.
+5. Deploy. Note the resulting URL, e.g. `https://graphmaster.vercel.app`.
+6. Back on **Render → graphmaster-api → Environment**, set
+   `ALLOWED_ORIGINS` = `https://graphmaster.vercel.app` (exact, no trailing
+   slash). Save — the API redeploys.
+
+At this point the app loads and you can register, **but read §3** or logins
+will silently stop working within half an hour.
+
+---
+
+## 3. The cross-site cookie problem (must fix one of these)
+
+`POST /auth/login` and `/auth/refresh` set an **HttpOnly refresh cookie**. The
+code sets it `SameSite=Lax; Secure` ([`backend/app/api/v1/auth.py`](../backend/app/api/v1/auth.py)).
+`Lax` means the browser only sends — and only *stores* — that cookie for
+**same-site** requests. `graphmaster.vercel.app` → `graphmaster-api.onrender.com`
+is cross-site, so:
+
+- the cookie from the login response is **dropped by the browser**,
+- `AuthProvider`'s bootstrap refresh on page load always fails,
+- the access token in memory dies after `ACCESS_TOKEN_EXPIRE_MINUTES` (30) with
+  no way to renew → the user is logged out and cannot get back in without
+  re-entering their password.
+
+Pick one:
+
+### Option A — custom sub-domains (recommended, no code change)
+
+Put both halves on **one registrable domain**:
+
+| Host | Points to |
 |---|---|
-| Backups | Where they go is a decision about your institution's storage, not the app's |
-| TLS certificates | Caddy does it in four lines; baking a reverse proxy into compose would fight whatever the host already runs |
-| Horizontal scaling | Rate limiting and scoring are both in-process today, so a second replica needs shared state first. See the production readiness review. |
-| Session and rate-limiter cleanup | Both functions exist; neither is scheduled yet |
+| `graphmaster.example.com` | Vercel (add as a domain on the Vercel project) |
+| `api.example.com` | Render (add as a custom domain on graphmaster-api) |
+
+`graphmaster.example.com` and `api.example.com` are the **same site**, so the
+`Lax` cookie is stored and sent. Then:
+
+- Vercel env: `NEXT_PUBLIC_API_URL = https://api.example.com/api/v1`
+- Render env: `ALLOWED_ORIGINS = https://graphmaster.example.com`
+
+Both platforms issue the TLS certificates automatically. This is the least
+fragile setup and keeps large file uploads going straight to Render.
+
+### Option B — proxy the API through the frontend (no code change, no domain)
+
+Make the browser talk **only** to the Vercel origin; Vercel forwards `/api/*`
+to Render server-side, so the cookie is first-party for `*.vercel.app`.
+
+Add to [`frontend/next.config.ts`](../frontend/next.config.ts):
+
+```ts
+async rewrites() {
+  return [
+    {
+      source: "/api/:path*",
+      destination: `${process.env.BACKEND_ORIGIN}/api/:path*`,
+    },
+  ];
+},
+```
+
+Vercel env vars:
+
+| Name | Value |
+|---|---|
+| `BACKEND_ORIGIN` | `https://graphmaster-api.onrender.com` (server-side, **not** `NEXT_PUBLIC_`) |
+| `NEXT_PUBLIC_API_URL` | `/api/v1` (relative — the browser now calls its own origin) |
+
+Render env: `ALLOWED_ORIGINS = https://graphmaster.vercel.app` (kept as a
+belt-and-braces; CORS is not hit through the proxy).
+
+**Trade-off:** every API call double-hops through Vercel, and Vercel's proxy has
+a request-body size limit (~4.5 MB on Hobby). Handwriting photos can exceed
+that and fail to upload. Fine for a typed-submission demo, not for heavy OCR
+testing. Prefer Option A if you can.
+
+### Option C — make the cookie cross-site capable (small code change)
+
+Change the cookie to `SameSite=None; Secure` in production. In
+`backend/app/api/v1/auth.py`, `_set_refresh_cookie`:
+
+```python
+    response.set_cookie(
+        key=REFRESH_COOKIE,
+        value=token,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="none" if settings.is_production else "lax",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
+        path="/",
+    )
+```
+
+`SameSite=None` **requires** `Secure`, which is already true in production. The
+frontend already sends `credentials: "include"` on every request, and the API
+already sets `allow_credentials=True` with an explicit origin allowlist, so no
+other change is needed. Update the CI cookie test if it asserts `lax`.
+
+This keeps uploads going straight to Render and needs no domain, at the cost of
+a one-line divergence from the repo.
+
+---
+
+## 4. First admin and the sample graph library
+
+Public registration only creates **students**. The seeded practice library
+needs a teacher/admin as its author, so:
+
+1. Register yourself in the app (you become a student).
+2. Promote that account. Render → **graphmaster-db → Connect → PSQL command**,
+   or use `psql` locally against the External URL:
+   ```sql
+   UPDATE users SET role='admin' WHERE email='you@example.com';
+   ```
+3. Re-run the seed. Render → **graphmaster-api → Shell**:
+   ```bash
+   python -m app.db.seed.cli
+   ```
+   It logs `Sample graphs: 4 created`.
+4. Log out and back in (the old token still says `student`).
+
+Assign further teachers from the app: as admin, **/admin/users** → edit a user →
+Role → Teacher.
+
+---
+
+## 5. Backups (do this before real data exists)
+
+`postgres_data` on Render is the dissertation's dataset and the only copy of
+`xp_events`. There is no recompute path.
+
+- Render `basic` Postgres and up include **daily automated backups** with
+  point-in-time recovery — confirm it is on under the database's **Recovery** tab.
+- Also take your own periodic dump you control:
+  ```bash
+  pg_dump "<External Database URL>" -Fc -f graphmaster-$(date +%F).dump
+  ```
+- Rehearse the restore once:
+  ```bash
+  pg_restore --clean --if-exists -d "<target URL>" graphmaster-YYYY-MM-DD.dump
+  ```
+- Never run `docker compose down -v` against anything holding real data.
+
+---
+
+## 6. Optional: a lighter backend image (fits Render `starter`, ~$7/mo)
+
+The default image bakes EasyOCR + PyTorch (~7 GB, ~1 GB RAM at rest). Dropping
+them leaves Tesseract as the only OCR provider (already apt-installed, tiny) and
+keeps typed submissions and all scoring fully working — spaCy stays.
+
+In `backend/Dockerfile`:
+
+- builder stage: `pip install ".[reports]"` instead of `".[ocr,reports]"`
+- delete the `RUN ... easyocr.Reader(...)` line and the `COPY --from=builder
+  /opt/easyocr ...` line
+- runtime stage: drop `libgl1` (only EasyOCR's OpenCV needed it); keep
+  `tesseract-ocr`
+
+Set `OCR_PROVIDER_ORDER=tesseract` on Render. Handwriting OCR quality drops;
+nothing else changes. Revert by restoring the four lines.
+
+---
+
+## 7. Redeploying after code changes
+
+| Changed | Do |
+|---|---|
+| Frontend code | push to the tracked branch → Vercel auto-builds |
+| Backend code | push → Render auto-builds (`autoDeploy: true`) and re-runs migrations on boot |
+| A new migration | nothing extra — the entrypoint applies it on the next deploy |
+| `NEXT_PUBLIC_API_URL` | change in Vercel → **redeploy** (it is compiled in) |
+| Env var on Render | save → the service restarts itself |
+
+---
+
+## 8. Quick checklist
+
+- [ ] `render.yaml` blueprint applied; `graphmaster-db` + `graphmaster-api` exist
+- [ ] `DATABASE_URL` set with the `postgresql+asyncpg://` scheme
+- [ ] API `/api/v1/health/ready` is green
+- [ ] Vercel project, Root Directory `frontend`, `NEXT_PUBLIC_API_URL` set
+- [ ] `ALLOWED_ORIGINS` on Render = the exact frontend URL
+- [ ] One of §3 A / B / C done and login survives a page reload
+- [ ] First admin promoted, `seed.cli` re-run, 4 sample graphs visible
+- [ ] Database backups confirmed on, one manual `pg_dump` taken and restore tried

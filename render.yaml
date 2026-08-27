@@ -1,0 +1,56 @@
+# Render Blueprint — backend API + PostgreSQL.
+# The frontend is NOT here; it deploys to Vercel (see docs/DEPLOYMENT.md).
+#
+# Create everything at once:  Render dashboard → New → Blueprint → pick this repo.
+# Anything with `sync: false` must be filled in by hand in the dashboard after
+# the first deploy — Render will not overwrite those on later syncs.
+
+databases:
+  - name: graphmaster-db
+    databaseName: graphmaster
+    user: graphmaster
+    plan: basic-256mb # free Postgres is deleted after 30 days; basic is $6/mo and kept
+    region: singapore # closest Render region to Bangladesh
+    ipAllowList: [] # only reachable from Render's private network
+
+services:
+  - type: web
+    name: graphmaster-api
+    runtime: docker
+    region: singapore
+    plan: standard # 2 GB RAM. The image loads spaCy + PyTorch + EasyOCR; 512 MB (free/starter) OOMs.
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /api/v1/health/live
+    autoDeploy: true
+    # Handwriting uploads live on disk. Without this they vanish on every deploy.
+    # A disk pins the service to one instance — fine here, it is single-instance anyway.
+    disk:
+      name: uploads
+      mountPath: /app/storage
+      sizeGB: 1
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: PORT
+        value: "8000" # the Dockerfile's uvicorn binds 8000; tell Render to route there
+      - key: SECRET_KEY
+        generateValue: true # Render mints a strong random value once
+      - key: PLATFORM_TIMEZONE
+        value: Asia/Dhaka # the cohort's zone — drives streaks and weekly/monthly boards
+      - key: STORAGE_LOCAL_PATH
+        value: /app/storage
+      - key: STORAGE_BACKEND
+        value: local
+      # ── Fill these in by hand after the first deploy ──────────────────────
+      # DATABASE_URL: copy graphmaster-db's *Internal Database URL* from the
+      # dashboard and change the scheme from  postgresql://  to
+      # postgresql+asyncpg://  — the async engine needs the driver in the URL.
+      - key: DATABASE_URL
+        sync: false
+      # ALLOWED_ORIGINS: the exact Vercel URL, e.g. https://graphmaster.vercel.app
+      # (no trailing slash). Add your custom domain too if you set one, comma-separated.
+      - key: ALLOWED_ORIGINS
+        sync: false

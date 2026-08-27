@@ -115,17 +115,22 @@ Every push runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
 `docker.yml` builds both images and boots them whenever the image inputs
 change.
 
-## Deployment
+## Running it, and deploying it
 
-Running it locally needs Docker and one command; deploying needs Docker, a
-domain and about forty minutes. Both are written out step by step in
-[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md), including the production compose
-overlay, HTTPS, and the backup you should set up before anyone uses it.
+Two separate documents, because they are two separate jobs:
+
+- [`docs/RUNNING-LOCALLY.md`](docs/RUNNING-LOCALLY.md) — the whole stack on
+  your own machine. Needs Docker and one command.
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — the frontend on Vercel, the
+  backend and PostgreSQL on Render, and the cross-site cookie problem you have
+  to solve before login survives a reload.
 
 ```bash
 echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
 docker compose up --build          # http://localhost:3000
 ```
+
+The compose stack is for development. It is not what runs in production.
 
 ## Documentation
 
