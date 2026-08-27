@@ -74,14 +74,18 @@ export function AvatarPicker({
     );
   }
 
+  const chosen = avatars.data.find((avatar) => avatar.is_selected) ?? null;
+
   return (
-    <div className={cn("flex flex-col gap-3", className)}>
+    <div className={cn("flex flex-col gap-4", className)}>
       {select.isError ? (
         <Alert variant="destructive">
           <AlertTitle>That avatar could not be saved</AlertTitle>
           <AlertDescription>{errorMessage(select.error)}</AlertDescription>
         </Alert>
       ) : null}
+
+      {chosen ? <ChosenCharacter avatar={chosen} /> : null}
 
       <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4">
         {avatars.data.map((avatar) => (
@@ -97,6 +101,39 @@ export function AvatarPicker({
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * The chosen character, full height, above the grid of thumbnails.
+ *
+ * The picker used to be six 56px busts and nothing else, so the screen headed
+ * "Your character" never actually showed you your character at a size worth
+ * looking at. This is the same drawing the celebration uses, in the same
+ * `figure` build — which is the point: what you pick here is what you will see
+ * cheering on your next result, not a smaller relative of it.
+ */
+function ChosenCharacter({ avatar }: { avatar: AvatarWithLock }) {
+  return (
+    <div className="bg-muted/40 flex items-center gap-5 rounded-xl border p-5">
+      <AvatarCharacter
+        code={avatar.code}
+        variant="figure"
+        expression="happy"
+        pose="cheer"
+        className="h-36 shrink-0"
+      />
+      <div className="flex min-w-0 flex-col gap-1">
+        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          Your character
+        </p>
+        <p className="text-lg font-semibold tracking-tight text-balance">{avatar.name}</p>
+        <p className="text-muted-foreground text-sm text-pretty">
+          This is who turns up on your results screen — cheering, or dusting themselves off and
+          getting back up.
+        </p>
+      </div>
     </div>
   );
 }

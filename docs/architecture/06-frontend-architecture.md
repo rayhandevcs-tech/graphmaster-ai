@@ -356,6 +356,55 @@ cohort after another is the right default rather than a compromise.
 `image_url` remains the API's own field and is untouched; the client simply
 does not need it for a character it can draw.
 
+**Two builds, one head.** `variant="bust"` is the 96×96 head-and-shoulders
+every list uses; `variant="figure"` is a full body at 96×140 — torso, arms,
+legs and a ground shadow — used on the celebration stage, the profile and the
+dashboard greeting. The head, hair, face and accessories are drawn once and
+shared. Two separate components would drift, which is how six avatar SVGs came
+to be referenced by a database that no file ever matched.
+
+The figure takes a `pose` (`rest`, `cheer`, `brace`, `guard`) separately from
+its expression, because the two move at different moments: the hammer's
+character throws an arm up to guard *before* the mallet lands, while its face
+is still neutral. Deriving one from the other loses that, and a body that
+reacts only after contact reads as a doll being hit.
+
+**How volume is drawn without a colour literal.** Every shade is
+`currentColor` at a different opacity — including both stops of each gradient,
+which makes a gradient a *shape of light* rather than a pair of colours and is
+what lets one drawing work on a light ground and a dark one. Two rules follow
+from how SVG resolves this, and both were bugs before they were rules:
+
+- `currentColor` inside a gradient stop resolves against the element that
+  **declares** the gradient, never the shape that references it. The colour
+  therefore goes on the `<svg>` root; set on an inner group, the whole body
+  paints in the page's text colour while the flat fills beside it are correct.
+- Gradient ids come from `useId`. Hard-coded, two characters on one page both
+  paint with whichever mounted first.
+
+### 8.2b The three tier props
+
+`components/gamification/tier-props.tsx` draws the crown, the flower and the
+mallet. They replaced `lucide-react` icons: a 2px stroke icon is interface
+furniture — the same weight of line as the settings cog — and a reward drawn
+in it cannot read as an object worth earning. Each prop is built from at least
+two planes, because what makes a shape read as solid is having a lit face and
+a shadow face.
+
+The mallet has a requirement attached rather than a style. FR-7.6 says the
+lowest tier must never read as humiliating, so it is deliberately a **toy**:
+an oversized rounded head, a fat stubby handle, comic proportions no real tool
+has. "Make it more realistic" is what prompted this work and for that one
+object it is the wrong answer — a plausible claw hammer swinging at a student
+who scored badly is exactly what the specification rules out. A test asserts
+the head-to-handle ratio.
+
+`TierFlower` provides its own `LazyMotion`. Its petals start at `scale: 0`,
+and an `m.*` element outside a provider never leaves its initial frame — so
+rendered anywhere but inside the celebration it drew five creases and no
+petals. This is invisible in jsdom, where no animation runs and the DOM is
+identical either way; it is only found by looking at the rendered page.
+
 ### 8.3 The four storyboards
 
 Timings are seconds from the start of the sequence. Every one ends on a beat
