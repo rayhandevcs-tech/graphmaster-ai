@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronDown, Search, Shuffle, SlidersHorizontal, Telescope } from "lucide-react";
 
+import { SetForYou } from "@/components/assignments/set-for-you";
 import { Protected } from "@/components/auth/protected";
 import { EmptyState } from "@/components/layout/empty-state";
 import { Pager } from "@/components/layout/pager";
@@ -118,6 +119,11 @@ function GraphLibrary() {
           <AlertDescription>{errorMessage(random.error)}</AlertDescription>
         </Alert>
       ) : null}
+
+      {/* Set work sits above the library, not inside it. A student who came
+          here to practise freely still sees what was asked of them first, and
+          one with nothing set sees nothing extra at all. */}
+      <SetForYou />
 
       <Card className="flex flex-col gap-4 p-4 sm:p-5">
         <div className="relative">

@@ -13,11 +13,14 @@
  */
 
 import { render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
 import { AssignmentCard } from "@/components/assignments/assignment-card";
 import { CompletionBar } from "@/components/assignments/completion-bar";
 import { DeadlineChip } from "@/components/assignments/deadline-chip";
+import { SetForYou } from "@/components/assignments/set-for-you";
+import { queryKeys } from "@/lib/api";
 import { describeDeadline, describeSubmissionProgress } from "@/lib/insights/deadline";
 import { linksFor } from "@/lib/nav";
 import type { AssignmentSummary } from "@/types/api";
@@ -176,5 +179,77 @@ describe("the teacher's navigation", () => {
 
   it("shows a student none of it", () => {
     expect(linksFor("student").map((link) => link.href)).not.toContain("/teacher/assignments");
+  });
+});
+
+describe("what a student sees of set work", () => {
+  function renderSetForYou(items: AssignmentSummary[]) {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    client.setQueryData(queryKeys.assignments({ page_size: 5 }), {
+      items,
+      total: items.length,
+      page: 1,
+      page_size: 5,
+      total_pages: 1,
+    });
+    return render(
+      <QueryClientProvider client={client}>
+        <SetForYou />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("renders nothing at all when nothing has been set", () => {
+    const { container } = renderSetForYou([]);
+    // Not an empty card: the dashboard is a gapped column, so a
+    // rendered-but-empty child leaves a visible hole.
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("sends an unstarted task into practice carrying the assignment", () => {
+    renderSetForYou([assignment({ submitted_count: null, enrolled_count: null })]);
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "/practice/00000000-0000-0000-0000-0000000000g1?assignment=00000000-0000-0000-0000-0000000000a1",
+    );
+  });
+
+  it("sends finished work to the result rather than back into practice", () => {
+    renderSetForYou([
+      assignment({
+        submitted_count: null,
+        enrolled_count: null,
+        submission_id: "00000000-0000-0000-0000-0000000000s1",
+        submission_status: "scored",
+      }),
+    ]);
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "/submissions/00000000-0000-0000-0000-0000000000s1",
+    );
+    expect(screen.getByText("Done")).toBeInTheDocument();
+  });
+
+  it("never tells a student how their classmates are doing", () => {
+    renderSetForYou([assignment({ submitted_count: null, enrolled_count: null })]);
+    // The API sends a student no class counts, and this asserts the card does
+    // not invent them: a "12 of 30" here is the comparison FR-7.6 keeps off
+    // the leaderboard, arriving by another door.
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText(/have submitted/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/have not started/i)).not.toBeInTheDocument();
+  });
+
+  it("never labels a student's own work late", () => {
+    renderSetForYou([
+      assignment({
+        submitted_count: null,
+        enrolled_count: null,
+        due_at: new Date(Date.now() - 6 * 86_400_000).toISOString(),
+      }),
+    ]);
+    expect(screen.queryByText(/\blate\b/i)).not.toBeInTheDocument();
   });
 });

@@ -1090,6 +1090,8 @@ export interface SubmissionSummary {
   graph_id: UUID;
   graph_title?: string | null;
   graph_type?: GraphType | null;
+  /** Null for free practice. Present so a client resuming a draft can tell an attempt at an assignment apart from one the student chose themselves. */
+  assignment_id?: UUID | null;
   user_id: UUID;
   student_name?: string | null;
   input_method: InputMethod;

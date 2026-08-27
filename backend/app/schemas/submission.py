@@ -94,6 +94,11 @@ class SubmissionSummary(BaseModel):
     graph_id: uuid.UUID
     graph_title: str | None = None
     graph_type: GraphType | None = None
+    assignment_id: uuid.UUID | None = Field(
+        default=None,
+        description="Null for free practice. Present so a client resuming a draft can tell "
+        "an attempt at an assignment apart from one the student chose themselves.",
+    )
     user_id: uuid.UUID
     student_name: str | None = None
     input_method: InputMethod

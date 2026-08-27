@@ -474,6 +474,10 @@ class SubmissionService:
             "graph_id": submission.graph_id,
             "graph_title": graph.title if graph else None,
             "graph_type": graph.graph_type if graph else None,
+            # The foreign key alone, not the relationship: a listing must not
+            # load an assignment row per submission to print a title nobody
+            # reads in a list.
+            "assignment_id": submission.assignment_id,
             "user_id": submission.user_id,
             "student_name": submission.user.full_name if submission.user else None,
             "input_method": submission.input_method,
