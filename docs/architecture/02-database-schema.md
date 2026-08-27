@@ -189,13 +189,29 @@ The teacher-editable vocabulary library (FR-5.1, FR-5.4).
 | term | TEXT | NOT NULL | Surface form, e.g. `bottom out` |
 | lemma | TEXT | NOT NULL | Normalised match key, e.g. `bottom out` |
 | is_phrase | BOOLEAN | NOT NULL, DEFAULT false | True when the term contains whitespace |
-| weight | NUMERIC(3,2) | NOT NULL, DEFAULT 1.00 | Allows advanced terms to count for more |
+| weight | NUMERIC(3,2) | NOT NULL, DEFAULT 1.00 | Suggestion order, **not** a score multiplier — see below |
 | is_active | BOOLEAN | NOT NULL, DEFAULT true | Soft delete, preserving historical scores |
 | created_by | UUID | FK → users.id, NULL | |
 | created_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | |
 | updated_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | |
 
 Indexes: `UNIQUE (lemma)`, `INDEX (category_id)`, `INDEX (is_active)`.
+
+**`weight` does not affect any score.** This row previously read "allows
+advanced terms to count for more", which was never true of the implementation
+and is where the misunderstanding started: nothing in `nlp/scoring.py` reads
+the column, and FR-6.6 is an unweighted count of unique required terms used —
+so a term at 9.99 and a term at 0.01 move a student's percentage by exactly the
+same amount. A backend test, `test_weight_has_no_effect_on_the_score`, fails if
+that ever stops being so, because wiring weight into the score would silently
+make every historical result incomparable.
+
+What it *does* is order suggestions, lowest first: which missing word a
+struggling student is pointed at (`nlp/feedback.py`, 08-nlp-architecture §9.9)
+and which terms fill an uncurated graph's default target set
+(`services/analysis.py`). The teacher interface therefore labels the column
+**Priority**; the wire name stays `weight`, since renaming a published field
+breaks every client for no gain.
 
 Vocabulary items are **soft-deleted** rather than removed. A hard delete would
 orphan the term references stored inside historical `scores.detected_terms`,
@@ -222,6 +238,43 @@ derived from `graph_type` (FR-5.6): pie charts draw on comparison, peak and
 lowest; line and area charts draw on increase, decrease, fluctuation and
 stability; bar charts draw on comparison, increase and decrease.
 
+### 3.6 `assignments`
+
+The join between a class and a graph, with an expectation attached. The
+product had graphs and it had classes; what it could not say was *"Section A
+must describe this one by Friday"*.
+
+A **section is a class** (§2.3), so an assignment points at exactly one.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| id | UUID | PK | |
+| class_id | UUID | FK → classes.id, NOT NULL, ON DELETE CASCADE | |
+| graph_id | UUID | FK → graphs.id, NOT NULL, ON DELETE RESTRICT | |
+| title | VARCHAR(200) | NOT NULL | "Week 3 · rainfall" |
+| instructions | TEXT | NULL | What the teacher said in the lesson |
+| due_at | TIMESTAMPTZ | NULL | NULL means *no deadline*, which is not *overdue* |
+| assigned_by | UUID | FK → users.id, NULL, ON DELETE SET NULL | |
+| is_active | BOOLEAN | NOT NULL, DEFAULT true | Closed work stays in the teacher's list, leaves the students' |
+| created_at / updated_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | |
+
+Indexes: `INDEX (class_id, is_active, due_at)` — the only hot read is "this
+class's open work, soonest first" — plus `INDEX (class_id)` and
+`INDEX (graph_id)` for the foreign keys.
+
+**No `UNIQUE (class_id, graph_id)`.** Setting the same graph again next term is
+legitimate, and a partial unique index over `is_active` would stop a teacher
+reopening work they closed by accident.
+
+`ON DELETE RESTRICT` on `graph_id` extends the protection a graph already has
+once attempted: a graph with work set against it must not vanish underneath the
+submissions that reference it.
+
+An assignment changes nothing about marking. The rubric, the tier, the XP award
+and the leaderboard behave identically whether a submission belongs to one or
+not; a passed `due_at` records lateness for the teacher and never refuses a
+submission.
+
 ---
 
 ## 4. Practice & evaluation
@@ -233,6 +286,7 @@ stability; bar charts draw on comparison, increase and decrease.
 | id | UUID | PK | |
 | user_id | UUID | FK → users.id, NOT NULL | |
 | graph_id | UUID | FK → graphs.id, NOT NULL | |
+| assignment_id | UUID | FK → assignments.id, NULL, ON DELETE SET NULL | NULL is free practice — the core loop, and most rows |
 | input_method | TEXT | NOT NULL, CHECK IN (`'typed'`,`'handwriting'`) | |
 | answer_text | TEXT | NULL | Final text analysed; NULL until extraction completes |
 | original_image_path | TEXT | NULL | Set for `handwriting` |
@@ -247,7 +301,13 @@ stability; bar charts draw on comparison, increase and decrease.
 | scored_at | TIMESTAMPTZ | NULL | |
 
 Indexes: `INDEX (user_id, submitted_at DESC)`, `INDEX (graph_id)`,
-`INDEX (status)`.
+`INDEX (assignment_id)`, `INDEX (status)`.
+
+`assignment_id` is nullable **by design**, not to spare a backfill. Practice a
+student chose for themselves belongs to no assignment, and scoring, XP, tiers
+and the leaderboard read the same either way. It is set once at creation and
+never updated: a scored submission is frozen (§4.2), and re-pointing one would
+move a mark between two pieces of work.
 
 Both `ocr_text` and `answer_text` are kept. `ocr_text` is the unmodified machine
 output and `answer_text` is what was actually scored; keeping both is what makes
@@ -531,6 +591,9 @@ statuses states the code actually reaches, and means attaching a queue at the
 | `users` → `xp_events` | RESTRICT | Ledger integrity is absolute |
 | `classes` → `users.class_id` | SET NULL | Deleting a class must not delete its students |
 | `graphs` → `graph_target_vocabulary` | CASCADE | The curation has no meaning without the graph |
+| `classes` → `assignments` | CASCADE | A deleted class takes its task list, as it takes its enrolments |
+| `graphs` → `assignments` | RESTRICT | A graph with work set against it must not vanish underneath it |
+| `assignments` → `submissions.assignment_id` | SET NULL | Closing or deleting an assignment must never delete a student's writing |
 | `submissions` → `scores` | CASCADE | A score has no meaning without its submission |
 | `vocabulary_items` | never deleted | Soft-deleted via `is_active` (§3.4) |
 

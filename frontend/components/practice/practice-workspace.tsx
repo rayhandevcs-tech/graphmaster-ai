@@ -52,7 +52,22 @@ const EMPTY_TEXT: Record<InputMethod, string> = { typed: "", handwriting: "" };
  * why "type it instead" lives inside the handwriting tab rather than switching
  * to the other one.
  */
-export function PracticeWorkspace({ graphId }: { graphId: string }) {
+export function PracticeWorkspace({
+  graphId,
+  assignmentId = null,
+}: {
+  graphId: string;
+  /**
+   * The assignment this attempt is for, when the student arrived from one.
+   *
+   * It labels the submission and changes nothing else — not the marking, not
+   * the XP, not the tier. It is threaded all the way down here rather than
+   * attached afterwards because `assignment_id` is set once at creation and
+   * never updated: a scored submission is frozen, and re-pointing one would
+   * move a mark between two pieces of work.
+   */
+  assignmentId?: string | null;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -102,7 +117,14 @@ export function PracticeWorkspace({ graphId }: { graphId: string }) {
     if (adopted.current || !openAttempts.data) return;
     adopted.current = true;
 
-    const resumable = openAttempts.data.items.filter(isResumable);
+    // Only a draft belonging to the *same* assignment is resumable. Adopting
+    // a free-practice draft into an attempt at set work would file the answer
+    // against nothing, leaving the task reading as not started after the
+    // student had written it — and the reverse would file free practice under
+    // a task nobody set.
+    const resumable = openAttempts.data.items
+      .filter(isResumable)
+      .filter((attempt) => (attempt.assignment_id ?? null) === assignmentId);
     const recovered = { ...EMPTY_TEXT };
 
     for (const attempt of resumable) {
@@ -130,7 +152,7 @@ export function PracticeWorkspace({ graphId }: { graphId: string }) {
       setTexts(recovered);
       if (!recovered.typed && recovered.handwriting) setMethod("handwriting");
     })();
-  }, [openAttempts.data]);
+  }, [openAttempts.data, assignmentId]);
 
   /** The submission for this method, opened on demand. */
   const ensure = useCallback(
@@ -140,11 +162,12 @@ export function PracticeWorkspace({ graphId }: { graphId: string }) {
       const created = await submissionsApi.create({
         graph_id: graphId,
         input_method: inputMethod,
+        assignment_id: assignmentId,
       });
       ids.current[inputMethod] = created.id;
       return created.id;
     },
-    [graphId],
+    [graphId, assignmentId],
   );
 
   const text = texts[method];

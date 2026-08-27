@@ -6,6 +6,7 @@ import { RefreshCw } from "lucide-react";
 import { queryKeys, usersApi, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth/context";
 import { Reveal } from "@/components/motion/reveal";
+import { SetForYou } from "@/components/assignments/set-for-you";
 import { TierDistribution } from "@/components/gamification/tier-distribution";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,12 @@ export function DashboardView() {
       <Reveal>
         <HeroPanel user={user} dashboard={data} />
       </Reveal>
+
+      {/* Above the figures, and above the first-run panel, because an
+          obligation outranks a suggestion. It renders nothing at all when no
+          work has been set, so a student practising on their own never sees an
+          empty card teaching them to skip this part of the screen. */}
+      <SetForYou />
 
       {!started ? (
         <Reveal delay={0.06}>

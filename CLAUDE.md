@@ -36,7 +36,9 @@ Framer Motion · Lottie · Chart.js · TanStack Query
 2. **OCR runs on the student's handwritten answer**, never on the graph image.
    Graphs are structured `chart_data`, rendered by Chart.js.
 3. **Scoring is 70% vocabulary + 30% writing quality.** Weights come from
-   configuration, never hardcoded.
+   configuration, never hardcoded. These two are the *only* weights that touch
+   a score — do not confuse them with `vocabulary_items.weight`, which touches
+   none (rule 41).
 4. **The reward tier is driven by vocabulary percentage, not final score.**
 5. **There are four tiers**: crown ≥90, flower 60–89, steady 50–59, hammer <50.
    The `steady` tier fills a gap the original spec left open — see
@@ -145,6 +147,14 @@ Framer Motion · Lottie · Chart.js · TanStack Query
     file circulated by email should not hold every student's writing verbatim.
 40. **Excel cannot store a timezone.** Convert to `PLATFORM_TIMEZONE`, drop the
     offset, and name the zone in the report header.
+41. **`vocabulary_items.weight` is a suggestion order, not a score
+    multiplier.** Nothing in `nlp/scoring.py` reads it — FR-6.6 is an
+    unweighted count of unique required terms used, so a term at 9.99 and one
+    at 0.01 are worth the same. It orders the missing words a struggling
+    student is shown (lowest first) and fills an uncurated graph's default
+    target set. The teacher interface calls it **Priority** for that reason;
+    the wire name stays `weight`. Wiring it into the score would make every
+    historical result incomparable, so a test refuses it.
 
 41. **A new route is guarded until the allowlist says otherwise.**
     `tests/api/test_api_surface.py` walks the published OpenAPI document and

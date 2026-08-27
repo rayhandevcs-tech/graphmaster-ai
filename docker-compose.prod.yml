@@ -1,0 +1,59 @@
+# Production overlay. Use it *with* the base file, never instead of it:
+#
+#     docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# The base file is a development stack: it defaults ENVIRONMENT to
+# development, DEBUG to true, the database password to "graphmaster", and it
+# publishes Postgres on the host so you can point a GUI client at it. Every one
+# of those is right for a laptop and wrong for a server, so this file overrides
+# them and — more importantly — makes the dangerous ones *required* rather than
+# defaulted. A missing variable now stops the stack instead of silently
+# choosing something unsafe.
+
+services:
+  db:
+    environment:
+      # `:?` means "fail if unset". No default, deliberately.
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in production}"
+    # Not published. The API reaches Postgres over the compose network by
+    # service name; nothing outside the host has any business connecting.
+    # To take a backup or attach a client, use `docker compose exec db`.
+    ports: []
+    restart: always
+
+  api:
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      SECRET_KEY: "${SECRET_KEY:?SECRET_KEY must be set - generate one with openssl rand -hex 32}"
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-graphmaster}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in production}@db:5432/${POSTGRES_DB:-graphmaster}"
+      # The browser's origin, not the server's. Getting this wrong is the
+      # commonest first-deploy failure: the app loads and every request is
+      # blocked by CORS.
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:?ALLOWED_ORIGINS must be your public site origin, e.g. https://graphmaster.example.edu}"
+    # Two workers rather than one. Scoring a submission occupies its worker for
+    # up to two seconds (NFR-1.2) and nothing else is served by that process
+    # meanwhile, so a single worker serialises a class submitting together.
+    # Two is not a fix for that — moving the analysis off the event loop is —
+    # but it is the cheap half, and it costs one extra spaCy model in memory.
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+    healthcheck:
+      # `/health/ready` checks the database too, so a container that has lost
+      # Postgres reports unhealthy rather than accepting requests it cannot
+      # serve. `start-period` covers migrations, seeding and the spaCy load.
+      test:
+        ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/health/ready', timeout=5).status==200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+    restart: always
+
+  web:
+    build:
+      args:
+        # Inlined into the browser bundle at build time. If this is wrong the
+        # site loads and every request goes to the visitor's own localhost.
+        NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be your public API URL, e.g. https://graphmaster.example.edu/api/v1}"
+    restart: always

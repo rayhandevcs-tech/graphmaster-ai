@@ -63,6 +63,11 @@ class ClassNotFoundError(NotFoundError):
     message = "Class not found."
 
 
+class AssignmentNotFoundError(NotFoundError):
+    code = "ASSIGNMENT_NOT_FOUND"
+    message = "Assignment not found, or you do not have access to it."
+
+
 class VocabularyItemNotFoundError(NotFoundError):
     code = "VOCABULARY_ITEM_NOT_FOUND"
     message = "Vocabulary item not found."

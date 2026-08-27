@@ -40,11 +40,23 @@ export function HeroPanel({ user, dashboard }: { user: UserProfile; dashboard: S
           <div className="flex items-center gap-4">
             {/* The character the student chose, drawn — not the initials that
                 stood here while `image_url` pointed at files this repository
-                has never contained. */}
+                has never contained.
+
+                The full figure rather than the bust: this is the one place on
+                the dashboard where the character is a greeting rather than a
+                row label, and a body standing beside its own name is what the
+                screen is for. Hidden below `sm`, where the height would push
+                the XP figures off the first screen. */}
+            <AvatarCharacter
+              code={avatarCodeFor(user)}
+              variant="figure"
+              expression="happy"
+              className="hidden h-24 shrink-0 sm:block"
+            />
             <AvatarCharacter
               code={avatarCodeFor(user)}
               expression="happy"
-              className="ring-background/70 size-14 rounded-full shadow-sm ring-2"
+              className="ring-background/70 size-14 shrink-0 rounded-full shadow-sm ring-2 sm:hidden"
             />
 
             <div className="min-w-0">

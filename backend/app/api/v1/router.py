@@ -11,6 +11,7 @@ from app.api.v1 import (
     analysis,
     analytics,
     assessment,
+    assignments,
     auth,
     avatars,
     classes,
@@ -32,6 +33,7 @@ api_router.include_router(auth.router, prefix="/auth")
 api_router.include_router(users.router, prefix="/users")
 api_router.include_router(avatars.router, prefix="/avatars")
 api_router.include_router(classes.router, prefix="/classes")
+api_router.include_router(assignments.router, prefix="/assignments")
 api_router.include_router(graphs.router, prefix="/graphs")
 api_router.include_router(ocr.router, prefix="/ocr")
 api_router.include_router(vocabulary.router, prefix="/vocabulary")

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -23,7 +25,7 @@ from app.db.types import GUID, JSONType
 from app.models.enums import Difficulty, GraphType, values
 
 if TYPE_CHECKING:
-    from app.models.identity import User
+    from app.models.identity import Class, User
     from app.models.submission import Submission
 
 
@@ -103,6 +105,14 @@ class VocabularyItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # space-joined lemma sequence, e.g. "bottom out" matches "bottomed out".
     lemma: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     is_phrase: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: How basic the term is — a suggestion order, **not a score multiplier**.
+    #:
+    #: Nothing in `nlp/scoring.py` reads this. The vocabulary mark is an
+    #: unweighted count of unique required terms used (FR-6.6), so two terms
+    #: with weights of 0.5 and 5.0 are worth exactly the same to a student.
+    #: It orders the missing terms a struggling student is shown first, and it
+    #: picks the default target set for an uncurated graph. The name is
+    #: historical and has misled teachers; the API descriptions correct it.
     weight: Mapped[float] = mapped_column(Numeric(3, 2), nullable=False, default=1.00)
 
     # Soft delete. Historical scores store term references, so removing a row
@@ -155,4 +165,62 @@ class GraphTargetVocabulary(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     __table_args__ = (
         UniqueConstraint("graph_id", "vocabulary_item_id", name="uq_graph_vocabulary"),
         Index("ix_graph_target_vocabulary_graph_id", "graph_id"),
+    )
+
+
+class Assignment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """A graph a class has been asked to describe, with an expectation attached.
+
+    The one sentence the product could not say. It had graphs, and it had
+    classes, and nothing that joined them — so a teacher could publish work but
+    not *set* it, and a student saw a library rather than a task.
+
+    **A section is a class.** A faculty member teaching four sections makes
+    four classes, each with its own join code; nothing new was needed for that,
+    and an assignment therefore points at exactly one class.
+
+    Deliberately thin. An assignment carries a due date and a label, and
+    changes nothing about how work is marked: the rubric, the tier, the XP
+    award and the leaderboard behave the same whether a submission belongs to
+    one or not. A passed deadline marks a submission late; it never refuses it,
+    because refusing the work a student finally sat down to do is the opposite
+    of the point.
+    """
+
+    __tablename__ = "assignments"
+
+    class_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("classes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # RESTRICT, not CASCADE: a graph with work set against it must not vanish
+    # underneath the submissions that reference it. Graphs are already
+    # undeletable once attempted; this extends the same protection to a graph
+    # that has been assigned but not yet attempted.
+    graph_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("graphs.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    #: What the teacher said in the lesson — the slide, the handout, the caveat.
+    instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    #: Null means "no deadline", which is a different thing from "overdue".
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    assigned_by: Mapped[uuid.UUID | None] = mapped_column(
+        GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    class_: Mapped[Class] = relationship()
+    graph: Mapped[Graph] = relationship()
+    submissions: Mapped[list[Submission]] = relationship(back_populates="assignment")
+
+    __table_args__ = (
+        # The only hot read: this class's open work, soonest first.
+        Index("ix_assignments_class_open", "class_id", "is_active", "due_at"),
+        # No unique constraint over (class_id, graph_id). Setting the same
+        # graph again next term is legitimate, and a partial unique index over
+        # `is_active` would stop a teacher reopening work they closed by
+        # accident.
     )

@@ -30,6 +30,8 @@ class TargetTerm:
     category_name: str
     is_phrase: bool
     is_required: bool = True
+    #: Suggestion order only. `scoring.py` never reads it — see the column
+    #: comment on `VocabularyItem.weight` for why the name is misleading.
     weight: float = 1.0
     item_id: uuid.UUID | None = None
 

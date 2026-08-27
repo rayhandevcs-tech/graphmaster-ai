@@ -154,16 +154,25 @@ export function TermForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="weight">Weight</Label>
+            <Label htmlFor="weight">Suggestion priority</Label>
             <Input
               id="weight"
               type="number"
               min={0.1}
-              max={10}
+              max={9.99}
               step={0.1}
               value={weight}
+              aria-describedby="weight-help"
               onChange={(event) => setWeight(event.target.value)}
             />
+            {/* This field was labelled "Weight" and offered no explanation at
+                all, which read as a score multiplier. It is not one — see the
+                note in `vocabulary-manager.tsx`. */}
+            <p id="weight-help" className="text-muted-foreground text-xs text-pretty">
+              Lowest first: a student who missed several words is pointed at the one with the
+              smallest number, so leave the basic terms low and the ambitious ones high.{" "}
+              <strong className="font-medium">It does not change anyone&rsquo;s score.</strong>
+            </p>
           </div>
 
           {save.isError ? (

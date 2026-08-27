@@ -244,11 +244,13 @@ def scored_submission_factory(db: AsyncSession):
         scored_at: datetime | None = None,
         detected_terms: list | None = None,
         word_count: int = 7,
+        assignment=None,
     ) -> Submission:
         moment = scored_at or datetime.now(UTC)
         submission = Submission(
             user_id=user.id,
             graph_id=graph.id,
+            assignment_id=assignment.id if assignment is not None else None,
             input_method=InputMethod.TYPED.value,
             answer_text="A description written for a test.",
             word_count=word_count,
@@ -303,6 +305,40 @@ def class_factory(db: AsyncSession):
         db.add(class_)
         await db.flush()
         return class_
+
+    return make
+
+
+@pytest.fixture
+def assignment_factory(db: AsyncSession):
+    """Set a graph as work for a class, directly."""
+    from app.models.content import Assignment
+
+    counter = {"n": 0}
+
+    async def make(
+        *,
+        class_,
+        graph,
+        assigned_by=None,
+        title: str | None = None,
+        instructions: str | None = None,
+        due_at=None,
+        is_active: bool = True,
+    ) -> Assignment:
+        counter["n"] += 1
+        assignment = Assignment(
+            class_id=class_.id,
+            graph_id=graph.id,
+            title=title or f"Test assignment {counter['n']}",
+            instructions=instructions,
+            due_at=due_at,
+            assigned_by=assigned_by.id if assigned_by is not None else None,
+            is_active=is_active,
+        )
+        db.add(assignment)
+        await db.flush()
+        return assignment
 
     return make
 

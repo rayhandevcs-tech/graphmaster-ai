@@ -19,6 +19,7 @@
 | Users | `/users` | Profile, statistics, dashboard |
 | Avatars | `/avatars` | Avatar catalogue and selection |
 | Classes | `/classes` | Cohort management and enrolment |
+| Assignments | `/assignments` | Work a teacher sets for one class |
 | Graphs | `/graphs` | Practice content |
 | Vocabulary | `/vocabulary` | Categories and teacher-editable terms |
 | Submissions | `/submissions` | The practice flow, including OCR and analysis |
@@ -112,6 +113,47 @@ immediately. Response is `201` with the created profile and a token pair.
 | POST | `/classes/join` | Student self-enrols with a join code | S |
 
 Teachers may only act on classes they own; admins are unrestricted (FR-11.6).
+
+**A section is a class.** A faculty member teaching four sections creates four
+classes, each with its own join code, and `users.class_id` puts a student in
+exactly one. There is no separate section concept and no plan for one.
+
+### 3.4b Assignments
+
+| Method | Path | Description | Roles |
+|---|---|---|---|
+| GET | `/assignments` | A teacher's own classes' work; a student's own class's open work | S T A |
+| POST | `/assignments` | Set a published graph as work for one class | T A |
+| GET | `/assignments/{id}` | One assignment | S T A |
+| PATCH | `/assignments/{id}` | Title, instructions, due date, open/closed | T A |
+| GET | `/assignments/{id}/progress` | Who has submitted and who has not | T A |
+
+Same authorisation rule as classes: a class you do not teach is **refused with
+403, never returned empty** (rule 33). For a *student*, an assignment belonging
+to another section answers **404** rather than 403 — telling them that work
+exists elsewhere is itself a disclosure.
+
+`GET /assignments` serves both audiences from one response model, and
+deliberately does not serve them the same fields:
+
+| Field | Teacher | Student |
+|---|---|---|
+| `submitted_count`, `enrolled_count` | the class's progress | **null** |
+| `submission_id`, `submission_status` | null | the reader's own attempt |
+
+Telling a student how many classmates have finished is the comparison FR-7.6
+keeps off the leaderboard, arriving by another door.
+
+`progress` counts against **enrolment**, not against whoever submitted
+(rule 35), and `average_score` is `null` rather than `0` before anything is
+marked (rule 32). `is_late` records that a submission arrived after `due_at`;
+it is teacher-facing only and affects no score, tier, XP award or ranking.
+
+**What an assignment does not do.** It changes nothing about marking. A passed
+deadline never refuses a submission — refusing the work a student finally sat
+down to do is the opposite of the point — and the graph an assignment names
+can never be swapped afterwards, because the submissions already filed against
+it were written about that graph.
 
 ### 3.5 Graphs
 
@@ -360,7 +402,7 @@ server.
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| POST | `/submissions` | Open a submission for a graph, choosing `typed` or `handwriting` | S |
+| POST | `/submissions` | Open a submission for a graph, choosing `typed` or `handwriting`, optionally against an assignment | S |
 | POST | `/submissions/{id}/upload` | Upload the handwriting image; runs OCR; returns the extracted text | S |
 | PATCH | `/submissions/{id}/text` | Set or correct the answer text before analysis (FR-4.7) | S |
 | POST | `/submissions/{id}/analyze` | Run the analysis, score, and award gamification | S |
@@ -368,6 +410,18 @@ server.
 | GET | `/submissions/{id}/image` | Stream the original uploaded image | S T A |
 | GET | `/submissions` | List; students see their own, teachers see their classes' | S T A |
 | DELETE | `/submissions/{id}` | Discard an unscored draft | S |
+
+`POST /submissions` takes an optional `assignment_id`. It is checked rather
+than trusted: work set for a class the student is not in reads as absent, and
+an assignment naming a different graph is refused — accepting it would file the
+answer against a question nobody asked. Omitting it is free practice, which is
+the core loop, and no scoring, XP, tier or leaderboard path reads the field.
+
+The value is **set once, at creation, and never updated**: a scored submission
+is frozen (rule 19), and re-pointing one would move a mark between two pieces
+of work. Draft reuse matches on it too — a pristine free-practice draft is not
+handed back to a student who opened the same graph from their task list, which
+would otherwise leave the task reading as not started after they had done it.
 
 `POST /submissions/{id}/upload` — `multipart/form-data`, field `file`:
 

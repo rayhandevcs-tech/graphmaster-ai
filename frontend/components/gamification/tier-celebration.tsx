@@ -2,11 +2,12 @@
 
 import { useEffect } from "react";
 import { m } from "framer-motion";
-import { Crown, Hammer, RotateCcw, SkipForward, Volume2, VolumeX } from "lucide-react";
+import { RotateCcw, SkipForward, Volume2, VolumeX } from "lucide-react";
 
-import { AvatarCharacter, type Expression } from "@/components/avatars/character";
+import { AvatarCharacter, type Expression, type Pose } from "@/components/avatars/character";
 import { MotionStage } from "@/components/motion/stage";
-import { BloomingFlower, Confetti, OrbitStars, Pulse, Sparkles } from "./particles";
+import { Confetti, OrbitStars, Pulse, Sparkles } from "./particles";
+import { TierCrown, TierFlower, TierMallet } from "./tier-props";
 import { Button } from "@/components/ui/button";
 import { useSequence, type SequenceState } from "@/lib/motion/use-sequence";
 import { HAMMER_MESSAGE, HAMMER_RECOVERY, TIER_STORYBOARDS } from "@/lib/motion/storyboards";
@@ -97,39 +98,60 @@ function Stage({
   return (
     // `overflow-visible` so confetti can leave the stage; the fixed height
     // means nothing below moves while the sequence plays.
-    <div className="relative grid h-32 w-full place-items-center overflow-visible">
+    <div className="relative grid h-44 w-full place-items-end justify-items-center overflow-visible pb-1">
       {tier === "steady" && at("pulse") ? <Pulse /> : null}
+
+      {/* The ground shadow is a sibling of the figure, not a child of it, so
+          it does not inherit the figure's squash and rise. A body that jumps
+          takes its shadow with it; a body whose shadow stays on the floor and
+          spreads is the one that reads as having left the ground. */}
+      <m.span
+        className="bg-primary/25 absolute bottom-1 left-1/2 h-2.5 -translate-x-1/2 rounded-[50%] blur-[1px]"
+        initial={{ width: 40, opacity: 0 }}
+        animate={groundShadow(tier, beatId)}
+        // Never a spring, unlike the figure above it. Springs take exactly two
+        // keyframes, and every interesting shadow beat is a three-part
+        // squash — out, in, back — so sharing the figure's transition made the
+        // recovery beat throw and animate nothing at all.
+        transition={{ duration: DURATION.settle, ease: EASE.standard }}
+      />
 
       <m.div
         className="relative"
         initial={{ opacity: 0, y: 16 }}
         animate={avatarPose(tier, beatId)}
         transition={poseTransition(beatId)}
+        style={{ transformOrigin: "50% 100%" }}
       >
         <AvatarCharacter
           code={code}
+          variant="figure"
           expression={expressionFor(tier, reached)}
-          className="size-28"
+          pose={poseFor(tier, reached)}
+          className="h-40"
         />
 
         {tier === "crown" && reached("crown") ? (
           <m.span
-            className="text-tier-crown absolute -top-3 left-1/2 -translate-x-1/2"
+            // -top-6, not -top-2. The head sits high in the figure's frame and
+            // the crown's band is three-quarters of the way down its own box,
+            // so the obvious offset landed the band across the eyes.
+            className="text-tier-crown absolute -top-6 left-1/2 -translate-x-1/2"
             initial={{ y: -70, opacity: 0, rotate: -12 }}
             animate={{ y: 0, opacity: 1, rotate: 0 }}
             transition={SPRING_SOFT}
           >
-            <Crown className="size-10 fill-current" aria-hidden />
+            <TierCrown className="size-14" />
           </m.span>
         ) : null}
 
         {tier === "flower" && reached("bloom") ? (
           <m.span
-            className="absolute -top-3 -right-6"
+            className="text-tier-flower absolute -top-2 -right-8"
             animate={{ rotate: reached("spin") ? 22 : 0 }}
             transition={{ duration: DURATION.settle, ease: EASE.standard }}
           >
-            <BloomingFlower className="size-20" />
+            <TierFlower className="size-20" />
           </m.span>
         ) : null}
 
@@ -161,14 +183,15 @@ function Stage({
 function CartoonHammer({ swung }: { swung: boolean }) {
   return (
     <m.span
-      className="text-tier-hammer absolute top-1 right-0"
-      initial={{ rotate: -65, x: 32, y: -26, opacity: 0 }}
+      className="text-tier-hammer absolute top-0 right-0"
+      initial={{ rotate: -65, x: 34, y: -30, opacity: 0 }}
       animate={
-        swung ? { rotate: 20, x: -8, y: 4, opacity: 1 } : { rotate: -35, x: 16, y: -12, opacity: 1 }
+        swung ? { rotate: 18, x: -6, y: 2, opacity: 1 } : { rotate: -35, x: 18, y: -14, opacity: 1 }
       }
       transition={{ duration: DURATION.base, ease: EASE.anticipate }}
+      style={{ transformOrigin: "50% 85%" }}
     >
-      <Hammer className="size-12" aria-hidden />
+      <TierMallet className="size-16" />
     </m.span>
   );
 }
@@ -266,6 +289,53 @@ function expressionFor(tier: RewardTier, reached: (id: string) => boolean): Expr
   return reached("nod") ? "happy" : "neutral";
 }
 
+/**
+ * What the arms are doing at the beat the sequence has reached.
+ *
+ * Separate from the face because they move at different moments: the hammer
+ * character throws its arm up to guard *before* the mallet lands, while its
+ * expression is still neutral. Deriving one from the other would lose that —
+ * and a body that reacts only after contact reads as a doll being hit.
+ */
+function poseFor(tier: RewardTier, reached: (id: string) => boolean): Pose {
+  if (tier === "hammer") {
+    if (reached(HAMMER_RECOVERY)) return "brace";
+    if (reached("swing")) return "guard";
+    return "rest";
+  }
+  if (tier === "crown") return reached("crown") ? "cheer" : "rest";
+  if (tier === "flower") return reached("bloom") ? "cheer" : "rest";
+  return reached("nod") ? "brace" : "rest";
+}
+
+/**
+ * The shadow on the floor.
+ *
+ * It widens and fades as the figure rises and tightens as it lands, which is
+ * most of what sells weight — more than any amount of shading on the figure
+ * itself. Width in pixels rather than a scale so it stays centred without a
+ * transform fighting the `-translate-x-1/2` that centres it.
+ */
+function groundShadow(tier: RewardTier, beatId: string): Record<string, number | number[]> {
+  const rest = { width: 56, opacity: 1 };
+
+  if (tier === "hammer") {
+    // Flattened wide on the impact, because the figure is compressed onto it.
+    if (beatId === "bonk") return { width: [56, 70, 60], opacity: 1 };
+    if (beatId === "wobble") return { width: 62, opacity: 0.9 };
+    if (beatId === HAMMER_RECOVERY) return { width: [60, 44, 56], opacity: 1 };
+    return rest;
+  }
+
+  if (tier === "crown" && beatId === "crown") return { width: [56, 64, 56], opacity: 1 };
+  // The only beat where the figure genuinely leaves the ground, so the only
+  // one where the shadow shrinks and fades rather than spreading.
+  if (tier === "flower" && beatId === "spin") return { width: [56, 40, 56], opacity: 0.75 };
+  if (tier === "steady" && beatId === "nod") return { width: [56, 62, 56], opacity: 1 };
+
+  return rest;
+}
+
 /** How the character itself is posed on each beat. */
 function avatarPose(tier: RewardTier, beatId: string): Record<string, number | number[]> {
   const rest = { opacity: 1, y: 0, rotate: 0, scale: 1, scaleY: 1 };
@@ -285,7 +355,11 @@ function avatarPose(tier: RewardTier, beatId: string): Record<string, number | n
 }
 
 function poseTransition(beatId: string) {
-  if (beatId === HAMMER_RECOVERY) return SPRING;
+  // The recovery is a three-keyframe bounce — up, over, back — and a spring
+  // takes exactly two, so this used to throw at runtime and the beat FR-7.7
+  // hinges on played as a jump cut. `anticipate` is the curve the motion
+  // tokens reserve for precisely this movement, and it overshoots on its own.
+  if (beatId === HAMMER_RECOVERY) return { duration: DURATION.beat, ease: EASE.anticipate };
   if (beatId === "wobble") return { duration: DURATION.base, ease: EASE.standard };
   return { duration: DURATION.settle, ease: EASE.standard };
 }

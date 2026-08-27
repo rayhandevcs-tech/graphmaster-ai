@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/lib/auth/context";
 import { safeNextPath } from "@/lib/auth/redirect";
-import { homePathForRole } from "@/lib/auth/roles";
+import { homePathForRole, roleCanVisit } from "@/lib/auth/roles";
 import { ApiError, errorMessage } from "@/lib/api";
 import { AuthShell, AuthSwitch } from "@/components/auth/auth-shell";
 import { PasswordField } from "@/components/auth/password-field";
@@ -50,7 +50,14 @@ function LoginForm() {
 
     try {
       const user = await signIn({ email, password });
-      router.replace(safeNextPath(searchParams.get("next"), homePathForRole(user.role)));
+      // Two separate questions, deliberately. `safeNextPath` asks whether the
+      // destination is on this site at all; `roleCanVisit` asks whether this
+      // person may open it. A stale link to a teacher's screen passes the
+      // first and fails the second, and used to land a student on "This page
+      // is not for your account" as their first impression after signing in.
+      const home = homePathForRole(user.role);
+      const next = safeNextPath(searchParams.get("next"), home);
+      router.replace(roleCanVisit(next, user.role) ? next : home);
     } catch (caught) {
       setError(caught instanceof Error ? caught : new Error(String(caught)));
       setSubmitting(false);

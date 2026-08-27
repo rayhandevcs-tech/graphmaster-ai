@@ -31,8 +31,30 @@ def normalize_term(value: str) -> str:
 
 
 TermStr = Annotated[str, Field(min_length=1, max_length=100)]
-# Numeric(3, 2) in the schema, so 9.99 is the widest value that round-trips.
-Weight = Annotated[float, Field(gt=0, le=9.99)]
+
+#: How basic a term is, which decides the order it is *suggested* in.
+#:
+#: **It does not affect the score.** The vocabulary mark is an unweighted count
+#: of unique required terms used over the number required (FR-6.6,
+#: ``nlp/scoring.py``) — a term set to 5.0 and a term set to 0.5 move a
+#: student's percentage by exactly the same amount. The field is named
+#: ``weight`` for historical reasons and the name misled teachers into
+#: believing otherwise, so every description it carries now says so.
+#:
+#: What it *does*: missing terms are offered lowest-first, so a struggling
+#: student is pointed at the most basic word they missed rather than the most
+#: sophisticated one (``nlp/feedback.py``), and an uncurated graph's default
+#: target set is filled from the most basic terms in each category
+#: (``services/analysis.py``).
+#:
+#: Numeric(3, 2) in the database, so 9.99 is the widest value that round-trips.
+WEIGHT_DESCRIPTION = (
+    "Suggestion priority, lowest first — which missing word a struggling student is "
+    "pointed at, and which terms fill an uncurated graph's default target set. It has "
+    "no effect on the score: the vocabulary mark is an unweighted count of unique "
+    "required terms used (FR-6.6)."
+)
+Weight = Annotated[float, Field(gt=0, le=9.99, description=WEIGHT_DESCRIPTION)]
 
 
 class VocabularyCategoryOut(ORMModel):
@@ -49,7 +71,7 @@ class VocabularyItemOut(ORMModel):
     term: str
     lemma: str
     is_phrase: bool
-    weight: float
+    weight: float = Field(description=WEIGHT_DESCRIPTION)
     is_active: bool
     category_id: uuid.UUID
     category_code: str

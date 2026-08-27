@@ -192,6 +192,101 @@ export interface AssessmentResponse {
   assessed_at: DateTimeString;
 }
 
+export interface AssignmentCreate {
+  class_id: UUID;
+  graph_id: UUID;
+  title: string;
+  instructions?: string | null;
+  due_at?: DateTimeString | null;
+}
+
+export interface AssignmentDetail {
+  id: UUID;
+  class_id: UUID;
+  graph_id: UUID;
+  title: string;
+  instructions: string | null;
+  /** Null means no deadline, which is not the same as overdue */
+  due_at?: DateTimeString | null;
+  is_active: boolean;
+  created_at: DateTimeString;
+  graph_title: string;
+  graph_type: GraphType;
+  class_name: string;
+  submitted_count?: number | null;
+  enrolled_count?: number | null;
+  submission_id?: UUID | null;
+  submission_status?: string | null;
+  assigned_by: UUID | null;
+  updated_at: DateTimeString;
+}
+
+/**
+ * Who has done the work and who has not.
+ *
+ * Counted against **enrolment**, not against whoever happened to submit
+ * (rule 35): a class where half the students never started must not read as
+ * full marks. ``average_score`` is null rather than 0 when nothing has been
+ * scored yet (rule 32).
+ */
+export interface AssignmentProgress {
+  assignment: AssignmentSummary;
+  enrolled_count: number;
+  submitted_count: number;
+  scored_count: number;
+  late_count: number;
+  average_score?: number | null;
+  students: AssignmentStudentProgress[];
+}
+
+/** One enrolled student's standing against one assignment. */
+export interface AssignmentStudentProgress {
+  user_id: UUID;
+  full_name: string;
+  submission_id?: UUID | null;
+  /** The submission's status, or null for a student who has not started */
+  status?: string | null;
+  /** Null until the submission is scored — never 0 (rule 32) */
+  final_score?: number | null;
+  submitted_at?: DateTimeString | null;
+  /** Submitted after the deadline. Recorded, never punished. */
+  is_late?: boolean;
+}
+
+/** One row in a task list, for a teacher or a student. */
+export interface AssignmentSummary {
+  id: UUID;
+  class_id: UUID;
+  graph_id: UUID;
+  title: string;
+  instructions: string | null;
+  /** Null means no deadline, which is not the same as overdue */
+  due_at?: DateTimeString | null;
+  is_active: boolean;
+  created_at: DateTimeString;
+  graph_title: string;
+  graph_type: GraphType;
+  class_name: string;
+  submitted_count?: number | null;
+  enrolled_count?: number | null;
+  submission_id?: UUID | null;
+  submission_status?: string | null;
+}
+
+/**
+ * Everything an assignment may become after it is set.
+ *
+ * ``class_id`` and ``graph_id`` are absent on purpose: moving an assignment
+ * to another graph would silently change what the submissions already filed
+ * against it were answering.
+ */
+export interface AssignmentUpdate {
+  title?: string | null;
+  instructions?: string | null;
+  due_at?: DateTimeString | null;
+  is_active?: boolean | null;
+}
+
 /** Returned by register and login. */
 export interface AuthResponse {
   user: UserProfile;
@@ -943,6 +1038,8 @@ export interface SubmissionCreate {
   graph_id: UUID;
   /** `typed` to write in the browser, `handwriting` to photograph a page */
   input_method?: InputMethod;
+  /** The assignment this attempt is for. Omit for free practice — scoring, XP, tiers and the leaderboard are identical either way. */
+  assignment_id?: UUID | null;
 }
 
 /** One submission with everything the client needs to render it. */
@@ -951,6 +1048,9 @@ export interface SubmissionDetail {
   graph_id: UUID;
   graph_title?: string | null;
   graph_type?: GraphType | null;
+  /** Null for free practice, which is most of them */
+  assignment_id?: UUID | null;
+  assignment_title?: string | null;
   user_id: UUID;
   student_name?: string | null;
   input_method: InputMethod;
@@ -990,6 +1090,8 @@ export interface SubmissionSummary {
   graph_id: UUID;
   graph_title?: string | null;
   graph_type?: GraphType | null;
+  /** Null for free practice. Present so a client resuming a draft can tell an attempt at an assignment apart from one the student chose themselves. */
+  assignment_id?: UUID | null;
   user_id: UUID;
   student_name?: string | null;
   input_method: InputMethod;
@@ -1149,6 +1251,7 @@ export interface VocabularyItemCreate {
   category_code: string;
   term: string;
   lemma?: string | null;
+  /** Suggestion priority, lowest first — which missing word a struggling student is pointed at, and which terms fill an uncurated graph's default target set. It has no effect on the score: the vocabulary mark is an unweighted count of unique required terms used (FR-6.6). */
   weight?: number;
 }
 
@@ -1157,6 +1260,7 @@ export interface VocabularyItemOut {
   term: string;
   lemma: string;
   is_phrase: boolean;
+  /** Suggestion priority, lowest first — which missing word a struggling student is pointed at, and which terms fill an uncurated graph's default target set. It has no effect on the score: the vocabulary mark is an unweighted count of unique required terms used (FR-6.6). */
   weight: number;
   is_active: boolean;
   category_id: UUID;
@@ -1295,6 +1399,8 @@ export interface app__schemas__assessment__TrendPoint {
 
 
 /* Paged collections. */
+
+export type PageAssignmentSummary = Page<AssignmentSummary>;
 
 export type PageClassSummary = Page<ClassSummary>;
 

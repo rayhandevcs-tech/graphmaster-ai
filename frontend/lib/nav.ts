@@ -1,6 +1,7 @@
 import {
   BarChart3,
   BookOpen,
+  CalendarCheck,
   ClipboardList,
   LayoutDashboard,
   LineChart,
@@ -43,6 +44,15 @@ export function linksFor(role: UserRole | undefined): NavLink[] {
   if (isTeacherOrAdmin(role)) {
     const links: NavLink[] = [
       { href: "/teacher/dashboard", label: "Dashboard", icon: LayoutDashboard, shortLabel: "Home" },
+      // "Assign" is a verb where "Work" is a noun, deliberately. Two adjacent
+      // noun labels — the work you set and the work they handed in — were the
+      // version that could not be told apart at a glance on a phone.
+      {
+        href: "/teacher/assignments",
+        label: "Assignments",
+        icon: CalendarCheck,
+        shortLabel: "Assign",
+      },
       {
         href: "/teacher/submissions",
         label: "Submissions",
