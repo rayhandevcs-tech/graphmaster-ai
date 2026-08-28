@@ -33,6 +33,7 @@ from app.schemas.graph import (
     GraphCreate,
     GraphUpdate,
     TargetVocabularyEntry,
+    chart_preview,
     validate_chart_for_type,
 )
 from app.services.vocabulary import serialize_item
@@ -85,6 +86,8 @@ class GraphService:
                 "is_published": g.is_published,
                 "image_url": g.image_url,
                 "target_vocabulary_count": counts.get(g.id, 0),
+                "prompt": g.prompt,
+                "preview": chart_preview(g.chart_data),
                 "created_at": g.created_at,
             }
             for g in graphs

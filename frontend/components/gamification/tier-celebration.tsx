@@ -10,7 +10,14 @@ import { Confetti, OrbitStars, Pulse, Sparkles } from "./particles";
 import { TierCrown, TierFlower, TierMallet } from "./tier-props";
 import { Button } from "@/components/ui/button";
 import { useSequence, type SequenceState } from "@/lib/motion/use-sequence";
-import { HAMMER_MESSAGE, HAMMER_RECOVERY, TIER_STORYBOARDS } from "@/lib/motion/storyboards";
+import {
+  CROWN_DELIGHT,
+  CROWN_LANDING,
+  HAMMER_FALL,
+  HAMMER_MESSAGE,
+  HAMMER_RECOVERY,
+  TIER_STORYBOARDS,
+} from "@/lib/motion/storyboards";
 import { DURATION, EASE, SPRING, SPRING_SOFT } from "@/lib/motion/tokens";
 import { useSound } from "@/lib/sound/use-sound";
 import type { Cue } from "@/lib/sound/cues";
@@ -24,6 +31,22 @@ import type { RewardTier } from "@/types/api";
  * decides what each beat looks like and nothing about what order the beats
  * come in. That separation is what makes the hammer's requirement testable
  * without rendering anything (FR-7.7).
+ *
+ * **The two moments this exists for.**
+ *
+ * *The crown lands before it is believed.* A crown that appears over a face
+ * already cheering has skipped the interesting half-second — the one between
+ * the thing happening and the person realising it has. So the head takes the
+ * weight, the eyes go wide, and only then does the delight arrive. Surprise is
+ * what makes a reward feel given rather than displayed.
+ *
+ * *The hammer knocks the character over, and the getting up is the point.* The
+ * first version kept them upright, on the reasoning that a fall would read as
+ * humiliating. It doesn't; it reads as the platform handling a student with
+ * tongs, and it left the lowest tier with nothing to watch. What keeps
+ * slapstick kind is that the character is the comedian rather than the target
+ * and that the recovery is the biggest movement on screen — which is what
+ * `rise` is here, and why the encouragement follows it immediately.
  *
  * The **headline is the server's words**, and the message beneath this
  * component — which for the lowest tier always opens "Keep Practicing! You Can
@@ -51,12 +74,13 @@ export function TierCelebration({
   const { play } = useSound();
   const { beatId } = sequence;
 
-  // One cue per tier, fired as its beat arrives. `playCue` is a no-op while
-  // sound is off, which is the default — so this runs on every celebration and
-  // is silent for almost all of them.
+  // Cues fire as their beat arrives. `play` is a no-op while sound is off,
+  // which is the default — so this runs on every celebration and is silent for
+  // almost all of them.
   useEffect(() => {
-    const [cue, beat] = CUES_BY_TIER[tier];
-    if (beatId === beat) play(cue);
+    for (const [cue, beat] of CUES_BY_TIER[tier]) {
+      if (beatId === beat) play(cue);
+    }
   }, [beatId, tier, play]);
 
   return (
@@ -71,17 +95,26 @@ export function TierCelebration({
 }
 
 /**
- * The cue each tier plays, and the beat it plays on.
+ * The cues each tier plays, and the beats they play on.
  *
- * The sound lands *with* the visual event rather than at the start of the
+ * A sound lands *with* its visual event rather than at the start of the
  * sequence: the crown's fanfare on the confetti, the hammer's blip on the
  * contact. A cue that leads its picture reads as a different sound entirely.
+ *
+ * The hammer has two, and the gap between them is doing real work. `bonk` is
+ * the contact; `wah` is three-tenths of a second later, as the character goes
+ * over. Played together they read as the platform's verdict on the score.
+ * Separated, the second one is the character's own reaction to falling — which
+ * is the difference between slapstick and a scolding.
  */
-const CUES_BY_TIER: Record<RewardTier, [Cue, string]> = {
-  crown: ["victory", "confetti"],
-  flower: ["chime", "spin"],
-  steady: ["soft", "nod"],
-  hammer: ["bonk", "bonk"],
+const CUES_BY_TIER: Record<RewardTier, [Cue, string][]> = {
+  crown: [["victory", "confetti"]],
+  flower: [["chime", "spin"]],
+  steady: [["soft", "nod"]],
+  hammer: [
+    ["bonk", "bonk"],
+    ["wah", HAMMER_FALL],
+  ],
 };
 
 function Stage({
@@ -94,17 +127,19 @@ function Stage({
   code: string;
 }) {
   const { at, reached, beatId } = sequence;
+  const floored = tier === "hammer" && (beatId === HAMMER_FALL || beatId === "dazed");
 
   return (
     // `overflow-visible` so confetti can leave the stage; the fixed height
     // means nothing below moves while the sequence plays.
-    <div className="relative grid h-44 w-full place-items-end justify-items-center overflow-visible pb-1">
+    <div className="relative grid h-48 w-full place-items-end justify-items-center overflow-visible pb-1">
       {tier === "steady" && at("pulse") ? <Pulse /> : null}
 
       {/* The ground shadow is a sibling of the figure, not a child of it, so
-          it does not inherit the figure's squash and rise. A body that jumps
-          takes its shadow with it; a body whose shadow stays on the floor and
-          spreads is the one that reads as having left the ground. */}
+          it does not inherit the figure's squash, rise or rotation. A body
+          that jumps takes its shadow with it; a body whose shadow stays on the
+          floor and spreads is the one that reads as having left the ground.
+          The character's own shadow is turned off for the same reason. */}
       <m.span
         className="bg-primary/25 absolute bottom-1 left-1/2 h-2.5 -translate-x-1/2 rounded-[50%] blur-[1px]"
         initial={{ width: 40, opacity: 0 }}
@@ -116,29 +151,45 @@ function Stage({
         transition={{ duration: DURATION.settle, ease: EASE.standard }}
       />
 
+      {tier === "hammer" && at(HAMMER_FALL) ? <DustPuff /> : null}
+
       <m.div
         className="relative"
         initial={{ opacity: 0, y: 16 }}
         animate={avatarPose(tier, beatId)}
         transition={poseTransition(beatId)}
+        // The pivot is the feet. A figure that falls about its centre
+        // translates as much as it rotates and ends up somewhere near the
+        // heading; about the feet it goes over, which is what falling is.
         style={{ transformOrigin: "50% 100%" }}
       >
         <AvatarCharacter
           code={code}
           variant="figure"
-          expression={expressionFor(tier, reached)}
-          pose={poseFor(tier, reached)}
-          className="h-40"
+          expression={expressionFor(tier, reached, floored)}
+          pose={poseFor(tier, reached, floored)}
+          groundShadow={false}
+          className="h-44"
         />
 
         {tier === "crown" && reached("crown") ? (
           <m.span
-            // -top-6, not -top-2. The head sits high in the figure's frame and
-            // the crown's band is three-quarters of the way down its own box,
-            // so the obvious offset landed the band across the eyes.
-            className="text-tier-crown absolute -top-6 left-1/2 -translate-x-1/2"
-            initial={{ y: -70, opacity: 0, rotate: -12 }}
-            animate={{ y: 0, opacity: 1, rotate: 0 }}
+            // Worked out from the two frames rather than guessed, because
+            // guessing has now been wrong in both directions. The figure is
+            // h-44 over a 160-unit box, so a unit is 1.1px and the hair
+            // crowns at y≈10 → 11px down. The crown is size-14 over a
+            // 60-unit box, so its band starts 38px below its own top. Putting
+            // the band a little below the hairline gives -20px. The first
+            // attempt at this used the obvious offset and sat the band across
+            // the eyes; the second over-corrected and floated it clear of the
+            // head entirely.
+            className="text-tier-crown absolute -top-5 left-1/2 -translate-x-1/2"
+            initial={{ y: -80, opacity: 0, rotate: -14 }}
+            animate={
+              reached(CROWN_LANDING)
+                ? { y: 0, opacity: 1, rotate: 0 }
+                : { y: -30, opacity: 1, rotate: -6 }
+            }
             transition={SPRING_SOFT}
           >
             <TierCrown className="size-14" />
@@ -159,10 +210,10 @@ function Stage({
           <CartoonHammer swung={at("bonk")} />
         ) : null}
 
-        {tier === "hammer" && (at("dizzy") || at("wobble")) ? <OrbitStars /> : null}
+        {tier === "hammer" && at("dazed") ? <OrbitStars /> : null}
       </m.div>
 
-      {tier === "crown" && reached("sparkle") && !sequence.isSettled ? <Sparkles /> : null}
+      {tier === "crown" && reached(CROWN_DELIGHT) && !sequence.isSettled ? <Sparkles /> : null}
       {tier === "crown" && reached("confetti") && !sequence.isSettled ? <Confetti /> : null}
     </div>
   );
@@ -176,7 +227,7 @@ function Stage({
  * one reads as a cartoon, which is the whole difference the specification asks
  * for (FR-7.6).
  *
- * Rotated about its centre. About a corner, a 48px icon turning 60° travels
+ * Rotated about its centre. About a corner, a 64px prop turning 80° travels
  * most of the card — a translation dressed as a rotation, which lands the
  * hammer somewhere near the heading instead of on the character.
  */
@@ -184,15 +235,46 @@ function CartoonHammer({ swung }: { swung: boolean }) {
   return (
     <m.span
       className="text-tier-hammer absolute top-0 right-0"
-      initial={{ rotate: -65, x: 34, y: -30, opacity: 0 }}
+      initial={{ rotate: -70, x: 38, y: -34, opacity: 0 }}
       animate={
-        swung ? { rotate: 18, x: -6, y: 2, opacity: 1 } : { rotate: -35, x: 18, y: -14, opacity: 1 }
+        swung ? { rotate: 20, x: -6, y: 4, opacity: 1 } : { rotate: -38, x: 20, y: -16, opacity: 1 }
       }
       transition={{ duration: DURATION.base, ease: EASE.anticipate }}
       style={{ transformOrigin: "50% 85%" }}
     >
       <TierMallet className="size-16" />
     </m.span>
+  );
+}
+
+/**
+ * The dust the landing kicks up.
+ *
+ * Three puffs that expand and fade outward along the floor. It is the cheapest
+ * possible impact cue and it does something no amount of easing on the body
+ * can: it tells you the floor is there. Without it a rotating figure reads as
+ * tipping over in a vacuum.
+ */
+function DustPuff() {
+  const puffs = [
+    { x: -34, delay: 0 },
+    { x: -6, delay: 0.04 },
+    { x: 26, delay: 0.08 },
+  ];
+
+  return (
+    <div className="pointer-events-none absolute bottom-1 left-1/2 -translate-x-1/2" aria-hidden>
+      {puffs.map(({ x, delay }) => (
+        <m.span
+          key={x}
+          className="bg-primary/30 absolute bottom-0 size-4 rounded-full blur-[2px]"
+          style={{ left: x }}
+          initial={{ scale: 0.3, opacity: 0.75, y: 0 }}
+          animate={{ scale: 1.9, opacity: 0, y: -14 }}
+          transition={{ duration: DURATION.settle, delay, ease: EASE.standard }}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -212,8 +294,8 @@ function TitleCard({
 
   // Rendered from the first frame and revealed by opacity, not mounted at the
   // beat. The headline is content — a screen reader should reach it whether or
-  // not two seconds of animation have elapsed, and the card should not change
-  // height when it arrives.
+  // not three seconds of animation have elapsed, and the card should not
+  // change height when it arrives.
   return (
     <m.h2
       className="text-xl font-semibold tracking-tight text-balance"
@@ -277,14 +359,29 @@ function Controls({ sequence }: { sequence: SequenceState }) {
   );
 }
 
-/** The face for the beat the sequence has reached. */
-function expressionFor(tier: RewardTier, reached: (id: string) => boolean): Expression {
+/**
+ * The face for the beat the sequence has reached.
+ *
+ * `floored` is passed rather than derived from `reached`, because the two
+ * beats on the floor are the only ones in the whole system that are *left*
+ * again — `reached` is monotonic and would keep the character dizzy after it
+ * stood up.
+ */
+function expressionFor(
+  tier: RewardTier,
+  reached: (id: string) => boolean,
+  floored: boolean,
+): Expression {
   if (tier === "hammer") {
     if (reached(HAMMER_RECOVERY)) return "determined";
-    if (reached("dizzy")) return "dizzy";
+    if (floored) return "dizzy";
     return "neutral";
   }
-  if (tier === "crown") return reached("crown") ? "cheer" : "happy";
+  if (tier === "crown") {
+    if (reached(CROWN_DELIGHT)) return "cheer";
+    if (reached(CROWN_LANDING)) return "surprised";
+    return "happy";
+  }
   if (tier === "flower") return reached("spin") ? "cheer" : "happy";
   return reached("nod") ? "happy" : "neutral";
 }
@@ -293,17 +390,18 @@ function expressionFor(tier: RewardTier, reached: (id: string) => boolean): Expr
  * What the arms are doing at the beat the sequence has reached.
  *
  * Separate from the face because they move at different moments: the hammer
- * character throws its arm up to guard *before* the mallet lands, while its
+ * character throws an arm up to guard *before* the mallet lands, while its
  * expression is still neutral. Deriving one from the other would lose that —
  * and a body that reacts only after contact reads as a doll being hit.
  */
-function poseFor(tier: RewardTier, reached: (id: string) => boolean): Pose {
+function poseFor(tier: RewardTier, reached: (id: string) => boolean, floored: boolean): Pose {
   if (tier === "hammer") {
     if (reached(HAMMER_RECOVERY)) return "brace";
+    if (floored) return "sprawl";
     if (reached("swing")) return "guard";
     return "rest";
   }
-  if (tier === "crown") return reached("crown") ? "cheer" : "rest";
+  if (tier === "crown") return reached(CROWN_DELIGHT) ? "cheer" : "rest";
   if (tier === "flower") return reached("bloom") ? "cheer" : "rest";
   return reached("nod") ? "brace" : "rest";
 }
@@ -321,15 +419,22 @@ function groundShadow(tier: RewardTier, beatId: string): Record<string, number |
 
   if (tier === "hammer") {
     // Flattened wide on the impact, because the figure is compressed onto it.
-    if (beatId === "bonk") return { width: [56, 70, 60], opacity: 1 };
-    if (beatId === "wobble") return { width: 62, opacity: 0.9 };
-    if (beatId === HAMMER_RECOVERY) return { width: [60, 44, 56], opacity: 1 };
+    if (beatId === "bonk") return { width: [56, 74, 62], opacity: 1 };
+    // A body lying down casts a long shadow, not a round one, and it has to
+    // be long enough to sit under the whole figure — a 56px ellipse under a
+    // 170px body reads as a second object on the floor.
+    if (beatId === HAMMER_FALL) return { width: [62, 150, 140], opacity: 0.9 };
+    if (beatId === "dazed") return { width: 140, opacity: 0.85 };
+    // Pulled back in as the figure comes upright and momentarily leaves the
+    // floor at the top of the bounce.
+    if (beatId === HAMMER_RECOVERY) return { width: [140, 42, 56], opacity: 1 };
     return rest;
   }
 
-  if (tier === "crown" && beatId === "crown") return { width: [56, 64, 56], opacity: 1 };
-  // The only beat where the figure genuinely leaves the ground, so the only
-  // one where the shadow shrinks and fades rather than spreading.
+  if (tier === "crown" && beatId === CROWN_LANDING) return { width: [56, 68, 56], opacity: 1 };
+  if (tier === "crown" && beatId === CROWN_DELIGHT) return { width: [56, 44, 56], opacity: 0.85 };
+  // The only other beat where a figure genuinely leaves the ground, so the
+  // only other one where the shadow shrinks and fades rather than spreading.
   if (tier === "flower" && beatId === "spin") return { width: [56, 40, 56], opacity: 0.75 };
   if (tier === "steady" && beatId === "nod") return { width: [56, 62, 56], opacity: 1 };
 
@@ -338,28 +443,58 @@ function groundShadow(tier: RewardTier, beatId: string): Record<string, number |
 
 /** How the character itself is posed on each beat. */
 function avatarPose(tier: RewardTier, beatId: string): Record<string, number | number[]> {
-  const rest = { opacity: 1, y: 0, rotate: 0, scale: 1, scaleY: 1 };
+  const rest = { opacity: 1, y: 0, x: 0, rotate: 0, scale: 1, scaleY: 1 };
 
   if (tier === "hammer") {
-    if (beatId === "bonk") return { ...rest, scaleY: [1, 0.86, 1], y: [0, 8, 2] };
-    if (beatId === "wobble") return { ...rest, rotate: 12, y: 10 };
-    if (beatId === HAMMER_RECOVERY) return { ...rest, scale: [1, 1.08, 1] };
+    // The blow: compressed onto the floor, not yet moving sideways.
+    if (beatId === "bonk") return { ...rest, scaleY: [1, 0.84, 0.94], y: [0, 10, 4] };
+    // Over. About the feet, so the body swings rather than slides — and a
+    // little short of horizontal, because a figure flat on its back reads as
+    // unconscious and this one is about to get up.
+    //
+    // The x is not decoration. Rotating a 176px figure 78° about its feet puts
+    // the head 172px to the right of the pivot, so the body ends up entirely
+    // in the right half of the stage — hanging out of the card, with the
+    // ground shadow left behind under nothing. Shifting the pivot half a body
+    // to the left lands the lying figure across the centre, where its shadow
+    // is. It also reads better: a body that falls travels.
+    if (beatId === HAMMER_FALL) return { ...rest, rotate: [8, 88, 78], x: [0, -70, -80], y: 6 };
+    if (beatId === "dazed") return { ...rest, rotate: 78, x: -80, y: 6 };
+    // The largest movement in the sequence, and deliberately so: it overshoots
+    // upright, lifts off the floor and comes back down. This is the beat
+    // FR-7.7 exists for, and it should be the one a student remembers.
+    if (beatId === HAMMER_RECOVERY) {
+      return { ...rest, rotate: [78, -6, 0], x: [-80, 0, 0], y: [6, -12, 0], scale: [1, 1.06, 1] };
+    }
     return rest;
   }
 
-  if (tier === "crown" && beatId === "crown") return { ...rest, scaleY: [1, 0.96, 1] };
+  if (tier === "crown") {
+    // The crown has weight: the head takes it and the whole figure gives.
+    if (beatId === CROWN_LANDING) return { ...rest, scaleY: [1, 0.93, 1], y: [0, 7, 0] };
+    if (beatId === CROWN_DELIGHT) return { ...rest, y: [0, -14, 0], scale: [1, 1.05, 1] };
+    return rest;
+  }
+
   if (tier === "flower" && beatId === "spin") return { ...rest, y: [0, -10, 0] };
   if (tier === "steady" && beatId === "nod") return { ...rest, y: [0, 7, 0] };
 
   return rest;
 }
 
+/**
+ * Springs take exactly two keyframes.
+ *
+ * Every beat below is a three-part move — out, over, back — so a spring here
+ * throws at runtime and animates nothing at all, which is how the recovery
+ * beat FR-7.7 hinges on came to play as a jump cut for an entire sprint
+ * without anybody noticing. `anticipate` is the curve the motion tokens
+ * reserve for exactly this, and it overshoots on its own.
+ */
 function poseTransition(beatId: string) {
-  // The recovery is a three-keyframe bounce — up, over, back — and a spring
-  // takes exactly two, so this used to throw at runtime and the beat FR-7.7
-  // hinges on played as a jump cut. `anticipate` is the curve the motion
-  // tokens reserve for precisely this movement, and it overshoots on its own.
   if (beatId === HAMMER_RECOVERY) return { duration: DURATION.beat, ease: EASE.anticipate };
-  if (beatId === "wobble") return { duration: DURATION.base, ease: EASE.standard };
+  if (beatId === HAMMER_FALL) return { duration: DURATION.base, ease: EASE.anticipate };
+  if (beatId === CROWN_LANDING) return { duration: DURATION.base, ease: EASE.anticipate };
+  if (beatId === CROWN_DELIGHT) return { duration: DURATION.beat, ease: EASE.anticipate };
   return { duration: DURATION.settle, ease: EASE.standard };
 }

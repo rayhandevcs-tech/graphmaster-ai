@@ -7,6 +7,7 @@ import { ArrowLeft, Keyboard, LayoutDashboard, PenLine, RotateCcw } from "lucide
 
 import { FeedbackPanel } from "./feedback-panel";
 import { HighlightedAnswer } from "./highlighted-answer";
+import { LanguagePanel } from "./language-panel";
 import { ModelAnswer } from "./model-answer";
 import { ScoreRing } from "./score-ring";
 import { VocabularyPanel } from "./vocabulary-panel";
@@ -206,6 +207,7 @@ export function ResultView({ submissionId }: { submissionId: string }) {
         <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
           <TabsTrigger value="vocabulary">Vocabulary</TabsTrigger>
           <TabsTrigger value="writing">Writing quality</TabsTrigger>
+          <TabsTrigger value="language">Grammar</TabsTrigger>
           <TabsTrigger value="answer">Your answer</TabsTrigger>
           {reference ? <TabsTrigger value="model">Model description</TabsTrigger> : null}
         </TabsList>
@@ -216,6 +218,13 @@ export function ResultView({ submissionId }: { submissionId: string }) {
 
         <TabsContent value="writing">
           <WritingPanel breakdown={score.writing_breakdown} />
+        </TabsContent>
+
+        {/* After the two that carry the score and before the raw answer: a
+            student reads what the mark was made of, then how to write the
+            next one, then their own words. */}
+        <TabsContent value="language">
+          <LanguagePanel submissionId={submissionId} answer={answer} />
         </TabsContent>
 
         <TabsContent value="answer">

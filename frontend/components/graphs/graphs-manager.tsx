@@ -210,6 +210,8 @@ export function GraphsManager() {
             if (!next) setTargetsFor(null);
           }}
           current={targetsFor.target_vocabulary ?? []}
+          chartData={targetsFor.chart_data}
+          graphType={targetsFor.graph_type}
         />
       ) : null}
     </div>

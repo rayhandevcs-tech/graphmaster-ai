@@ -106,7 +106,7 @@ describe("playing a cue", () => {
 
 describe("the cues themselves", () => {
   it("carries every cue the celebrations ask for", () => {
-    expect(Object.keys(CUES).sort()).toEqual(["bonk", "chime", "soft", "victory"]);
+    expect(Object.keys(CUES).sort()).toEqual(["bonk", "chime", "soft", "victory", "wah"]);
   });
 
   it("keeps each one short", () => {
@@ -118,11 +118,21 @@ describe("the cues themselves", () => {
     }
   });
 
-  it("keeps the hammer's cue low and brief rather than harsh", () => {
+  it("keeps the hammer's cues low and brief rather than harsh", () => {
     // The joke is the timing. A sound that startles is the one thing that
     // would turn slapstick into something a student flinches at (FR-7.6).
     const bonk = CUES.bonk;
     expect(Math.max(...bonk.map((note) => note.frequency))).toBeLessThan(400);
     expect(Math.max(...bonk.map((note) => note.at + note.duration))).toBeLessThan(0.3);
+
+    // The fall's cue is longer, because it is a figure rather than a hit — but
+    // it stays in the same low register and under the same gain, so it reads
+    // as the character's reaction and not as an alarm.
+    const wah = CUES.wah;
+    expect(Math.max(...wah.map((note) => note.frequency))).toBeLessThan(400);
+    expect(Math.max(...wah.map((note) => note.gain))).toBeLessThan(0.5);
+    // Strictly descending: an ascending figure on a fall reads as a fanfare.
+    const pitches = wah.map((note) => note.frequency);
+    expect([...pitches].sort((a, b) => b - a)).toEqual(pitches);
   });
 });

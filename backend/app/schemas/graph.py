@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -132,6 +132,55 @@ class TargetVocabularyOut(BaseModel):
 # ── Graph payloads ───────────────────────────────────────────────────────────
 
 
+class GraphPreview(BaseModel):
+    """Enough of the figures to draw a thumbnail, and deliberately no more.
+
+    A practice card that shows only a type icon asks a student to choose
+    between four graphs by reading four titles. Showing the shape of each one
+    is the difference between a list and a library.
+
+    This is not ``ChartData``. Sending the whole thing on every row would put
+    axis labels, units and every Chart.js styling key a teacher has set into a
+    twenty-row listing, and the card would then need a Chart.js instance per
+    graph to draw something 200px wide with no legible axes anyway. What a
+    thumbnail needs is the *shape*: the numbers, per series, in order. The
+    client draws them as a few SVG paths.
+
+    Nulls survive the trip because a gap in a series is part of its shape — a
+    line that closes over a missing reading is a different graph.
+    """
+
+    series: Annotated[list[list[float | None]], Field(max_length=MAX_DATASETS)]
+
+
+def chart_preview(chart_data: Any) -> dict[str, Any] | None:
+    """The thumbnail payload for a stored ``chart_data`` blob.
+
+    Reads defensively and returns ``None`` rather than raising. Every row that
+    reaches this was validated by ``ChartData`` on the way in, but a listing is
+    the wrong place to discover that one of twenty rows predates a validator or
+    was written by a migration — a graph with an unreadable blob should appear
+    in the library without a picture, not take the page down with it.
+    """
+    if not isinstance(chart_data, dict):
+        return None
+
+    datasets = chart_data.get("datasets")
+    if not isinstance(datasets, list):
+        return None
+
+    series: list[list[float | None]] = []
+    for dataset in datasets[:MAX_DATASETS]:
+        if not isinstance(dataset, dict):
+            continue
+        points = dataset.get("data")
+        if not isinstance(points, list):
+            continue
+        series.append([float(p) if isinstance(p, (int, float)) else None for p in points])
+
+    return {"series": series} if series else None
+
+
 class GraphSummary(ORMModel):
     id: uuid.UUID
     title: str
@@ -141,6 +190,16 @@ class GraphSummary(ORMModel):
     image_url: str | None
     target_vocabulary_count: int = Field(
         default=0, description="Required target terms — the scoring denominator"
+    )
+    prompt: str = Field(
+        description="What the student is asked to do. On the summary because the "
+        "practice card shows it under the thumbnail: the task is what a student "
+        "chooses between, more than the title is."
+    )
+    preview: GraphPreview | None = Field(
+        default=None,
+        description="The series values, for a thumbnail. Null for a graph whose "
+        "stored figures cannot be read as series — never a reason to drop the row.",
     )
     created_at: datetime
 
@@ -155,7 +214,6 @@ class GraphDetail(GraphSummary):
     See docs/architecture/04-api-design.md §3.5.
     """
 
-    prompt: str
     # Typed rather than ``dict[str, Any]``: the client renders Chart.js
     # straight from this, and an untyped blob there forces a cast in the one
     # place the shape actually matters. Every stored value was validated by

@@ -14,6 +14,9 @@ import { TierPanel } from "@/components/gamification/tier-panel";
 import { VocabularyPanel } from "@/components/results/vocabulary-panel";
 import { TIER_BANDS, TIER_ICONS, TIER_LABELS, TIER_ORDER } from "@/components/gamification/tiers";
 import {
+  CROWN_DELIGHT,
+  CROWN_LANDING,
+  HAMMER_FALL,
   HAMMER_MESSAGE,
   HAMMER_RECOVERY,
   SETTLED,
@@ -132,14 +135,33 @@ describe("the tier storyboards", () => {
     expect(ids.slice(-3)).toEqual([HAMMER_RECOVERY, HAMMER_MESSAGE, SETTLED]);
   });
 
-  it("never leaves the hammer's character down for long", () => {
+  it("never leaves the hammer's character on the floor for long", () => {
     const beats = TIER_STORYBOARDS.hammer.beats;
     const at = (id: string) => beats.find((beat) => beat.id === id)?.at ?? -1;
 
-    // Knocked off balance, not knocked down: the wobble is under half a
-    // second, and the recovery follows it immediately.
-    expect(at(HAMMER_RECOVERY) - at("wobble")).toBeLessThanOrEqual(0.5);
-    expect(at(HAMMER_RECOVERY)).toBeGreaterThan(at("bonk"));
+    // The character does now go down — an earlier version kept them upright on
+    // the reasoning that a fall would humiliate, which instead left the lowest
+    // tier with nothing to watch. What FR-7.6 actually needs is bounded: the
+    // time spent on the floor is a second at most, and it is answered.
+    expect(at(HAMMER_FALL)).toBeGreaterThan(at("bonk"));
+    expect(at(HAMMER_RECOVERY) - at(HAMMER_FALL)).toBeLessThanOrEqual(1);
+
+    // And the encouragement follows the getting-up immediately, rather than
+    // the student reading it while their avatar is still down.
+    expect(at(HAMMER_MESSAGE)).toBeGreaterThan(at(HAMMER_RECOVERY));
+    expect(at(HAMMER_MESSAGE) - at(HAMMER_RECOVERY)).toBeLessThanOrEqual(0.6);
+  });
+
+  it("lands the crown before the character believes it", () => {
+    const beats = TIER_STORYBOARDS.crown.beats;
+    const at = (id: string) => beats.find((beat) => beat.id === id)?.at ?? -1;
+
+    // Surprise, then joy. A crown that appears over a face already cheering
+    // has skipped the half-second the moment is made of.
+    expect(at(CROWN_LANDING)).toBeGreaterThan(at("crown"));
+    expect(at(CROWN_DELIGHT)).toBeGreaterThan(at(CROWN_LANDING));
+    // Close enough together to read as one reaction rather than two events.
+    expect(at(CROWN_DELIGHT) - at(CROWN_LANDING)).toBeLessThanOrEqual(0.8);
   });
 
   it("keeps every celebration short enough to sit through", () => {

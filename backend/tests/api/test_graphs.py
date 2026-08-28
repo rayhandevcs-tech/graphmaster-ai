@@ -126,6 +126,81 @@ async def test_listing_hides_unpublished_graphs_from_students(
     assert [g["title"] for g in resp.json()["items"]] == ["Published one"]
 
 
+async def test_a_listed_graph_carries_enough_to_draw_a_thumbnail(
+    client, graph_factory, teacher, student
+):
+    """The practice card shows the shape of the graph, not a type icon.
+
+    Choosing between four graphs by reading four titles is a list; seeing them
+    is a library. What the card needs is the series values and the task — not
+    the whole ``chart_data``, which would put every Chart.js styling key a
+    teacher has set into a twenty-row listing, and would still need a chart
+    instance per card to draw something 200px wide with no legible axes.
+    """
+    teacher_user, _ = teacher
+    _, student_headers = student
+    await graph_factory(
+        created_by=teacher_user.id,
+        is_published=True,
+        prompt="Describe the change in rainfall.",
+        chart_data={
+            "labels": ["Jan", "Feb", "Mar"],
+            "datasets": [{"label": "Rainfall", "data": [42, 51, 38]}],
+            "y_axis_label": "mm",
+        },
+    )
+
+    resp = await client.get("/api/v1/graphs", headers=student_headers)
+    assert resp.status_code == 200
+    row = resp.json()["items"][0]
+
+    assert row["prompt"] == "Describe the change in rainfall."
+    assert row["preview"] == {"series": [[42.0, 51.0, 38.0]]}
+    # The axis metadata and the styling keys stay on the detail endpoint.
+    assert "chart_data" not in row
+
+
+async def test_a_gap_in_a_series_survives_into_the_thumbnail(
+    client, graph_factory, teacher, student
+):
+    """A line that closes over a missing reading is a different graph."""
+    teacher_user, _ = teacher
+    _, student_headers = student
+    await graph_factory(
+        created_by=teacher_user.id,
+        is_published=True,
+        chart_data={
+            "labels": ["Jan", "Feb", "Mar"],
+            "datasets": [{"label": "Rainfall", "data": [42, None, 38]}],
+        },
+    )
+
+    resp = await client.get("/api/v1/graphs", headers=student_headers)
+    assert resp.json()["items"][0]["preview"] == {"series": [[42.0, None, 38.0]]}
+
+
+async def test_an_unreadable_chart_still_lists_without_a_thumbnail(
+    client, graph_factory, teacher, student
+):
+    """A bad blob costs the row its picture, never the page.
+
+    Every graph that reaches the listing was validated by ``ChartData`` on the
+    way in, but a listing is the wrong place to discover that one row of twenty
+    predates a validator or was written by hand in a migration.
+    """
+    teacher_user, _ = teacher
+    _, student_headers = student
+    await graph_factory(
+        created_by=teacher_user.id,
+        is_published=True,
+        chart_data={"datasets": "not a list"},
+    )
+
+    resp = await client.get("/api/v1/graphs", headers=student_headers)
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["preview"] is None
+
+
 async def test_students_cannot_opt_into_unpublished_graphs(client, graph_factory, teacher, student):
     """The flag is honoured for teachers only; a student stays pinned."""
     teacher_user, _ = teacher

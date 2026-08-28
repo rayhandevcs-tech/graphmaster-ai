@@ -72,6 +72,47 @@
   --tier-hammer: oklch(0.68 0.16 62);
   --tier-hammer-foreground: oklch(0.25 0.06 62);
 
+  /* The drawn character.
+     ---------------------------------------------------------------------
+     The avatar used to be one purple silhouette: face, shirt, hair and shoes
+     were all `--primary` at different opacities. It themed perfectly and read
+     as a pictogram, which is the wrong trade for the one illustration a
+     student is supposed to feel something about.
+
+     Skin is three tones rather than one because the catalogue has six
+     characters and they should look like six people, not one person wearing
+     three hats. Which tone a code gets is fixed in `avatars/character.tsx`,
+     and a student picks their character, so the tone is chosen rather than
+     assigned. None of them is anybody's actual complexion — they are
+     illustration tones, warm and deliberately unphotographic, the same choice
+     a game's character creator makes.
+
+     Each tone carries its own shade rather than being darkened by an overlay:
+     an overlay has to be painted in *some* colour, and the only theme-aware
+     one available is `--foreground`, which is near-white in dark mode and
+     would light the shadow side up instead of down. */
+  --skin-light: oklch(0.87 0.045 62);
+  --skin-light-shade: oklch(0.78 0.055 50);
+  --skin-mid: oklch(0.73 0.065 55);
+  --skin-mid-shade: oklch(0.63 0.07 46);
+  --skin-deep: oklch(0.52 0.06 46);
+  --skin-deep-shade: oklch(0.43 0.055 40);
+
+  --hair-dark: oklch(0.3 0.03 60);
+  --hair-brown: oklch(0.43 0.07 55);
+  --hair-warm: oklch(0.63 0.1 72);
+
+  /* Trousers and shoes, so the figure is not primary from the neck down, and
+     a warm cheek so the face is not a flat plane. */
+  --character-pants: oklch(0.44 0.06 265);
+  --character-shoe: oklch(0.33 0.035 265);
+  --character-blush: oklch(0.72 0.12 25);
+  /* An eye white is white on any ground, so this one token is deliberately
+     identical in both themes — bound to `--card` it went dark grey in dark
+     mode and the character lost the catchlight its whole expression rests on. */
+  --character-sclera: oklch(0.98 0.005 285);
+  --character-eye: oklch(0.3 0.04 250);
+
   /* Chart series, in the order Chart.js consumes them. */
   --chart-1: oklch(0.52 0.22 295);
   --chart-2: oklch(0.55 0.19 262);
@@ -127,6 +168,27 @@
   --tier-hammer: oklch(0.78 0.15 62);
   --tier-hammer-foreground: oklch(0.24 0.05 62);
 
+  /* Skin barely moves between themes — a complexion that inverts with the
+     background stops being a complexion. The deepest tones lift a little so
+     they separate from a near-black card, and the hair tones lift more:
+     near-black hair on a near-black ground is a hole in the head. */
+  --skin-light: oklch(0.85 0.045 62);
+  --skin-light-shade: oklch(0.75 0.055 50);
+  --skin-mid: oklch(0.72 0.065 55);
+  --skin-mid-shade: oklch(0.62 0.07 46);
+  --skin-deep: oklch(0.57 0.06 46);
+  --skin-deep-shade: oklch(0.48 0.055 40);
+
+  --hair-dark: oklch(0.38 0.03 60);
+  --hair-brown: oklch(0.5 0.07 55);
+  --hair-warm: oklch(0.7 0.1 72);
+
+  --character-pants: oklch(0.54 0.06 265);
+  --character-shoe: oklch(0.42 0.035 265);
+  --character-blush: oklch(0.66 0.12 25);
+  --character-sclera: oklch(0.98 0.005 285);
+  --character-eye: oklch(0.28 0.04 250);
+
   --chart-1: oklch(0.7 0.17 295);
   --chart-2: oklch(0.68 0.15 262);
   --chart-3: oklch(0.72 0.17 15);
@@ -173,6 +235,21 @@
   --color-tier-steady-foreground: var(--tier-steady-foreground);
   --color-tier-hammer: var(--tier-hammer);
   --color-tier-hammer-foreground: var(--tier-hammer-foreground);
+
+  --color-skin-light: var(--skin-light);
+  --color-skin-light-shade: var(--skin-light-shade);
+  --color-skin-mid: var(--skin-mid);
+  --color-skin-mid-shade: var(--skin-mid-shade);
+  --color-skin-deep: var(--skin-deep);
+  --color-skin-deep-shade: var(--skin-deep-shade);
+  --color-hair-dark: var(--hair-dark);
+  --color-hair-brown: var(--hair-brown);
+  --color-hair-warm: var(--hair-warm);
+  --color-character-pants: var(--character-pants);
+  --color-character-shoe: var(--character-shoe);
+  --color-character-blush: var(--character-blush);
+  --color-character-sclera: var(--character-sclera);
+  --color-character-eye: var(--character-eye);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);

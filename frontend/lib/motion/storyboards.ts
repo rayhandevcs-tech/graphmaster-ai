@@ -22,18 +22,41 @@ export const SETTLED = "settled";
  * beat cannot quietly make the assertion vacuous — the test imports these and
  * checks their position, which fails if either is removed.
  */
+export const HAMMER_FALL = "fall";
 export const HAMMER_RECOVERY = "recover";
 export const HAMMER_MESSAGE = "message";
 
+/**
+ * The crown's two halves: the weight arriving, and the student believing it.
+ *
+ * Named for the same reason as the hammer's beats — a test that asserts
+ * surprise comes before delight should fail if either is renamed away, rather
+ * than passing vacuously against a string that no longer exists.
+ */
+export const CROWN_LANDING = "land";
+export const CROWN_DELIGHT = "delight";
+
+/**
+ * Landed on, then believed.
+ *
+ * The crown used to appear and the character was already cheering, which
+ * skipped the only interesting moment in it: the beat between the thing
+ * happening and the person realising. `land` is the impact — the crown's
+ * weight arrives, the head takes it, and the face is *startled*, not pleased.
+ * `delight` is a third of a second later, and it is where the joy is.
+ *
+ * A celebration that opens on its own punchline has nowhere to go.
+ */
 const CROWN: Storyboard = {
   id: "crown",
   beats: [
     { id: "arrive", at: 0 },
-    { id: "crown", at: 0.35 },
-    { id: "sparkle", at: 0.85 },
-    { id: "confetti", at: 1.25 },
-    { id: "title", at: 1.6 },
-    { id: SETTLED, at: 2.6 },
+    { id: "crown", at: 0.3 },
+    { id: CROWN_LANDING, at: 0.7 },
+    { id: CROWN_DELIGHT, at: 1.2 },
+    { id: "confetti", at: 1.5 },
+    { id: "title", at: 1.9 },
+    { id: SETTLED, at: 2.9 },
   ],
 };
 
@@ -60,25 +83,40 @@ const STEADY: Storyboard = {
 };
 
 /**
- * Bonk, and back up.
+ * Bonk, over, and back up.
  *
- * The order is the requirement (FR-7.7). `wobble` is short and small on
- * purpose — the character is knocked off balance, never knocked down — and it
- * exists only so that `recover` has something to answer. `message` reveals the
- * server's own encouragement, which is on the card from the first frame
- * regardless; nothing here composes text.
+ * The order is the requirement (FR-7.7), and the shape of it changed. The
+ * first version kept the character on its feet — "knocked off balance, never
+ * knocked down" — on the reasoning that a fall would read as humiliating.
+ * Watching it, the opposite is true. A small wobble reads as *the platform
+ * being careful with you*, which a student notices, and it makes the low tier
+ * the one moment in the product with nothing to watch.
+ *
+ * What makes slapstick kind is not the size of the fall. It is that the
+ * character is the comedian rather than the target, and that getting up is the
+ * biggest movement in the sequence. So: `fall` puts them on the floor, `dazed`
+ * holds it long enough to be funny — and `rise` is the longest, largest beat
+ * here, followed immediately by the encouragement.
+ *
+ * `dazed` is half a second. Long enough to land the joke, short enough that
+ * nobody watches a student's avatar lie on the floor — and the whole sequence
+ * still fits the three-second ceiling every tier is held to, because a student
+ * who scored badly must not be made to watch for longer than one who did well.
+ *
+ * `message` reveals the server's own encouragement, which is on the card from
+ * the first frame regardless; nothing here composes text.
  */
 const HAMMER: Storyboard = {
   id: "hammer",
   beats: [
     { id: "arrive", at: 0 },
-    { id: "swing", at: 0.25 },
-    { id: "bonk", at: 0.55 },
-    { id: "dizzy", at: 0.75 },
-    { id: "wobble", at: 1.3 },
-    { id: HAMMER_RECOVERY, at: 1.7 },
-    { id: HAMMER_MESSAGE, at: 2.2 },
-    { id: SETTLED, at: 3.0 },
+    { id: "swing", at: 0.2 },
+    { id: "bonk", at: 0.5 },
+    { id: HAMMER_FALL, at: 0.8 },
+    { id: "dazed", at: 1.3 },
+    { id: HAMMER_RECOVERY, at: 1.8 },
+    { id: HAMMER_MESSAGE, at: 2.3 },
+    { id: SETTLED, at: 3 },
   ],
 };
 
