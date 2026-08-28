@@ -594,8 +594,11 @@ export interface GraphAuthoringDetail {
   image_url: string | null;
   /** Required target terms — the scoring denominator */
   target_vocabulary_count?: number;
-  created_at: DateTimeString;
+  /** What the student is asked to do. On the summary because the practice card shows it under the thumbnail: the task is what a student chooses between, more than the title is. */
   prompt: string;
+  /** The series values, for a thumbnail. Null for a graph whose stored figures cannot be read as series — never a reason to drop the row. */
+  preview?: GraphPreview | null;
+  created_at: DateTimeString;
   chart_data: ChartData;
   reference_description: string | null;
   created_by: UUID;
@@ -632,9 +635,33 @@ export interface GraphDetail {
   image_url: string | null;
   /** Required target terms — the scoring denominator */
   target_vocabulary_count?: number;
-  created_at: DateTimeString;
+  /** What the student is asked to do. On the summary because the practice card shows it under the thumbnail: the task is what a student chooses between, more than the title is. */
   prompt: string;
+  /** The series values, for a thumbnail. Null for a graph whose stored figures cannot be read as series — never a reason to drop the row. */
+  preview?: GraphPreview | null;
+  created_at: DateTimeString;
   chart_data: ChartData;
+}
+
+/**
+ * Enough of the figures to draw a thumbnail, and deliberately no more.
+ *
+ * A practice card that shows only a type icon asks a student to choose
+ * between four graphs by reading four titles. Showing the shape of each one
+ * is the difference between a list and a library.
+ *
+ * This is not ``ChartData``. Sending the whole thing on every row would put
+ * axis labels, units and every Chart.js styling key a teacher has set into a
+ * twenty-row listing, and the card would then need a Chart.js instance per
+ * graph to draw something 200px wide with no legible axes anyway. What a
+ * thumbnail needs is the *shape*: the numbers, per series, in order. The
+ * client draws them as a few SVG paths.
+ *
+ * Nulls survive the trip because a gap in a series is part of its shape — a
+ * line that closes over a missing reading is a different graph.
+ */
+export interface GraphPreview {
+  series: ((number | null)[])[];
 }
 
 export interface GraphPublishRequest {
@@ -650,6 +677,10 @@ export interface GraphSummary {
   image_url: string | null;
   /** Required target terms — the scoring denominator */
   target_vocabulary_count?: number;
+  /** What the student is asked to do. On the summary because the practice card shows it under the thumbnail: the task is what a student chooses between, more than the title is. */
+  prompt: string;
+  /** The series values, for a thumbnail. Null for a graph whose stored figures cannot be read as series — never a reason to drop the row. */
+  preview?: GraphPreview | null;
   created_at: DateTimeString;
 }
 
