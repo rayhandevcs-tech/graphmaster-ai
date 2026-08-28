@@ -283,6 +283,12 @@ export function TierMallet({ className }: { className?: string }) {
           <stop offset="0.4" stopColor="currentColor" stopOpacity="0.72" />
           <stop offset="1" stopColor="currentColor" stopOpacity="0.4" />
         </linearGradient>
+        {/* The head's own outline, reused to clip the striking face. Hand
+            building that face as a path meant matching two rounded corners by
+            eye, and the arcs left a visible notch at the right shoulder. */}
+        <clipPath id={`${uid}-block`}>
+          <rect x="7" y="9" width="50" height="24" rx="11" />
+        </clipPath>
       </defs>
 
       {/* Handle first, so the head sits over its top end. Turned, not a
@@ -304,10 +310,14 @@ export function TierMallet({ className }: { className?: string }) {
       {/* The head: wide, round-cornered, and much too big for the handle. */}
       <rect x="7" y="9" width="50" height="24" rx="11" fill={`url(#${uid}-head)`} />
       {/* The striking face, a shade darker so the block has a top and a front. */}
-      <path
-        d="M7 24h50a11 11 0 0 1-11 9H18A11 11 0 0 1 7 24z"
+      <rect
+        x="7"
+        y="24"
+        width="50"
+        height="9"
         fill="currentColor"
         fillOpacity="0.32"
+        clipPath={`url(#${uid}-block)`}
       />
       {/* Metal collars at each end — the detail that reads as "made of parts". */}
       <rect x="11" y="11" width="5" height="20" rx="2.5" fill="currentColor" fillOpacity="0.5" />

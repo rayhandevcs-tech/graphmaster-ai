@@ -395,9 +395,9 @@ function Arms({ pose, look }: { pose: Pose; look: Look }) {
       ],
     },
     guard: {
-      arms: ["M29 86 18 60 40 30", "M71 86 76 114"],
+      arms: ["M29 86 16 56 42 24", "M71 86 76 114"],
       hands: [
-        [44, 27],
+        [48, 19],
         [77, 117],
       ],
     },

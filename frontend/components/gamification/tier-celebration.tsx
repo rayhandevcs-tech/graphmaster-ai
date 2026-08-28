@@ -174,10 +174,16 @@ function Stage({
 
         {tier === "crown" && reached("crown") ? (
           <m.span
-            // -top-10 puts the crown's band on the hairline. The band sits
-            // nine-tenths of the way down its own box, so the obvious offset
-            // landed it across the eyes.
-            className="text-tier-crown absolute -top-10 left-1/2 -translate-x-1/2"
+            // Worked out from the two frames rather than guessed, because
+            // guessing has now been wrong in both directions. The figure is
+            // h-44 over a 160-unit box, so a unit is 1.1px and the hair
+            // crowns at y≈10 → 11px down. The crown is size-14 over a
+            // 60-unit box, so its band starts 38px below its own top. Putting
+            // the band a little below the hairline gives -20px. The first
+            // attempt at this used the obvious offset and sat the band across
+            // the eyes; the second over-corrected and floated it clear of the
+            // head entirely.
+            className="text-tier-crown absolute -top-5 left-1/2 -translate-x-1/2"
             initial={{ y: -80, opacity: 0, rotate: -14 }}
             animate={
               reached(CROWN_LANDING)
@@ -414,12 +420,14 @@ function groundShadow(tier: RewardTier, beatId: string): Record<string, number |
   if (tier === "hammer") {
     // Flattened wide on the impact, because the figure is compressed onto it.
     if (beatId === "bonk") return { width: [56, 74, 62], opacity: 1 };
-    // A body lying down casts a long shadow, not a round one.
-    if (beatId === HAMMER_FALL) return { width: [62, 110, 104], opacity: 0.9 };
-    if (beatId === "dazed") return { width: 104, opacity: 0.85 };
+    // A body lying down casts a long shadow, not a round one, and it has to
+    // be long enough to sit under the whole figure — a 56px ellipse under a
+    // 170px body reads as a second object on the floor.
+    if (beatId === HAMMER_FALL) return { width: [62, 150, 140], opacity: 0.9 };
+    if (beatId === "dazed") return { width: 140, opacity: 0.85 };
     // Pulled back in as the figure comes upright and momentarily leaves the
     // floor at the top of the bounce.
-    if (beatId === HAMMER_RECOVERY) return { width: [104, 42, 56], opacity: 1 };
+    if (beatId === HAMMER_RECOVERY) return { width: [140, 42, 56], opacity: 1 };
     return rest;
   }
 
@@ -443,13 +451,20 @@ function avatarPose(tier: RewardTier, beatId: string): Record<string, number | n
     // Over. About the feet, so the body swings rather than slides — and a
     // little short of horizontal, because a figure flat on its back reads as
     // unconscious and this one is about to get up.
-    if (beatId === HAMMER_FALL) return { ...rest, rotate: [8, 88, 78], x: 30, y: 6 };
-    if (beatId === "dazed") return { ...rest, rotate: 78, x: 30, y: 6 };
+    //
+    // The x is not decoration. Rotating a 176px figure 78° about its feet puts
+    // the head 172px to the right of the pivot, so the body ends up entirely
+    // in the right half of the stage — hanging out of the card, with the
+    // ground shadow left behind under nothing. Shifting the pivot half a body
+    // to the left lands the lying figure across the centre, where its shadow
+    // is. It also reads better: a body that falls travels.
+    if (beatId === HAMMER_FALL) return { ...rest, rotate: [8, 88, 78], x: [0, -70, -80], y: 6 };
+    if (beatId === "dazed") return { ...rest, rotate: 78, x: -80, y: 6 };
     // The largest movement in the sequence, and deliberately so: it overshoots
     // upright, lifts off the floor and comes back down. This is the beat
     // FR-7.7 exists for, and it should be the one a student remembers.
     if (beatId === HAMMER_RECOVERY) {
-      return { ...rest, rotate: [78, -6, 0], x: [30, 0, 0], y: [6, -12, 0], scale: [1, 1.06, 1] };
+      return { ...rest, rotate: [78, -6, 0], x: [-80, 0, 0], y: [6, -12, 0], scale: [1, 1.06, 1] };
     }
     return rest;
   }
