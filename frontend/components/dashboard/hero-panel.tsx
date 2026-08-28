@@ -60,11 +60,16 @@ export function HeroPanel({ user, dashboard }: { user: UserProfile; dashboard: S
             />
 
             <div className="min-w-0">
-              {/* Wraps rather than truncates: a long first name on a narrow
-                  phone is the common case, and "Good morning, Am…" is worse
-                  than two lines. */}
+              {/* The whole name, and wrapping rather than truncating.
+                  Greeting a student by the first word of `full_name` was a
+                  guess about which word they answer to, and it is wrong for
+                  most of this cohort: in Bengali names the given name is
+                  routinely not the first word, so "Good morning, Md" greeted a
+                  title. The server stores one name; the greeting uses it. Two
+                  lines on a narrow phone is the acceptable cost — "Good
+                  morning, Am…" is not. */}
               <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-                <Greeting name={firstName(user.full_name)} />
+                <Greeting name={user.full_name} />
               </h1>
               <p className="text-muted-foreground text-sm">
                 {formatCount(dashboard.total_xp)} XP earned so far
@@ -160,8 +165,4 @@ function goalHint(dashboard: StudentDashboard): string {
     return "Practise again tomorrow to turn today into a streak.";
   }
   return "One description is all it takes to get moving again.";
-}
-
-function firstName(fullName: string): string {
-  return fullName.split(/\s+/)[0] || fullName;
 }

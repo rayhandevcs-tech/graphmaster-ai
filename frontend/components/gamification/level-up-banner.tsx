@@ -4,7 +4,6 @@ import { m } from "framer-motion";
 import { ArrowUp, Sparkles } from "lucide-react";
 
 import { MotionStage } from "@/components/motion/stage";
-import { CountUp } from "@/components/motion/count-up";
 import { Sparkles as SparkleBurst } from "./particles";
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 import { SPRING } from "@/lib/motion/tokens";
@@ -63,9 +62,13 @@ export function LevelUpBanner({
           </span>
           <span className="text-muted-foreground text-sm">
             You have reached{" "}
-            <span className="text-foreground font-semibold tabular-nums">
-              level <CountUp value={to} format={(value) => String(Math.round(value))} />
-            </span>
+            {/* Not a count-up. Counting 0→6 spends most of its duration
+                displaying a level the student has not reached, and beside
+                "up from 5" the intermediate frames read as a contradiction:
+                "You have reached level 5 — up from 5". A level is an
+                identifier, not a quantity. The celebration is the banner's
+                arrival and the sparkles, not the digit ticking. */}
+            <span className="text-foreground font-semibold tabular-nums">level {to}</span>
             {from < to ? <span className="tabular-nums"> — up from {from}</span> : null}
           </span>
         </div>
