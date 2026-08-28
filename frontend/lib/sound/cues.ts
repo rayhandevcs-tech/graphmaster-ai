@@ -9,12 +9,14 @@
  *
  * Frequencies are equal-temperament, written as notes so the intervals are
  * legible: the crown is a major arpeggio resolving upward, the flower a rising
- * fifth, the steady tier a single settled tone. The hammer is the only one
- * that is not musical — a short square blip that falls in pitch, which is the
- * sound a cartoon makes and not the sound a mistake makes.
+ * fifth, the steady tier a single settled tone. The hammer's two are the only
+ * ones that are not musical — a short square blip on the contact, and a
+ * descending brass figure as the character goes over. Both are the sounds a
+ * cartoon makes, which is the point: they are what stop a low score reading as
+ * a reprimand.
  */
 
-export type Cue = "victory" | "chime" | "soft" | "bonk";
+export type Cue = "victory" | "chime" | "soft" | "bonk" | "wah";
 
 export interface Note {
   /** Hertz. */
@@ -62,5 +64,26 @@ export const CUES: Record<Cue, Note[]> = {
   bonk: [
     { frequency: 196, at: 0, duration: 0.09, type: "square", gain: 0.55 },
     { frequency: 110, at: 0.06, duration: 0.14, type: "square", gain: 0.4 },
+  ],
+
+  /**
+   * The fall: four semitones down, the last one held.
+   *
+   * The cartoon "wah-wah-waaah". It plays as the character goes over, not on
+   * the contact — a descending figure that lands with the blow reads as the
+   * platform's verdict on the score, and a beat later it reads as the
+   * character's own reaction to falling over. That gap is the entire
+   * difference between slapstick and a scolding, and it is the reason this is
+   * a separate cue rather than four more notes on the end of `bonk`.
+   *
+   * A sawtooth, quietly. It is the only voice here with enough harmonics to
+   * read as brass, and at this gain — under the 0.16 master — it stays comic
+   * rather than blaring in a shared computer lab.
+   */
+  wah: [
+    { frequency: 233.08, at: 0, duration: 0.14, type: "sawtooth", gain: 0.34 },
+    { frequency: 220, at: 0.13, duration: 0.14, type: "sawtooth", gain: 0.32 },
+    { frequency: 207.65, at: 0.26, duration: 0.14, type: "sawtooth", gain: 0.3 },
+    { frequency: 196, at: 0.39, duration: 0.34, type: "sawtooth", gain: 0.28 },
   ],
 };

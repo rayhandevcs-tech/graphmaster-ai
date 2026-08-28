@@ -53,14 +53,50 @@ describe("which character a profile gets", () => {
 });
 
 describe("the two builds of the character", () => {
+  // The frames are asserted by shape rather than by their exact numbers. A
+  // redraw changes the units and breaks a literal `viewBox` assertion while
+  // changing nothing a reader would notice, which makes the literal a tax on
+  // every future redraw rather than a guarantee.
+  const frameOf = (container: HTMLElement) => {
+    const [, , width, height] = (svgOf(container).getAttribute("viewBox") ?? "")
+      .split(/\s+/)
+      .map(Number);
+    return { width: width as number, height: height as number };
+  };
+
   it("defaults to the bust, which is what every list wants", () => {
     const { container } = render(<AvatarCharacter code="girl_default" />);
-    expect(svgOf(container).getAttribute("viewBox")).toBe("0 0 96 96");
+    const { width, height } = frameOf(container);
+    // Square: a bust sits in a round or square slot in every list that uses it.
+    expect(width).toBe(height);
   });
 
   it("draws a taller frame for the figure, so there is room for a body", () => {
     const { container } = render(<AvatarCharacter code="girl_default" variant="figure" />);
-    expect(svgOf(container).getAttribute("viewBox")).toBe("0 0 96 140");
+    const { width, height } = frameOf(container);
+    expect(height).toBeGreaterThan(width * 1.4);
+  });
+
+  it("lets the celebration own the shadow, which the figure must not carry", () => {
+    // The stage draws its own shadow as a sibling so it can spread on an
+    // impact while the body squashes. Two shadows is the visible bug; a shadow
+    // that rotates with a falling body is the worse invisible one.
+    const { container } = render(
+      <AvatarCharacter code="boy_default" variant="figure" groundShadow={false} />,
+    );
+    expect(container.querySelector("ellipse.fill-primary\\/20")).toBeNull();
+  });
+
+  it("draws a whole face per expression rather than mixing parts", () => {
+    // Surprise is the crown's landing beat and nothing else uses it; if it
+    // rendered the same face as `happy` the beat would not exist.
+    const happy = render(
+      <AvatarCharacter code="boy_default" variant="figure" expression="happy" />,
+    );
+    const surprised = render(
+      <AvatarCharacter code="boy_default" variant="figure" expression="surprised" />,
+    );
+    expect(svgOf(surprised.container).innerHTML).not.toBe(svgOf(happy.container).innerHTML);
   });
 
   it("gives the figure a ground shadow to stand on", () => {
@@ -109,9 +145,11 @@ describe("shading that survives a theme", () => {
     );
     const ids = [...container.querySelectorAll("linearGradient")].map((node) => node.id);
 
-    expect(ids.length).toBeGreaterThan(2);
     // A hard-coded id would make the second character paint with the first
-    // one's gradient — a bug that only appears once two are on screen.
+    // one's gradient — a bug that only appears once two are on screen. The
+    // count is not the assertion (most of the figure is flat tokens now, and
+    // only the shirt still needs a gradient); uniqueness is.
+    expect(ids.length).toBeGreaterThanOrEqual(2);
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
