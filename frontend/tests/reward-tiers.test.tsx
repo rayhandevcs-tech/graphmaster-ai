@@ -18,6 +18,7 @@ import {
   CROWN_LANDING,
   HAMMER_FALL,
   HAMMER_MESSAGE,
+  HAMMER_RAISE,
   HAMMER_RECOVERY,
   SETTLED,
   TIER_STORYBOARDS,
@@ -70,7 +71,12 @@ describe("the tier panel", () => {
       />,
     );
 
-    expect(screen.getByText("Keep Practicing!")).toBeInTheDocument();
+    // By role rather than by text: the celebration paints the headline a
+    // second time on its full-screen layer, and that copy is `aria-hidden`
+    // precisely because this one is the content. `getByRole` honours that;
+    // `getByText` would find both and fail on the ambiguity — which is the
+    // assertion working, not a flaw in it.
+    expect(screen.getByRole("heading", { name: "Keep Practicing!" })).toBeInTheDocument();
     expect(screen.getByText(message)).toBeInTheDocument();
   });
 
@@ -142,14 +148,19 @@ describe("the tier storyboards", () => {
     // The character does now go down — an earlier version kept them upright on
     // the reasoning that a fall would humiliate, which instead left the lowest
     // tier with nothing to watch. What FR-7.6 actually needs is bounded: the
-    // time spent on the floor is a second at most, and it is answered.
+    // time spent on the floor is capped, and it is answered.
+    //
+    // The cap is generous now because the sequence is deliberately played in
+    // slow motion, on its own screen, with Skip in view throughout. It is not
+    // unbounded: two and a bit seconds down, and never more than the beat
+    // that gets them up again.
     expect(at(HAMMER_FALL)).toBeGreaterThan(at("bonk"));
-    expect(at(HAMMER_RECOVERY) - at(HAMMER_FALL)).toBeLessThanOrEqual(1);
+    expect(at(HAMMER_RECOVERY) - at(HAMMER_FALL)).toBeLessThanOrEqual(2.5);
 
-    // And the encouragement follows the getting-up immediately, rather than
-    // the student reading it while their avatar is still down.
+    // And the encouragement follows the getting-up rather than arriving while
+    // the avatar is still on the floor.
     expect(at(HAMMER_MESSAGE)).toBeGreaterThan(at(HAMMER_RECOVERY));
-    expect(at(HAMMER_MESSAGE) - at(HAMMER_RECOVERY)).toBeLessThanOrEqual(0.6);
+    expect(at(HAMMER_MESSAGE) - at(HAMMER_RECOVERY)).toBeLessThanOrEqual(1.5);
   });
 
   it("lands the crown before the character believes it", () => {
@@ -161,23 +172,48 @@ describe("the tier storyboards", () => {
     expect(at(CROWN_LANDING)).toBeGreaterThan(at("crown"));
     expect(at(CROWN_DELIGHT)).toBeGreaterThan(at(CROWN_LANDING));
     // Close enough together to read as one reaction rather than two events.
-    expect(at(CROWN_DELIGHT) - at(CROWN_LANDING)).toBeLessThanOrEqual(0.8);
+    expect(at(CROWN_DELIGHT) - at(CROWN_LANDING)).toBeLessThanOrEqual(1.2);
   });
 
   it("keeps every celebration short enough to sit through", () => {
-    // A student who scored badly should not be watching for longer than one
-    // who scored well; three seconds is the ceiling for all of them.
+    // The ceiling was three seconds, on the reasoning that a student who
+    // scored badly must not be made to watch for longer than one who did
+    // well. That reasoning survives; the number does not.
+    //
+    // The sequences are now played in slow motion on a screen of their own,
+    // which is the whole point of the revision — a swing and a fall in under
+    // a second each were legible but not watchable. What makes the extra
+    // seconds affordable is that leaving is free: `Skip` is on screen the
+    // entire time, Escape closes it, so does a click anywhere, and the
+    // encouragement is on the card underneath from the first frame.
+    //
+    // The ceiling is still real, and the hammer is still the longest because
+    // it is the only one with a fall *and* a recovery to show.
     for (const tier of TIER_ORDER) {
-      expect(sequenceDuration(TIER_STORYBOARDS[tier])).toBeLessThanOrEqual(3);
+      expect(sequenceDuration(TIER_STORYBOARDS[tier])).toBeLessThanOrEqual(8);
     }
+  });
+
+  it("does not make the lowest tier wait longest for its encouragement", () => {
+    // The hammer's sequence is the longest, which is a risk worth an
+    // assertion: it must not be that the student who did worst waits
+    // noticeably longer to be told they can improve than the student who did
+    // best waits to be congratulated.
+    const encouraged = TIER_STORYBOARDS.hammer.beats.find((beat) => beat.id === HAMMER_MESSAGE)?.at;
+    const congratulated = TIER_STORYBOARDS.crown.beats.find((beat) => beat.id === "title")?.at;
+
+    expect(encouraged).toBeDefined();
+    expect(congratulated).toBeDefined();
+    expect((encouraged as number) - (congratulated as number)).toBeLessThanOrEqual(3);
   });
 
   it("resolves the beat playing at a given moment", () => {
     const beats = TIER_STORYBOARDS.hammer.beats;
 
     expect(beats[beatIndexAt(beats, 0)]?.id).toBe("arrive");
-    expect(beats[beatIndexAt(beats, 0.6)]?.id).toBe("bonk");
-    expect(beats[beatIndexAt(beats, 1.9)]?.id).toBe(HAMMER_RECOVERY);
+    expect(beats[beatIndexAt(beats, 1)]?.id).toBe(HAMMER_RAISE);
+    expect(beats[beatIndexAt(beats, 2.8)]?.id).toBe("bonk");
+    expect(beats[beatIndexAt(beats, 5.8)]?.id).toBe(HAMMER_RECOVERY);
     // Past the end it stays settled rather than running off the array.
     expect(beats[beatIndexAt(beats, 99)]?.id).toBe(SETTLED);
   });
