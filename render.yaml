@@ -1,34 +1,29 @@
-# Render Blueprint — backend API + PostgreSQL.
-# The frontend is NOT here; it deploys to Vercel (see docs/DEPLOYMENT.md).
+# Render Blueprint — the backend API.
 #
-# Create everything at once:  Render dashboard → New → Blueprint → pick this repo.
+# The frontend is NOT here; it deploys to Vercel (see docs/DEPLOYMENT.md).
+# The database is NOT here either — see the note under `plan` below.
+#
+# Create it:  Render dashboard → New → Blueprint → pick this repo.
 # Anything with `sync: false` must be filled in by hand in the dashboard after
 # the first deploy — Render will not overwrite those on later syncs.
-
-databases:
-  - name: graphmaster-db
-    databaseName: graphmaster
-    user: graphmaster
-    plan: basic-256mb # free Postgres is deleted after 30 days; basic is $6/mo and kept
-    region: singapore # closest Render region to Bangladesh
-    ipAllowList: [] # only reachable from Render's private network
 
 services:
   - type: web
     name: graphmaster-api
     runtime: docker
-    region: singapore
-    plan: standard # 2 GB RAM. The image loads spaCy + PyTorch + EasyOCR; 512 MB (free/starter) OOMs.
+    region: singapore # closest Render region to Bangladesh
+    # Free: 512 MB RAM, sleeps after 15 minutes idle, ~50s to wake.
+    # That is only survivable because INCLUDE_EASYOCR below keeps PyTorch out
+    # of the image; with it, this OOMs on boot and never becomes healthy.
+    #
+    # For real use change this to `standard` (2 GB, $25/mo), set
+    # INCLUDE_EASYOCR to 1, drop OCR_PROVIDER_ORDER, and add back the disk and
+    # the managed database — both are commented at the bottom of this file.
+    plan: free
     dockerContext: ./backend
     dockerfilePath: ./backend/Dockerfile
     healthCheckPath: /api/v1/health/live
     autoDeploy: true
-    # Handwriting uploads live on disk. Without this they vanish on every deploy.
-    # A disk pins the service to one instance — fine here, it is single-instance anyway.
-    disk:
-      name: uploads
-      mountPath: /app/storage
-      sizeGB: 1
     envVars:
       - key: ENVIRONMENT
         value: production
@@ -44,13 +39,48 @@ services:
         value: /app/storage
       - key: STORAGE_BACKEND
         value: local
+      # Render passes a service's environment variables to the Docker build as
+      # build arguments, which is what makes this work: 0 builds the image
+      # without EasyOCR or PyTorch — about 7 GB of image and ~1 GB of resident
+      # memory that a 512 MB instance does not have.
+      - key: INCLUDE_EASYOCR
+        value: "0"
+      # Which leaves Tesseract as the only recognition provider. Handwriting
+      # still works and reads less well; typed submissions and every part of
+      # scoring are untouched. Remove this line when INCLUDE_EASYOCR is 1.
+      - key: OCR_PROVIDER_ORDER
+        value: tesseract
       # ── Fill these in by hand after the first deploy ──────────────────────
-      # DATABASE_URL: copy graphmaster-db's *Internal Database URL* from the
-      # dashboard and change the scheme from  postgresql://  to
-      # postgresql+asyncpg://  — the async engine needs the driver in the URL.
+      # DATABASE_URL: from the Neon dashboard (free, and not deleted after 30
+      # days the way Render's own free database is). Take the pooled
+      # connection string and change the scheme from  postgresql://  to
+      # postgresql+asyncpg://  — the async engine reads the driver from the
+      # URL. Alembic and the entrypoint strip it back off themselves.
       - key: DATABASE_URL
         sync: false
       # ALLOWED_ORIGINS: the exact Vercel URL, e.g. https://graphmaster.vercel.app
       # (no trailing slash). Add your custom domain too if you set one, comma-separated.
       - key: ALLOWED_ORIGINS
         sync: false
+# ── What a paid deployment adds ──────────────────────────────────────────────
+#
+# A disk, so handwriting uploads survive a deploy. Without one the filesystem
+# is ephemeral: scores, text and every figure stay in Postgres, but the stored
+# photograph of an answer is gone after the next restart. Free instances
+# cannot mount disks at all.
+#
+#   disk:
+#     name: uploads
+#     mountPath: /app/storage
+#     sizeGB: 1
+#
+# And Render's own managed Postgres, if you would rather not use Neon. The
+# free tier is deleted after 30 days, so this is the paid plan:
+#
+#   databases:
+#     - name: graphmaster-db
+#       databaseName: graphmaster
+#       user: graphmaster
+#       plan: basic-256mb # $6/mo
+#       region: singapore
+#       ipAllowList: [] # only reachable from Render's private network

@@ -14,6 +14,29 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
 
+  /**
+   * Forward `/api/*` to the backend, server-side.
+   *
+   * Only when `BACKEND_ORIGIN` is set, which is a deployment where the API
+   * lives on a different host — `*.vercel.app` and `*.onrender.com` are
+   * different *sites*, so a browser refuses to store the refresh cookie the
+   * API sets and the session dies on the next reload. Routed through here the
+   * browser only ever talks to its own origin and the cookie is first-party.
+   *
+   * Unset locally and in any deployment that puts both halves on sub-domains
+   * of one registered domain, where the cookie is already first-party and the
+   * extra hop would be pure latency.
+   *
+   * Trade-off: request bodies pass through Vercel, which caps them at about
+   * 4.5 MB on the free plan. Handwriting photographs can exceed that; typed
+   * submissions and everything else are far below it.
+   */
+  async rewrites() {
+    const backend = process.env.BACKEND_ORIGIN;
+    if (!backend) return [];
+    return [{ source: "/api/:path*", destination: `${backend}/api/:path*` }];
+  },
+
   async headers() {
     return [
       {
