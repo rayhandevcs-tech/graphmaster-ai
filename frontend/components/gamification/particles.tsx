@@ -156,7 +156,7 @@ export function Pulse({ className }: { className?: string }) {
  * be. The radius clears the head — stars orbiting *inside* the face read as
  * decoration on it rather than as a character seeing stars.
  */
-export function OrbitStars({ className }: { className?: string }) {
+export function OrbitStars({ scale = 1, className }: { scale?: number; className?: string }) {
   return (
     <m.div
       className={cn("pointer-events-none absolute inset-0 grid place-items-center", className)}
@@ -168,16 +168,20 @@ export function OrbitStars({ className }: { className?: string }) {
         opacity: { duration: DURATION.quick },
       }}
     >
-      <div className="relative size-32">
+      {/* Sized from `scale` rather than a fixed class, because the same
+          formation has to clear a 90px head in a card and a 400px head on the
+          full-screen stage. Left fixed, the stars orbited *inside* the face
+          at the larger size and read as freckles. */}
+      <div className="relative" style={{ width: 128 * scale, height: 128 * scale }}>
         {[0, 120, 240].map((angle) => (
           <span
             key={angle}
             className="text-tier-hammer absolute top-1/2 left-1/2"
             style={{
-              transform: `rotate(${angle}deg) translate(54px) rotate(-${angle}deg) translate(-50%, -50%)`,
+              transform: `rotate(${angle}deg) translate(${54 * scale}px) rotate(-${angle}deg) translate(-50%, -50%)`,
             }}
           >
-            <Star className="size-4 fill-current" />
+            <Star className="fill-current" style={{ width: 16 * scale, height: 16 * scale }} />
           </span>
         ))}
       </div>

@@ -395,9 +395,12 @@ function Arms({ pose, look }: { pose: Pose; look: Look }) {
       ],
     },
     guard: {
-      arms: ["M29 86 16 56 42 24", "M71 86 76 114"],
+      // Up the *side* of the head, not across it. Routed over the face, the
+      // sleeve lay across one eye and the whole pose read as the character
+      // covering their own eyes rather than shielding against something.
+      arms: ["M29 86 12 58 20 30", "M71 86 76 114"],
       hands: [
-        [48, 19],
+        [19, 23],
         [77, 117],
       ],
     },
@@ -416,7 +419,7 @@ function Arms({ pose, look }: { pose: Pose; look: Look }) {
     <g>
       <g
         className="stroke-primary fill-none"
-        strokeWidth="11"
+        strokeWidth="12.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
@@ -425,7 +428,7 @@ function Arms({ pose, look }: { pose: Pose; look: Look }) {
         ))}
       </g>
       {hands.map(([cx, cy]) => (
-        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="6.5" className={SKIN[look.tone].base} />
+        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="7.5" className={SKIN[look.tone].base} />
       ))}
     </g>
   );
@@ -449,8 +452,8 @@ function Face({ expression, look }: { expression: Expression; look: Look }) {
 
   const blush = (
     <g className="fill-character-blush" opacity="0.3">
-      <ellipse cx="32" cy="55" rx="6" ry="3.4" />
-      <ellipse cx="68" cy="55" rx="6" ry="3.4" />
+      <ellipse cx="30" cy="57" rx="6.5" ry="3.6" />
+      <ellipse cx="70" cy="57" rx="6.5" ry="3.6" />
     </g>
   );
 
@@ -460,10 +463,10 @@ function Face({ expression, look }: { expression: Expression; look: Look }) {
         {blush}
         {/* Arched shut — the smile that reaches the eyes. */}
         <g className={line} strokeWidth="3" strokeLinecap="round">
-          <path d="M35 47c2-6 10-6 12 0M53 47c2-6 10-6 12 0" />
+          <path d="M32 48c3-8 13-8 16 0M56 48c3-8 13-8 16 0" />
         </g>
         <g className={brow} strokeWidth="3" strokeLinecap="round">
-          <path d="M34 33c3-3 8-3 11-1M66 33c-3-3-8-3-11-1" />
+          <path d="M32 31c4-4 10-4 13-1M68 31c-4-4-10-4-13-1" />
         </g>
         {/* An open mouth with a tongue. A closed curve here reads as polite,
             and this beat is not polite. */}
@@ -478,10 +481,10 @@ function Face({ expression, look }: { expression: Expression; look: Look }) {
       <g>
         {blush}
         <g className={line} strokeWidth="3" strokeLinecap="round">
-          <path d="M36 41l10 10M46 41l-10 10M54 41l10 10M64 41l-10 10" />
+          <path d="M34 40l12 12M46 40l-12 12M54 40l12 12M66 40l-12 12" />
         </g>
         <g className={brow} strokeWidth="3" strokeLinecap="round">
-          <path d="M33 32c3-2 8-2 11 0M67 32c-3-2-8-2-11 0" />
+          <path d="M31 30c4-2 10-2 13 0M69 30c-4-2-10-2-13 0" />
         </g>
         <path
           d="M42 58c2-2 3 2 5 0s3 2 5 0 3 2 5 0"
@@ -498,24 +501,28 @@ function Face({ expression, look }: { expression: Expression; look: Look }) {
       // Lifted clear of the hairline. Raised brows are half of surprise; wide
       // eyes on their own read as a stare.
       <g className={brow} strokeWidth="3" strokeLinecap="round">
-        <path d="M33 28c3-3 9-3 12 0M67 28c-3-3-9-3-12 0" />
+        <path d="M30 26c4-4 11-4 14 0M70 26c-4-4-11-4-14 0" />
       </g>
     ) : expression === "determined" ? (
       // Lowered a little, not angled into a scowl: this is resolve after a
       // knock, and an angry face would be the platform telling a student off.
       <g className={brow} strokeWidth="3.4" strokeLinecap="round">
-        <path d="M33 35c4-2 8-2 12 1M67 35c-4-2-8-2-12 1" />
+        <path d="M30 33c5-3 10-3 14 1M70 33c-5-3-10-3-14 1" />
       </g>
     ) : (
       <g className={brow} strokeWidth="3" strokeLinecap="round">
-        <path d="M34 34c3-2 8-2 11 0M66 34c-3-2-8-2-11 0" />
+        <path d="M31 32c4-3 10-3 13 0M69 32c-4-3-10-3-13 0" />
       </g>
     );
 
+  // Big. The reference this was redrawn against carries almost all of its
+  // character in the eyes, and a 6px sclera on a 25px face is a diagram's
+  // eye — correct, unmemorable, and invisible at the size a list renders it.
+  // Everything else on this face is deliberately plain so these can carry it.
   const wide = expression === "surprised";
-  const scleraRx = wide ? 7.5 : 6;
-  const scleraRy = wide ? 8.5 : 6.6;
-  const irisR = wide ? 2.9 : 3.5;
+  const scleraRx = wide ? 9 : 7.6;
+  const scleraRy = wide ? 10.5 : 8.4;
+  const irisR = wide ? 3.6 : 4.4;
 
   const mouth =
     expression === "surprised" ? (
@@ -538,8 +545,8 @@ function Face({ expression, look }: { expression: Expression; look: Look }) {
       {[41, 59].map((cx) => (
         <g key={cx}>
           <ellipse cx={cx} cy="46" rx={scleraRx} ry={scleraRy} className="fill-character-sclera" />
-          <circle cx={cx + 0.5} cy="47" r={irisR} className="fill-character-eye" />
-          <circle cx={cx - 1.4} cy="44.4" r="1.5" className="fill-character-sclera" />
+          <circle cx={cx + 0.6} cy="47.4" r={irisR} className="fill-character-eye" />
+          <circle cx={cx - 1.9} cy="43.6" r="1.9" className="fill-character-sclera" />
         </g>
       ))}
       {mouth}

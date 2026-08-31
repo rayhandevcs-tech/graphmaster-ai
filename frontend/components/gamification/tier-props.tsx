@@ -1,6 +1,5 @@
 "use client";
 
-import { useId } from "react";
 import { m } from "framer-motion";
 
 import { MotionStage } from "@/components/motion/stage";
@@ -8,121 +7,85 @@ import { DURATION, EASE, STAGGER } from "@/lib/motion/tokens";
 import { cn } from "@/lib/utils";
 
 /**
- * The three objects the celebration hands over.
+ * The three objects the celebration hands over, drawn as stickers.
  *
- * These replaced `lucide-react`'s `Crown` and `Hammer`. A 2px stroke icon is
- * interface furniture — the same weight of line as the settings cog — and a
- * reward drawn in it cannot read as an object worth earning.
+ * **The style is the point, and it changed.** The previous version modelled
+ * each prop with gradients and facets, which is how you draw a thing that is
+ * *lit*. Beside a flat-shape character it read as a different product — an
+ * illustration borrowed from somewhere else and dropped in. These are drawn
+ * the way the character is: flat colour, one lighter plane, and a thick dark
+ * outline right round the silhouette.
  *
- * **What makes a drawing read as a solid object.** Not detail. Three things,
- * and every prop here now has all three:
+ * Three rules do all the work:
  *
- * - *Two planes at least.* A lit face and a face turned away. One flat fill is
- *   a silhouette however many edges it has.
- * - *A rim light.* A bright hairline along the top edge, where the light
- *   grazes it. This is the cheapest way to sit a shape in space, and the first
- *   version of these props had none at all.
- * - *A specular hit.* One small, hard highlight — on the gem, on a metal
- *   collar, on the mallet's shoulder. It is what separates gold from mustard.
+ * - **The outline is under the fill.** `paint-order: stroke` puts the whole
+ *   stroke width outside the shape instead of straddling its edge, so the
+ *   line is even and the fill keeps its full size. Straddling, a 5px stroke
+ *   eats 2.5px of a 12px highlight.
+ * - **Two planes, not a gradient.** One base colour and one lighter shape
+ *   sitting on the lit side. A gradient reads as a rendered object; two flat
+ *   planes read as a drawn one, and the character beside it is drawn.
+ * - **A highlight that follows the form.** The pale stripe down the mallet's
+ *   handle and across its head is one continuous shape bending with the
+ *   object, which is what tells you it is round.
  *
- * **No colour literals.** Each prop is a `text-tier-*` group and every shade is
- * `currentColor` at a different opacity, which is what lets the same drawing
- * work in both themes — the crown is gold leaf on white and burnished gold on
- * near-black without this file knowing either colour. The highlights are
- * `fill-card`, the lightest surface in whichever theme is running.
- *
- * Gradient ids come from `useId`. Two celebrations mounted on one page with a
- * hard-coded id would both paint with whichever one rendered first.
+ * **No colour literals.** Each prop is a `text-tier-*` group: the fill is
+ * `currentColor`, the lighter plane is `currentColor` under a `fill-card`
+ * wash, and the outline is that tier's own `--tier-*-line` token. The same
+ * drawing works in both themes without this file knowing either colour.
  */
+
+/** The sticker outline, as one set of props. */
+const LINE = { strokeLinejoin: "round" as const, strokeLinecap: "round" as const };
+const STICKER = { paintOrder: "stroke" } as const;
 
 /**
  * The crown.
  *
- * A band, five points, pearls on the peaks and a faceted centre stone. The
- * band is split into a lit face and a shadow face; each tall point gets a
- * lighter inner facet and a rim light down its lit edge. The asymmetry is the
- * whole trick — a symmetrical crown in one flat fill is a silhouette, and a
- * silhouette has no volume no matter how many points you give it.
+ * A band, five points, pearls on the peaks and a stone in the middle. The
+ * lighter plane runs down the left of every point and along the top of the
+ * band, so the light has one direction across the whole object rather than
+ * per-part.
  */
 export function TierCrown({ className }: { className?: string }) {
-  const uid = useId().replace(/:/g, "");
-  const pearls: [number, number][] = [
-    [2, 14],
-    [32, 6],
-    [62, 14],
-  ];
-
   return (
-    <svg viewBox="0 0 64 60" className={cn("size-12", className)} aria-hidden>
-      <defs>
-        <linearGradient id={`${uid}-metal`} x1="0" y1="0" x2="1" y2="0.4">
-          <stop offset="0" stopColor="currentColor" stopOpacity="1" />
-          <stop offset="0.5" stopColor="currentColor" stopOpacity="0.86" />
-          <stop offset="1" stopColor="currentColor" stopOpacity="0.58" />
-        </linearGradient>
-        <linearGradient id={`${uid}-band`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="currentColor" stopOpacity="0.95" />
-          <stop offset="1" stopColor="currentColor" stopOpacity="0.62" />
-        </linearGradient>
-      </defs>
+    <svg viewBox="0 0 72 66" className={cn("size-12", className)} aria-hidden>
+      <g className="stroke-tier-crown-line" strokeWidth="4" style={STICKER} {...LINE}>
+        {/* The points and the hollows between them, as one path, so the peaks
+            and the valleys share an outline the way a cast object would. */}
+        <path d="M8 44 5 15l14 12L36 6l17 21 14-12-3 29z" fill="currentColor" />
+        {/* The lit plane: the left face of each point. */}
+        <path
+          d="M36 6 25 27h8zM5 15l14 12-3 6-8-9zM53 27 44 27 36 6z"
+          className="fill-card"
+          opacity="0.35"
+          stroke="none"
+        />
 
-      {/* The points and the hollows between them, as one path, so the peaks
-          and the valleys share an outline the way a cast object would. */}
-      <path
-        d="M4 42 2 14l14 11L32 6l16 19 14-11-2 28z"
-        fill={`url(#${uid}-metal)`}
-        stroke="currentColor"
-        strokeOpacity="0.4"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      {/* Inner facets: a lighter wedge inside each tall point, catching the
-          light the way a bevelled edge does. */}
-      <path
-        d="M32 11 24 23h16zM7 19l7 6-2 12zM57 19l-7 6 2 12z"
-        className="fill-card"
-        opacity="0.22"
-      />
-      {/* The rim light — the lit edge of each point, drawn as a hairline. */}
-      <path
-        d="M2 14 16 25M32 6 16 25M32 6l16 19M62 14 48 25"
-        className="stroke-card fill-none"
-        strokeOpacity="0.5"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      />
+        {/* Pearls. The one detail that stops the points reading as a cut-out. */}
+        <circle cx="5" cy="15" r="5" fill="currentColor" />
+        <circle cx="36" cy="6" r="5.5" fill="currentColor" />
+        <circle cx="67" cy="15" r="5" fill="currentColor" />
 
-      {/* Pearls on the peaks — the detail that stops the points reading as a
-          paper cut-out. */}
-      {pearls.map(([cx, cy]) => (
-        <g key={cx}>
-          <circle cx={cx} cy={cy} r="3.4" fill="currentColor" fillOpacity="0.92" />
-          <circle cx={cx - 1} cy={cy - 1.2} r="1.2" className="fill-card" opacity="0.7" />
-        </g>
-      ))}
+        {/* The band, drawn over the feet of the points. */}
+        <rect x="5" y="42" width="62" height="18" rx="6" fill="currentColor" />
+        <rect
+          x="10"
+          y="45"
+          width="52"
+          height="5"
+          rx="2.5"
+          className="fill-card"
+          opacity="0.4"
+          stroke="none"
+        />
 
-      {/* The band. Darker than the points because it faces down and away. */}
-      <rect x="3" y="41" width="58" height="14" rx="4" fill={`url(#${uid}-band)`} />
-      <rect x="3" y="49" width="58" height="6" rx="3" fill="currentColor" fillOpacity="0.32" />
-      <g fill="currentColor" fillOpacity="0.5">
-        {[10, 18, 26, 34, 42, 50, 58].map((cx) => (
-          <circle key={cx} cx={cx} cy="52" r="1.6" />
-        ))}
+        {/* The stone: a table facet over a pavilion, not a circle with a dot. */}
+        <path d="M36 15l7 6-7 9-7-9z" fill="currentColor" strokeWidth="3.4" />
       </g>
-      <rect x="5" y="41.5" width="54" height="1.6" rx="0.8" className="fill-card" opacity="0.45" />
-
-      {/* The centre stone: a table facet, a pavilion below it, one hard
-          specular hit. A circle with a dot on it is a bubble, not a gem. */}
-      <path d="M32 15l6 5-6 8-6-8z" fill="currentColor" fillOpacity="0.95" />
-      <path d="M32 15l6 5H26z" className="fill-card" opacity="0.4" />
-      <circle cx="30" cy="19" r="1.3" className="fill-card" opacity="0.85" />
-
-      {[16, 48].map((cx) => (
-        <g key={cx}>
-          <circle cx={cx} cy="46" r="3.2" fill="currentColor" fillOpacity="0.55" />
-          <circle cx={cx - 1} cy="45" r="1" className="fill-card" opacity="0.6" />
-        </g>
-      ))}
+      {/* The highlight on the stone sits outside the outlined group, or the
+          stroke would trace a 2px dot into a blob. */}
+      <circle cx="33" cy="20" r="2" className="fill-card" opacity="0.85" />
     </svg>
   );
 }
@@ -130,18 +93,17 @@ export function TierCrown({ className }: { className?: string }) {
 /**
  * The flower, opening.
  *
- * Petals in two layers: a back layer rotated 36° and darker, a front layer over
- * it with a curled tip, a crease and a highlight along the lit side. The
- * overlap is what reads as a flower — five ellipses around a dot reads as a
- * diagram of one.
+ * Petals in two layers: a back layer rotated 36° and darker, a front layer
+ * over it, each with a pale crescent along its lit edge. The overlap is what
+ * reads as a flower — five ellipses around a dot reads as a diagram of one.
  *
  * The back layer opens first, so the bloom unfolds rather than appearing.
  *
  * **It provides its own `MotionStage`.** Every petal starts at `scale: 0`, and
  * an `m.*` element outside a `LazyMotion` provider never leaves its initial
  * state — so rendered anywhere but inside the celebration, this drew five
- * creases and no petals at all. A nested provider with the same feature set is
- * a no-op inside the celebration and the difference between a flower and
+ * outlines and no petals at all. A nested provider with the same feature set
+ * is a no-op inside the celebration and the difference between a flower and
  * nothing anywhere else.
  */
 export function TierFlower({ className }: { className?: string }) {
@@ -153,76 +115,85 @@ export function TierFlower({ className }: { className?: string }) {
 }
 
 function FlowerDrawing({ className }: { className?: string }) {
-  const uid = useId().replace(/:/g, "");
   const front = [0, 72, 144, 216, 288];
   const back = front.map((angle) => angle + 36);
 
   return (
-    <svg viewBox="0 0 64 64" className={cn("size-16", className)} aria-hidden>
-      <defs>
-        <linearGradient id={`${uid}-petal`} x1="0.5" y1="0" x2="0.5" y2="1">
-          <stop offset="0" stopColor="currentColor" stopOpacity="0.68" />
-          <stop offset="1" stopColor="currentColor" stopOpacity="1" />
-        </linearGradient>
-      </defs>
-
-      {back.map((angle, index) => (
-        <g key={`b${angle}`} transform={`rotate(${angle} 32 32)`}>
-          <m.ellipse
-            cx="32"
-            cy="17"
-            rx="6"
-            ry="14"
-            fill="currentColor"
-            fillOpacity="0.5"
-            style={{ transformBox: "view-box", transformOrigin: "32px 32px" }}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: DURATION.settle, delay: index * STAGGER, ease: EASE.standard }}
-          />
-        </g>
-      ))}
-
-      {front.map((angle, index) => (
-        <g key={`f${angle}`} transform={`rotate(${angle} 32 32)`}>
-          <m.g
-            style={{ transformBox: "view-box", transformOrigin: "32px 32px" }}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{
-              duration: DURATION.settle,
-              delay: (back.length + index) * STAGGER,
-              ease: EASE.standard,
-            }}
-          >
-            {/* A petal with a curled tip, rather than an ellipse. */}
-            <path
-              d="M32 32c-7-2-9-9-7-15 1-4 4-7 7-8 3 1 6 4 7 8 2 6 0 13-7 15z"
-              fill={`url(#${uid}-petal)`}
+    <svg viewBox="0 0 72 72" className={cn("size-16", className)} aria-hidden>
+      <g className="stroke-tier-flower-line" strokeWidth="3.6" style={STICKER} {...LINE}>
+        {back.map((angle, index) => (
+          <g key={`b${angle}`} transform={`rotate(${angle} 36 36)`}>
+            <m.ellipse
+              cx="36"
+              cy="20"
+              rx="6.5"
+              ry="14"
+              fill="currentColor"
+              opacity="0.75"
+              style={{ transformBox: "view-box", transformOrigin: "36px 36px" }}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{
+                duration: DURATION.settle,
+                delay: index * STAGGER,
+                ease: EASE.standard,
+              }}
             />
-            {/* The crease down the middle and a highlight along the lit side —
-                the two marks that give a petal a front and a back. */}
-            <path
-              d="M32 28c-2-4-2-10 0-14"
-              stroke="currentColor"
-              strokeOpacity="0.32"
-              strokeWidth="1.2"
-              fill="none"
-              strokeLinecap="round"
-            />
-            <path
-              d="M28 24c-1-5 0-9 2-12"
-              className="stroke-card fill-none"
-              strokeOpacity="0.45"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            />
-          </m.g>
-        </g>
-      ))}
+          </g>
+        ))}
 
+        {front.map((angle, index) => (
+          <g key={`f${angle}`} transform={`rotate(${angle} 36 36)`}>
+            <m.g
+              style={{ transformBox: "view-box", transformOrigin: "36px 36px" }}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{
+                duration: DURATION.settle,
+                delay: (back.length + index) * STAGGER,
+                ease: EASE.standard,
+              }}
+            >
+              {/* Longer than the back layer's ellipses, which is the whole
+                  reason the two layers read as one flower: the back tips show
+                  in the gaps *between* the front petals. Drawn shorter, the
+                  front layer sits inside the back one and the flower reads as
+                  a cluster of blobs with a ring behind it. */}
+              <path
+                d="M36 36c-10-2-14-12-10-20 2-6 6-10 10-11 4 1 8 5 10 11 4 8 0 18-10 20z"
+                fill="currentColor"
+              />
+              {/* The lit crescent down one side. */}
+              <path
+                d="M31 26c-2-7 0-13 3-17 2 4 2 10 1 17z"
+                className="fill-card"
+                opacity="0.4"
+                stroke="none"
+              />
+            </m.g>
+          </g>
+        ))}
+
+        <m.g
+          style={{ transformBox: "view-box", transformOrigin: "36px 36px" }}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{
+            duration: DURATION.base,
+            delay: (back.length + front.length) * STAGGER,
+            ease: EASE.standard,
+          }}
+        >
+          <circle cx="36" cy="36" r="10" className="fill-tier-crown" />
+        </m.g>
+      </g>
+
+      {/* The seed head, outside the outlined group so the stipple stays
+          stipple rather than five outlined discs. */}
       <m.g
-        style={{ transformBox: "view-box", transformOrigin: "32px 32px" }}
+        className="fill-tier-crown-foreground"
+        opacity="0.6"
+        style={{ transformBox: "view-box", transformOrigin: "36px 36px" }}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{
@@ -231,21 +202,10 @@ function FlowerDrawing({ className }: { className?: string }) {
           ease: EASE.standard,
         }}
       >
-        <circle cx="32" cy="32" r="8.5" className="fill-tier-crown" />
-        {/* The centre is a dome, not a disc: a shadow crescent down the lower
-            right, stipple for the seed head, one highlight at the upper left. */}
-        <path
-          d="M32 23.5a8.5 8.5 0 0 1 0 17 6 8.5 0 0 0 0-17z"
-          fill="currentColor"
-          fillOpacity="0.3"
-        />
-        <g className="fill-tier-crown-foreground" opacity="0.55">
-          <circle cx="30" cy="30" r="1" />
-          <circle cx="34" cy="31" r="1" />
-          <circle cx="31" cy="34" r="1" />
-          <circle cx="34.5" cy="34.5" r="1" />
-        </g>
-        <circle cx="29" cy="29" r="1.6" className="fill-card" opacity="0.5" />
+        <circle cx="33" cy="33" r="1.4" />
+        <circle cx="39" cy="34" r="1.4" />
+        <circle cx="34" cy="39" r="1.4" />
+        <circle cx="39.5" cy="39" r="1.4" />
       </m.g>
     </svg>
   );
@@ -254,85 +214,81 @@ function FlowerDrawing({ className }: { className?: string }) {
 /**
  * The mallet.
  *
- * **Deliberately a toy, and this is a requirement rather than a style choice.**
- * FR-7.6 says the lowest tier must never read as humiliating, so the prop that
- * delivers it is drawn with comic proportions no real tool has: an oversized
- * rounded head, a short fat handle with a knob on the end, a bright rim light
- * along the top.
+ * **Deliberately a toy, and that is a requirement rather than a style choice.**
+ * FR-7.6 says the lowest tier must never read as humiliating. The reference
+ * for this drawing is a cartoon axe, and everything about *how* it is drawn is
+ * taken from it — but the object is a fairground mallet, because a blade
+ * swinging at a student who scored badly is precisely what the specification
+ * rules out. A head with a cutting edge would say something the rest of this
+ * screen spends its whole length not saying.
  *
- * "Make it look real" was the request that started this work, and it is worth
- * being precise about what that can mean here. The *materials* are now real —
- * a turned wooden handle with a grain line, metal collars where it enters the
- * head, a lit top face and a shadowed striking face. The *object* is still a
- * fairground mallet, because a plausible claw hammer swinging at a student who
- * scored badly is exactly what the specification rules out.
+ * **What makes the reference read the way it does**, and what a first attempt
+ * at "thick outline, two tones" misses entirely:
+ *
+ * - **A big pale ellipse on the striking end.** This is most of it. The head
+ *   is a cylinder seen from three-quarters on, and that ellipse is its near
+ *   face catching the light. Without it the head is a rounded rectangle, and
+ *   a rounded rectangle at any outline weight is a sticker of a brick.
+ * - **The handle is cut, not tapered.** A second pale ellipse closes its end.
+ *   Two ellipses on the same object, at the same angle, are what say *both*
+ *   of these things are round.
+ * - **One long highlight down the handle's lit side**, running its whole
+ *   length rather than sitting in the middle of it.
+ * - **The whole tool is tilted.** Square to the page it is a diagram; at an
+ *   angle it is a thing someone is holding.
+ *
+ * Each pale shape is painted twice: once in `currentColor` with the outline,
+ * then again in `fill-card` at half strength with no stroke. That is what
+ * makes a *tint of the tier's own colour* — a `fill-card` shape on its own
+ * would be white where it overhangs the body, and a lighter second token
+ * would need a third colour per tier for no gain.
  */
 export function TierMallet({ className }: { className?: string }) {
-  const uid = useId().replace(/:/g, "");
+  const tilt = "rotate(-18 36 47)";
 
   return (
-    <svg viewBox="0 0 64 64" className={cn("size-14", className)} aria-hidden>
-      <defs>
-        <linearGradient id={`${uid}-head`} x1="0" y1="0" x2="0.25" y2="1">
-          <stop offset="0" stopColor="currentColor" stopOpacity="1" />
-          <stop offset="0.55" stopColor="currentColor" stopOpacity="0.82" />
-          <stop offset="1" stopColor="currentColor" stopOpacity="0.55" />
-        </linearGradient>
-        <linearGradient id={`${uid}-grip`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="currentColor" stopOpacity="0.42" />
-          <stop offset="0.4" stopColor="currentColor" stopOpacity="0.72" />
-          <stop offset="1" stopColor="currentColor" stopOpacity="0.4" />
-        </linearGradient>
-        {/* The head's own outline, reused to clip the striking face. Hand
-            building that face as a path meant matching two rounded corners by
-            eye, and the arcs left a visible notch at the right shoulder. */}
-        <clipPath id={`${uid}-block`}>
-          <rect x="7" y="9" width="50" height="24" rx="11" />
-        </clipPath>
-      </defs>
+    <svg viewBox="0 0 72 94" className={cn("size-14", className)} aria-hidden>
+      <g
+        className="stroke-tier-hammer-line"
+        strokeWidth="4.5"
+        style={STICKER}
+        {...LINE}
+        transform={tilt}
+      >
+        {/* Handle first, so the head sits over its top end. Long — half again
+            the height of the head — and flat-bottomed: the cut end is closed
+            by its own ellipse below, the way a sawn dowel is, rather than
+            rounded off into a nub. */}
+        <path d="M29 42h14v42H29z" fill="currentColor" />
 
-      {/* Handle first, so the head sits over its top end. Turned, not a
-          rectangle: a shaft, a swell at the bottom and a knob. */}
-      <g transform="rotate(-8 32 43)">
-        <rect x="27.5" y="24" width="10" height="34" rx="5" fill={`url(#${uid}-grip)`} />
-        <path
-          d="M30.5 30v22"
-          className="stroke-card fill-none"
-          strokeOpacity="0.35"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-        />
-        {/* The knob, so the handle terminates instead of stopping. */}
-        <ellipse cx="32.5" cy="57" rx="7" ry="5" fill="currentColor" fillOpacity="0.75" />
-        <ellipse cx="30.5" cy="55.5" rx="2.4" ry="1.4" className="fill-card" opacity="0.35" />
+        {/* The head. Wide, deep, and four times the width of its own handle —
+            nothing shaped like this swings at anyone. */}
+        <rect x="3" y="8" width="58" height="38" rx="15" fill="currentColor" />
+
+        {/* The near face of the head, and the cut end of the handle. Both are
+            filled in the body colour here and tinted in the group below, so
+            the outline has something opaque to sit against.
+            
+            The face is *inset*: a rim of the body colour all the way round it
+            is what makes it read as a plane at the end of a cylinder. Sized
+            to the end cap exactly, it split the head into a pale half and an
+            orange half instead. */}
+        <ellipse cx="49" cy="27" rx="9.5" ry="14.5" fill="currentColor" />
+        <ellipse cx="36" cy="84" rx="7" ry="4.5" fill="currentColor" />
       </g>
 
-      {/* The head: wide, round-cornered, and much too big for the handle. */}
-      <rect x="7" y="9" width="50" height="24" rx="11" fill={`url(#${uid}-head)`} />
-      {/* The striking face, a shade darker so the block has a top and a front. */}
-      <rect
-        x="7"
-        y="24"
-        width="50"
-        height="9"
-        fill="currentColor"
-        fillOpacity="0.32"
-        clipPath={`url(#${uid}-block)`}
-      />
-      {/* Metal collars at each end — the detail that reads as "made of parts". */}
-      <rect x="11" y="11" width="5" height="20" rx="2.5" fill="currentColor" fillOpacity="0.5" />
-      <rect x="48" y="11" width="5" height="20" rx="2.5" fill="currentColor" fillOpacity="0.5" />
-      {/* Rim light along the top, and one specular hit on the shoulder. */}
-      <rect
-        x="14"
-        y="11.5"
-        width="30"
-        height="3.5"
-        rx="1.75"
-        className="fill-card"
-        opacity="0.42"
-      />
-      <ellipse cx="20" cy="17" rx="3.5" ry="2" className="fill-card" opacity="0.3" />
+      {/* The lit tones, over the outlined shapes and carrying no outline of
+          their own: a stroke around a highlight turns it into a second
+          object. */}
+      <g className="fill-card" transform={tilt}>
+        <ellipse cx="49" cy="27" rx="9.5" ry="14.5" opacity="0.5" />
+        <ellipse cx="36" cy="84" rx="7" ry="4.5" opacity="0.5" />
+        {/* Along the top of the head, where the light grazes it. */}
+        <path d="M13 14h20a4.5 4.5 0 0 1 0 9H13a4.5 4.5 0 0 1 0-9z" opacity="0.4" />
+        {/* And the full length of the handle's lit side, not a mark in the
+            middle of it. */}
+        <path d="M31.5 46h5v36h-5z" opacity="0.42" />
+      </g>
     </svg>
   );
 }

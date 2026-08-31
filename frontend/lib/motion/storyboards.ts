@@ -22,6 +22,8 @@ export const SETTLED = "settled";
  * beat cannot quietly make the assertion vacuous — the test imports these and
  * checks their position, which fails if either is removed.
  */
+/** The mallet, raised in front of the character before it comes down. */
+export const HAMMER_RAISE = "raise";
 export const HAMMER_FALL = "fall";
 export const HAMMER_RECOVERY = "recover";
 export const HAMMER_MESSAGE = "message";
@@ -51,12 +53,12 @@ const CROWN: Storyboard = {
   id: "crown",
   beats: [
     { id: "arrive", at: 0 },
-    { id: "crown", at: 0.3 },
-    { id: CROWN_LANDING, at: 0.7 },
-    { id: CROWN_DELIGHT, at: 1.2 },
-    { id: "confetti", at: 1.5 },
-    { id: "title", at: 1.9 },
-    { id: SETTLED, at: 2.9 },
+    { id: "crown", at: 0.7 },
+    { id: CROWN_LANDING, at: 1.6 },
+    { id: CROWN_DELIGHT, at: 2.5 },
+    { id: "confetti", at: 3 },
+    { id: "title", at: 3.6 },
+    { id: SETTLED, at: 5 },
   ],
 };
 
@@ -64,10 +66,10 @@ const FLOWER: Storyboard = {
   id: "flower",
   beats: [
     { id: "arrive", at: 0 },
-    { id: "bloom", at: 0.3 },
-    { id: "spin", at: 0.8 },
-    { id: "title", at: 1.2 },
-    { id: SETTLED, at: 1.9 },
+    { id: "bloom", at: 0.7 },
+    { id: "spin", at: 1.6 },
+    { id: "title", at: 2.4 },
+    { id: SETTLED, at: 3.8 },
   ],
 };
 
@@ -75,17 +77,18 @@ const STEADY: Storyboard = {
   id: "steady",
   beats: [
     { id: "arrive", at: 0 },
-    { id: "pulse", at: 0.3 },
-    { id: "nod", at: 0.7 },
-    { id: "title", at: 1.1 },
-    { id: SETTLED, at: 1.6 },
+    { id: "pulse", at: 0.6 },
+    { id: "nod", at: 1.4 },
+    { id: "title", at: 2.2 },
+    { id: SETTLED, at: 3.4 },
   ],
 };
 
 /**
  * Bonk, over, and back up.
  *
- * The order is the requirement (FR-7.7), and the shape of it changed. The
+ * The order is the requirement (FR-7.7), and the shape of it has changed
+ * twice. The
  * first version kept the character on its feet — "knocked off balance, never
  * knocked down" — on the reasoning that a fall would read as humiliating.
  * Watching it, the opposite is true. A small wobble reads as *the platform
@@ -98,10 +101,17 @@ const STEADY: Storyboard = {
  * holds it long enough to be funny — and `rise` is the longest, largest beat
  * here, followed immediately by the encouragement.
  *
- * `dazed` is half a second. Long enough to land the joke, short enough that
- * nobody watches a student's avatar lie on the floor — and the whole sequence
- * still fits the three-second ceiling every tier is held to, because a student
- * who scored badly must not be made to watch for longer than one who did well.
+ * **It is now played slowly, and that is the point of this revision.** The
+ * whole thing used to take three seconds: a swing and a fall in well under one
+ * each. Legible, but not watchable — the joke had no time to land and the
+ * recovery went past before it registered. The celebration is now the only
+ * thing on screen while it plays, so each beat takes about a second: the
+ * mallet is *raised in front of the character* and held there, comes down
+ * slowly, and the fall and the getting-up each get a beat of their own.
+ *
+ * `dazed` is over a second now. Long enough to be funny, short enough that
+ * nobody sits watching a student's avatar lie on the floor — and `Skip` is on
+ * screen the entire time, which is what makes the length affordable at all.
  *
  * `message` reveals the server's own encouragement, which is on the card from
  * the first frame regardless; nothing here composes text.
@@ -110,13 +120,14 @@ const HAMMER: Storyboard = {
   id: "hammer",
   beats: [
     { id: "arrive", at: 0 },
-    { id: "swing", at: 0.2 },
-    { id: "bonk", at: 0.5 },
-    { id: HAMMER_FALL, at: 0.8 },
-    { id: "dazed", at: 1.3 },
-    { id: HAMMER_RECOVERY, at: 1.8 },
-    { id: HAMMER_MESSAGE, at: 2.3 },
-    { id: SETTLED, at: 3 },
+    { id: HAMMER_RAISE, at: 0.6 },
+    { id: "swing", at: 1.7 },
+    { id: "bonk", at: 2.6 },
+    { id: HAMMER_FALL, at: 3.2 },
+    { id: "dazed", at: 4.4 },
+    { id: HAMMER_RECOVERY, at: 5.5 },
+    { id: HAMMER_MESSAGE, at: 6.5 },
+    { id: SETTLED, at: 7.6 },
   ],
 };
 

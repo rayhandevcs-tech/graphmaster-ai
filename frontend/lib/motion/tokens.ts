@@ -20,6 +20,18 @@ export const DURATION = {
   settle: 0.6,
   /** One beat of a celebration. */
   beat: 0.9,
+  /**
+   * One beat of a celebration, played slowly.
+   *
+   * The reward sequence moved at interface speed — a swing and a fall in
+   * under a second each, which is legible but not *watchable*. It is now the
+   * only thing on screen while it plays, so it can take the time a cartoon
+   * takes: wind up, land, and let the landing sit before answering it.
+   *
+   * Nowhere but the full-screen celebration. A control that acknowledged a
+   * press over 1.3 seconds would feel broken.
+   */
+  slow: 1.3,
 } as const;
 
 export const EASE: Record<"standard" | "out" | "anticipate", Cubic> = {

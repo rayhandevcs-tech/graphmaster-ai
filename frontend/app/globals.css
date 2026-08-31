@@ -72,6 +72,21 @@
   --tier-hammer: oklch(0.68 0.16 62);
   --tier-hammer-foreground: oklch(0.25 0.06 62);
 
+  /* The outline each reward prop is drawn with.
+     ---------------------------------------------------------------------
+     A darker, more saturated version of the tier's own colour. These exist
+     because the props are now drawn as stickers — a thick dark line right
+     round the silhouette, laid *under* the fill with `paint-order: stroke`,
+     which is what gives a flat cartoon object its weight.
+
+     They are not `--tier-*-foreground`. That token is the colour of text
+     *on* the tier colour, and for the flower and the steady tier it is
+     near-white — an outline drawn in it would erase the shape rather than
+     define it. Two different jobs that happen to coincide for gold. */
+  --tier-crown-line: oklch(0.38 0.09 78);
+  --tier-flower-line: oklch(0.38 0.14 18);
+  --tier-hammer-line: oklch(0.36 0.1 55);
+
   /* The drawn character.
      ---------------------------------------------------------------------
      The avatar used to be one purple silhouette: face, shirt, hair and shoes
@@ -168,6 +183,12 @@
   --tier-hammer: oklch(0.78 0.15 62);
   --tier-hammer-foreground: oklch(0.24 0.05 62);
 
+  /* Lifted, but still much darker than the fill they outline. An outline
+     that tracks the theme all the way to light would invert the drawing. */
+  --tier-crown-line: oklch(0.34 0.08 78);
+  --tier-flower-line: oklch(0.34 0.12 18);
+  --tier-hammer-line: oklch(0.32 0.09 55);
+
   /* Skin barely moves between themes — a complexion that inverts with the
      background stops being a complexion. The deepest tones lift a little so
      they separate from a near-black card, and the hair tones lift more:
@@ -235,6 +256,10 @@
   --color-tier-steady-foreground: var(--tier-steady-foreground);
   --color-tier-hammer: var(--tier-hammer);
   --color-tier-hammer-foreground: var(--tier-hammer-foreground);
+
+  --color-tier-crown-line: var(--tier-crown-line);
+  --color-tier-flower-line: var(--tier-flower-line);
+  --color-tier-hammer-line: var(--tier-hammer-line);
 
   --color-skin-light: var(--skin-light);
   --color-skin-light-shade: var(--skin-light-shade);

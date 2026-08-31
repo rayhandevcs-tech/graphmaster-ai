@@ -159,14 +159,20 @@ describe("the three tier props", () => {
     ["crown", TierCrown],
     ["flower", TierFlower],
     ["mallet", TierMallet],
-  ])("draws the %s with more than one plane", (_name, Prop) => {
+  ])("draws the %s as a sticker: an outline and a lit plane", (_name, Prop) => {
     const { container } = render(<Prop />);
-    const shaded = container.querySelectorAll(
-      '[fill-opacity], [fill^="url("], [stop-color="currentColor"]',
-    );
-    // A single flat fill is a silhouette, and a silhouette has no volume no
-    // matter how detailed its outline is.
-    expect(shaded.length).toBeGreaterThan(1);
+
+    // The outline. Drawn under the fill with `paint-order: stroke`, which is
+    // what puts the whole stroke width outside the shape instead of
+    // straddling its edge — and what makes a flat cartoon object read as
+    // having weight.
+    const outlined = container.querySelector("[stroke-width]");
+    expect(outlined).not.toBeNull();
+    expect(Number(outlined?.getAttribute("stroke-width"))).toBeGreaterThanOrEqual(3);
+
+    // And a second, lighter plane. One flat fill inside an outline is a
+    // sticker of a silhouette; the lit face is what gives it a direction.
+    expect(container.querySelector('[class*="fill-card"]')).not.toBeNull();
   });
 
   it.each([
@@ -180,22 +186,19 @@ describe("the three tier props", () => {
 
   it("keeps the mallet a toy rather than a tool (FR-7.6)", () => {
     const { container } = render(<TierMallet />);
-    const widths = [...container.querySelectorAll("rect")].map((node) =>
-      Number(node.getAttribute("width")),
-    );
-    const head = Math.max(...widths);
-    const handle = Math.min(...widths);
+    const svg = svgOf(container);
+    const [, , frameWidth, frameHeight] = (svg.getAttribute("viewBox") ?? "")
+      .split(/\s+/)
+      .map(Number);
+    const head = container.querySelector("rect");
 
-    // Comic proportions are the requirement rather than the styling. A head
-    // four times the width of its own handle cannot read as a claw hammer
-    // swinging at a student who scored badly — which is the one thing this
-    // prop must never become, however "realistic" the rest of the work gets.
-    expect(head / handle).toBeGreaterThan(4);
-
-    const headRect = [...container.querySelectorAll("rect")].find(
-      (node) => Number(node.getAttribute("width")) === head,
-    );
-    // Round-cornered, not a machined block.
-    expect(Number(headRect!.getAttribute("rx"))).toBeGreaterThanOrEqual(8);
+    // Comic proportions are the requirement rather than the styling. The head
+    // spans most of the frame and is a deep, round-cornered block — nothing
+    // shaped like that swings at anyone. A claw hammer's head is a narrow
+    // wedge, which is what the drawing must never drift towards, and the
+    // reference this was restyled from was an axe.
+    expect(Number(head?.getAttribute("width"))).toBeGreaterThan((frameWidth as number) * 0.75);
+    expect(Number(head?.getAttribute("height"))).toBeGreaterThan((frameHeight as number) * 0.3);
+    expect(Number(head?.getAttribute("rx"))).toBeGreaterThan(8);
   });
 });
