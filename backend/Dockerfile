@@ -19,15 +19,33 @@ COPY app ./app
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN pip install --upgrade pip && pip install ".[ocr,reports]"
+# EasyOCR pulls PyTorch: about 7 GB of image and ~1 GB of resident memory
+# before a single request arrives. That is the whole difference between an
+# image that runs on a 512 MB host and one that is OOM-killed on boot, so it
+# is a build argument rather than a fixed dependency.
+#
+# Render passes a service's environment variables to the Docker build as build
+# args of the same name, so setting INCLUDE_EASYOCR=0 there is all it takes.
+# The default is 1: local development, docker-compose and CI keep the full
+# provider chain, and only a deployment that has said otherwise loses it.
+ARG INCLUDE_EASYOCR=1
+
+RUN pip install --upgrade pip && \
+    if [ "$INCLUDE_EASYOCR" = "0" ]; then pip install ".[reports]"; \
+    else pip install ".[ocr,reports]"; fi
 
 # Models are baked in at build time rather than downloaded on first request.
 # A cold-start fetch would blow the 10-second OCR budget and would fail
 # outright on hosts without outbound network access at runtime.
 RUN python -m spacy download en_core_web_sm
 RUN python -c "import nltk; nltk.download('punkt', download_dir='/opt/nltk_data'); nltk.download('punkt_tab', download_dir='/opt/nltk_data')"
+# Always created, populated only when EasyOCR is in the image: the runtime
+# stage's COPY cannot be made conditional, and copying an empty directory is
+# cheaper than teaching it to skip one.
 RUN mkdir -p /opt/easyocr && \
-    python -c "import easyocr; easyocr.Reader(['en'], model_storage_directory='/opt/easyocr', download_enabled=True, gpu=False)"
+    if [ "$INCLUDE_EASYOCR" != "0" ]; then \
+      python -c "import easyocr; easyocr.Reader(['en'], model_storage_directory='/opt/easyocr', download_enabled=True, gpu=False)"; \
+    fi
 
 
 # ── Runtime ──────────────────────────────────────────────────────────────────
