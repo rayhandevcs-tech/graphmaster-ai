@@ -282,12 +282,14 @@ function Stage({
       {tier === "hammer" && at(HAMMER_FALL) ? <DustPuff big={big} /> : null}
 
       <m.div
-        // Four-fifths of the stage, not all of it. The fifth above the
+        // Just under three-quarters of the stage. The quarter above the
         // character's head is where the mallet is held up and where the crown
         // falls from: with the figure filling the stage, both started off the
         // top of the screen and the raised mallet was cut in half by the
-        // viewport edge.
-        className="relative h-4/5"
+        // viewport edge. A fifth was not enough — the mallet could either be
+        // raised high enough for the swing to read as a descent, or stay
+        // inside the frame, but not both.
+        className="relative h-[72%]"
         initial={{ opacity: 0, y: 16 }}
         animate={avatarPose(tier, beatId)}
         transition={poseTransition(beatId)}
@@ -380,22 +382,47 @@ function CartoonHammer({ beatId }: { beatId: string }) {
   // the character. About the foot, the same rotation walks the head halfway
   // across the stage.
   const frames: Record<string, Record<string, number | string>> = {
-    [HAMMER_RAISE]: { y: "-34%", rotate: 150, scale: 1.3, opacity: 1 },
-    swing: { y: "-10%", rotate: 172, scale: 1.12, opacity: 1 },
-    bonk: { y: "4%", rotate: 186, scale: 1, opacity: 1 },
+    // `x` is the same on every frame and is not a stagger: the transform
+    // origin sits 11% of the width left of the box's centre, so without it
+    // the striking face lands that far to the left of the character on every
+    // beat — the blow arrived beside the head rather than on it.
+    //
+    // The `y` values are measured rather than guessed. Against the crown of
+    // the hair the face sits roughly 70px clear when raised, 25px clear at
+    // the top of the swing, and 8px into the head on contact.
+    [HAMMER_RAISE]: { x: "13%", y: "-72%", rotate: 152, scale: 1.2, opacity: 1 },
+    swing: { x: "12%", y: "-42%", rotate: 172, scale: 1.1, opacity: 1 },
+    bonk: { x: "11%", y: "-18%", rotate: 182, scale: 1, opacity: 1 },
+  };
+
+  // Each frame has to *arrive* before the next beat starts. The raise lasts
+  // 1.1s and the swing 0.9s, so a 1.3s transition on either means the mallet
+  // is still travelling when it is told somewhere else — it never reaches the
+  // raised pose at all, and the hold that makes the swing read as a swing
+  // never happens. The contact stays fast, because that is the one movement
+  // that should not be watchable.
+  const travel: Record<string, number> = {
+    [HAMMER_RAISE]: 0.55,
+    swing: 0.7,
+    bonk: DURATION.base,
   };
 
   return (
     <m.span
       className="text-tier-hammer absolute left-1/2 h-[52%] -translate-x-1/2"
-      style={{ top: "-17%", transformOrigin: "50% 22%" }}
+      // The origin is the striking face, and it is not the middle of the box.
+      // The drawing carries its own 18° tilt about (36,47), which walks the
+      // head from (36,22) to (28,23) — 39% across, not 50%. Pivoting at 50%
+      // swung the head off to one side of the character on every frame, and
+      // the blow landed beside the head rather than on it.
+      style={{ top: "-6%", transformOrigin: "39% 25%" }}
       // Enters from above the frame at nearly twice the size and shrinks as
       // it comes down. That change of scale is what reads as *towards you*;
       // a prop that arrives at its final size has simply appeared.
-      initial={{ y: "-80%", rotate: 116, scale: 1.9, opacity: 0 }}
+      initial={{ x: "11%", y: "-150%", rotate: 116, scale: 1.9, opacity: 0 }}
       animate={frames[beatId] ?? frames[HAMMER_RAISE]}
       transition={{
-        duration: beatId === "bonk" ? DURATION.base : DURATION.slow,
+        duration: travel[beatId] ?? DURATION.slow,
         ease: beatId === "bonk" ? EASE.anticipate : EASE.standard,
       }}
     >
