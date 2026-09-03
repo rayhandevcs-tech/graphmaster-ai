@@ -61,3 +61,6 @@ logs/
 
 # Test artefacts
 .test-storage/
+
+# Local-machine compose overrides (not shared)
+docker-compose.override.yml

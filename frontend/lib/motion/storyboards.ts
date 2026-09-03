@@ -101,13 +101,15 @@ const STEADY: Storyboard = {
  * holds it long enough to be funny — and `rise` is the longest, largest beat
  * here, followed immediately by the encouragement.
  *
- * **It is now played slowly, and that is the point of this revision.** The
- * whole thing used to take three seconds: a swing and a fall in well under one
- * each. Legible, but not watchable — the joke had no time to land and the
- * recovery went past before it registered. The celebration is now the only
- * thing on screen while it plays, so each beat takes about a second: the
- * mallet is *raised in front of the character* and held there, comes down
- * slowly, and the fall and the getting-up each get a beat of their own.
+ * **It is played slowly, but the strike is not.** The whole thing used to take
+ * three seconds: a swing and a fall in well under one each. Legible, but not
+ * watchable — the joke had no time to land and the recovery went past before
+ * it registered. The celebration is now the only thing on screen while it
+ * plays, so the fall and the getting-up each get a beat of their own. The
+ * wind-up is the exception: an earlier pass held the raised mallet for over a
+ * second and eased the blow itself *backwards* before it fell, so it read as
+ * hovering rather than hitting. The raise is now a short beat and the contact
+ * accelerates into the head.
  *
  * `dazed` is over a second now. Long enough to be funny, short enough that
  * nobody sits watching a student's avatar lie on the floor — and `Skip` is on
@@ -120,14 +122,14 @@ const HAMMER: Storyboard = {
   id: "hammer",
   beats: [
     { id: "arrive", at: 0 },
-    { id: HAMMER_RAISE, at: 0.6 },
-    { id: "swing", at: 1.7 },
-    { id: "bonk", at: 2.6 },
-    { id: HAMMER_FALL, at: 3.2 },
-    { id: "dazed", at: 4.4 },
-    { id: HAMMER_RECOVERY, at: 5.5 },
-    { id: HAMMER_MESSAGE, at: 6.5 },
-    { id: SETTLED, at: 7.6 },
+    { id: HAMMER_RAISE, at: 0.5 },
+    { id: "swing", at: 1.15 },
+    { id: "bonk", at: 1.95 },
+    { id: HAMMER_FALL, at: 2.95 },
+    { id: "dazed", at: 3.95 },
+    { id: HAMMER_RECOVERY, at: 5.0 },
+    { id: HAMMER_MESSAGE, at: 6.0 },
+    { id: SETTLED, at: 7.1 },
   ],
 };
 

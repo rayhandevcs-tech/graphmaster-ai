@@ -387,24 +387,26 @@ function CartoonHammer({ beatId }: { beatId: string }) {
     // the striking face lands that far to the left of the character on every
     // beat — the blow arrived beside the head rather than on it.
     //
-    // The `y` values are measured rather than guessed. Against the crown of
-    // the hair the face sits roughly 70px clear when raised, 25px clear at
-    // the top of the swing, and 8px into the head on contact.
-    [HAMMER_RAISE]: { x: "13%", y: "-72%", rotate: 152, scale: 1.2, opacity: 1 },
-    swing: { x: "12%", y: "-42%", rotate: 172, scale: 1.1, opacity: 1 },
-    bonk: { x: "11%", y: "-18%", rotate: 182, scale: 1, opacity: 1 },
+    // The `y` values place the striking face against the character. Raised, it
+    // sits about a head clear; at the top of the swing, a hand's width; on
+    // contact it meets the crown of the hair and sinks a few pixels in. An
+    // earlier pass stopped it a head short on every beat, so the blow landed
+    // in the air above the character. `rotate` runs closer to a full inversion
+    // by contact, so the head points straight down rather than 16° off.
+    [HAMMER_RAISE]: { x: "13%", y: "-56%", rotate: 156, scale: 1.2, opacity: 1 },
+    swing: { x: "12%", y: "-26%", rotate: 178, scale: 1.08, opacity: 1 },
+    bonk: { x: "11%", y: "1%", rotate: 194, scale: 1, opacity: 1 },
   };
 
-  // Each frame has to *arrive* before the next beat starts. The raise lasts
-  // 1.1s and the swing 0.9s, so a 1.3s transition on either means the mallet
-  // is still travelling when it is told somewhere else — it never reaches the
-  // raised pose at all, and the hold that makes the swing read as a swing
-  // never happens. The contact stays fast, because that is the one movement
-  // that should not be watchable.
+  // Each frame has to *arrive* before the next beat starts, with time to spare
+  // so the pose is held rather than glimpsed in passing. The raise beat is
+  // ~0.65s and the swing ~0.8s, so the travels are shorter than that. The
+  // contact is the fastest and accelerates in: it is the one movement that
+  // should land rather than be watched.
   const travel: Record<string, number> = {
-    [HAMMER_RAISE]: 0.55,
-    swing: 0.7,
-    bonk: DURATION.base,
+    [HAMMER_RAISE]: 0.5,
+    swing: 0.45,
+    bonk: 0.24,
   };
 
   return (
@@ -419,11 +421,14 @@ function CartoonHammer({ beatId }: { beatId: string }) {
       // Enters from above the frame at nearly twice the size and shrinks as
       // it comes down. That change of scale is what reads as *towards you*;
       // a prop that arrives at its final size has simply appeared.
-      initial={{ x: "11%", y: "-150%", rotate: 116, scale: 1.9, opacity: 0 }}
+      initial={{ x: "11%", y: "-150%", rotate: 120, scale: 1.9, opacity: 0 }}
       animate={frames[beatId] ?? frames[HAMMER_RAISE]}
       transition={{
         duration: travel[beatId] ?? DURATION.slow,
-        ease: beatId === "bonk" ? EASE.anticipate : EASE.standard,
+        // The contact accelerates in (`out`); everything before it uses the
+        // standard curve. `anticipate` here wound the blow *backwards* before
+        // it fell, which is what made it read as hovering rather than hitting.
+        ease: beatId === "bonk" ? EASE.out : EASE.standard,
       }}
     >
       <TierMallet className="h-full w-auto" />
