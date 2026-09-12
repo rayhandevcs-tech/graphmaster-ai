@@ -115,27 +115,34 @@ const STEADY: Storyboard = {
  * encouragement arrives, so the last thing on screen is a student's own
  * character standing up straight.
  *
+ * **It is played slowly, but the strike is not.** Kept from the fix this
+ * merged with: the wind-up used to be held for over a second and the blow
+ * itself was eased *backwards* before it fell, so it read as hovering rather
+ * than hitting. The raise is a short beat now and the contact accelerates
+ * into the head. The beats that follow it are the slow ones, because the
+ * reaction is the part worth watching.
+ *
  * The mallet arrives **from the front** rather than from overhead: wound back
  * at the right of frame, close to the camera and oversized, then swinging in
  * along an arc and shrinking to scene size as it lands. Coming straight down
  * it read as a hand reaching in from off-stage; coming at you, it is a swing.
  *
- * Every beat is about a second — the whole thing is played slowly, on its own
- * screen, with `Skip` in view throughout, which is what makes the length
- * affordable at all.
+ * The reaction beats are about a second each, on a screen of their own, with
+ * `Skip` in view throughout — which is what makes the length affordable at
+ * all.
  */
 const HAMMER: Storyboard = {
   id: "hammer",
   beats: [
     { id: "arrive", at: 0 },
-    { id: HAMMER_RAISE, at: 0.6 },
-    { id: "swing", at: 1.5 },
-    { id: "bonk", at: 2.3 },
-    { id: HAMMER_SQUASH, at: 2.6 },
-    { id: HAMMER_ANGRY, at: 3.7 },
-    { id: HAMMER_RECOVERY, at: 5 },
-    { id: HAMMER_MESSAGE, at: 5.8 },
-    { id: SETTLED, at: 6.8 },
+    { id: HAMMER_RAISE, at: 0.5 },
+    { id: "swing", at: 1.3 },
+    { id: "bonk", at: 2.1 },
+    { id: HAMMER_SQUASH, at: 2.4 },
+    { id: HAMMER_ANGRY, at: 3.5 },
+    { id: HAMMER_RECOVERY, at: 4.8 },
+    { id: HAMMER_MESSAGE, at: 5.6 },
+    { id: SETTLED, at: 6.6 },
   ],
 };
 

@@ -209,7 +209,10 @@ describe("the tier storyboards", () => {
 
     expect(beats[beatIndexAt(beats, 0)]?.id).toBe("arrive");
     expect(beats[beatIndexAt(beats, 1)]?.id).toBe(HAMMER_RAISE);
-    expect(beats[beatIndexAt(beats, 2.4)]?.id).toBe("bonk");
+    // 2.2, not 2.4: the contact is a 0.3s beat now, and 2.4 is the instant
+    // the squash takes over. Sampling a boundary asserts which side of it
+    // `beatIndexAt` rounds to, which is not what this test is about.
+    expect(beats[beatIndexAt(beats, 2.2)]?.id).toBe("bonk");
     expect(beats[beatIndexAt(beats, 3)]?.id).toBe(HAMMER_SQUASH);
     expect(beats[beatIndexAt(beats, 4)]?.id).toBe(HAMMER_ANGRY);
     expect(beats[beatIndexAt(beats, 5.2)]?.id).toBe(HAMMER_RECOVERY);
