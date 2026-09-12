@@ -22,9 +22,20 @@ export const SETTLED = "settled";
  * beat cannot quietly make the assertion vacuous — the test imports these and
  * checks their position, which fails if either is removed.
  */
-/** The mallet, raised in front of the character before it comes down. */
+/** The mallet, wound back in front of the character before it swings in. */
 export const HAMMER_RAISE = "raise";
-export const HAMMER_FALL = "fall";
+/**
+ * Squashed, not felled.
+ *
+ * The character concertinas straight down under the blow and springs back.
+ * This replaced a beat that put them on the floor: a fall is a longer, more
+ * elaborate thing to animate and it reads as *defeat*, where a squash is the
+ * oldest joke in animation and reads as an indignity the character is about
+ * to object to. FR-7.6 wants the second.
+ */
+export const HAMMER_SQUASH = "squash";
+/** And the objection: brows down, shouting, before anything else happens. */
+export const HAMMER_ANGRY = "angry";
 export const HAMMER_RECOVERY = "recover";
 export const HAMMER_MESSAGE = "message";
 
@@ -85,49 +96,46 @@ const STEADY: Storyboard = {
 };
 
 /**
- * Bonk, over, and back up.
+ * Bonk, squash, object, and straighten up.
  *
  * The order is the requirement (FR-7.7), and the shape of it has changed
- * twice. The
- * first version kept the character on its feet — "knocked off balance, never
- * knocked down" — on the reasoning that a fall would read as humiliating.
- * Watching it, the opposite is true. A small wobble reads as *the platform
- * being careful with you*, which a student notices, and it makes the low tier
- * the one moment in the product with nothing to watch.
+ * three times. The first version kept the character upright — "knocked off
+ * balance, never knocked down" — which read as the platform handling a
+ * student with tongs and left the lowest tier with nothing to watch. The
+ * second put them on the floor, which watched better and read as defeat.
  *
- * What makes slapstick kind is not the size of the fall. It is that the
- * character is the comedian rather than the target, and that getting up is the
- * biggest movement in the sequence. So: `fall` puts them on the floor, `dazed`
- * holds it long enough to be funny — and `rise` is the longest, largest beat
- * here, followed immediately by the encouragement.
+ * This one squashes them. It is the oldest joke in animation and it is a
+ * *different* joke: a body that concertinas and springs back has not lost
+ * anything, and the beat that follows is theirs — brows down, shouting at the
+ * mallet. A character with a grievance has agency; one lying dazed on the
+ * floor is only a victim. That is the line FR-7.6 actually draws, and it is
+ * why the angry beat belongs here rather than being the thing to avoid.
  *
- * **It is now played slowly, and that is the point of this revision.** The
- * whole thing used to take three seconds: a swing and a fall in well under one
- * each. Legible, but not watchable — the joke had no time to land and the
- * recovery went past before it registered. The celebration is now the only
- * thing on screen while it plays, so each beat takes about a second: the
- * mallet is *raised in front of the character* and held there, comes down
- * slowly, and the fall and the getting-up each get a beat of their own.
+ * `recover` then puts the face and the body back to normal before the
+ * encouragement arrives, so the last thing on screen is a student's own
+ * character standing up straight.
  *
- * `dazed` is over a second now. Long enough to be funny, short enough that
- * nobody sits watching a student's avatar lie on the floor — and `Skip` is on
- * screen the entire time, which is what makes the length affordable at all.
+ * The mallet arrives **from the front** rather than from overhead: wound back
+ * at the right of frame, close to the camera and oversized, then swinging in
+ * along an arc and shrinking to scene size as it lands. Coming straight down
+ * it read as a hand reaching in from off-stage; coming at you, it is a swing.
  *
- * `message` reveals the server's own encouragement, which is on the card from
- * the first frame regardless; nothing here composes text.
+ * Every beat is about a second — the whole thing is played slowly, on its own
+ * screen, with `Skip` in view throughout, which is what makes the length
+ * affordable at all.
  */
 const HAMMER: Storyboard = {
   id: "hammer",
   beats: [
     { id: "arrive", at: 0 },
     { id: HAMMER_RAISE, at: 0.6 },
-    { id: "swing", at: 1.7 },
-    { id: "bonk", at: 2.6 },
-    { id: HAMMER_FALL, at: 3.2 },
-    { id: "dazed", at: 4.4 },
-    { id: HAMMER_RECOVERY, at: 5.5 },
-    { id: HAMMER_MESSAGE, at: 6.5 },
-    { id: SETTLED, at: 7.6 },
+    { id: "swing", at: 1.5 },
+    { id: "bonk", at: 2.3 },
+    { id: HAMMER_SQUASH, at: 2.6 },
+    { id: HAMMER_ANGRY, at: 3.7 },
+    { id: HAMMER_RECOVERY, at: 5 },
+    { id: HAMMER_MESSAGE, at: 5.8 },
+    { id: SETTLED, at: 6.8 },
   ],
 };
 

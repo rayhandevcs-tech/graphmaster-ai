@@ -164,11 +164,14 @@ describe("the three tier props", () => {
 
     // The outline. Drawn under the fill with `paint-order: stroke`, which is
     // what puts the whole stroke width outside the shape instead of
-    // straddling its edge — and what makes a flat cartoon object read as
-    // having weight.
+    // straddling its edge — and what gives a flat object weight.
+    //
+    // The floor is 2, not the crown's and flower's 3: the mallet carries its
+    // form in shading — grain, ferrules, a terminator down the shadow side —
+    // and at the sticker weight the outline flattened all of it back out.
     const outlined = container.querySelector("[stroke-width]");
     expect(outlined).not.toBeNull();
-    expect(Number(outlined?.getAttribute("stroke-width"))).toBeGreaterThanOrEqual(3);
+    expect(Number(outlined?.getAttribute("stroke-width"))).toBeGreaterThanOrEqual(2);
 
     // And a second, lighter plane. One flat fill inside an outline is a
     // sticker of a silhouette; the lit face is what gives it a direction.
@@ -190,15 +193,21 @@ describe("the three tier props", () => {
     const [, , frameWidth, frameHeight] = (svg.getAttribute("viewBox") ?? "")
       .split(/\s+/)
       .map(Number);
-    const head = container.querySelector("rect");
+    // The widest rect, rather than the first: the drawing now opens with a
+    // `clipPath` whose rect happens to share the head's dimensions, and a
+    // test that passes by coincidence is a test that stops meaning anything
+    // the moment the clip changes.
+    const head = [...container.querySelectorAll("rect")].reduce((widest, rect) =>
+      Number(rect.getAttribute("width")) > Number(widest.getAttribute("width")) ? rect : widest,
+    );
 
     // Comic proportions are the requirement rather than the styling. The head
     // spans most of the frame and is a deep, round-cornered block — nothing
     // shaped like that swings at anyone. A claw hammer's head is a narrow
     // wedge, which is what the drawing must never drift towards, and the
     // reference this was restyled from was an axe.
-    expect(Number(head?.getAttribute("width"))).toBeGreaterThan((frameWidth as number) * 0.75);
-    expect(Number(head?.getAttribute("height"))).toBeGreaterThan((frameHeight as number) * 0.3);
-    expect(Number(head?.getAttribute("rx"))).toBeGreaterThan(8);
+    expect(Number(head.getAttribute("width"))).toBeGreaterThan((frameWidth as number) * 0.75);
+    expect(Number(head.getAttribute("height"))).toBeGreaterThan((frameHeight as number) * 0.3);
+    expect(Number(head.getAttribute("rx"))).toBeGreaterThan(8);
   });
 });

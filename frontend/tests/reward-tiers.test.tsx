@@ -16,9 +16,10 @@ import { TIER_BANDS, TIER_ICONS, TIER_LABELS, TIER_ORDER } from "@/components/ga
 import {
   CROWN_DELIGHT,
   CROWN_LANDING,
-  HAMMER_FALL,
+  HAMMER_ANGRY,
   HAMMER_MESSAGE,
   HAMMER_RAISE,
+  HAMMER_SQUASH,
   HAMMER_RECOVERY,
   SETTLED,
   TIER_STORYBOARDS,
@@ -141,24 +142,20 @@ describe("the tier storyboards", () => {
     expect(ids.slice(-3)).toEqual([HAMMER_RECOVERY, HAMMER_MESSAGE, SETTLED]);
   });
 
-  it("never leaves the hammer's character on the floor for long", () => {
+  it("answers the blow, and answers it quickly (FR-7.6)", () => {
     const beats = TIER_STORYBOARDS.hammer.beats;
     const at = (id: string) => beats.find((beat) => beat.id === id)?.at ?? -1;
 
-    // The character does now go down — an earlier version kept them upright on
-    // the reasoning that a fall would humiliate, which instead left the lowest
-    // tier with nothing to watch. What FR-7.6 actually needs is bounded: the
-    // time spent on the floor is capped, and it is answered.
-    //
-    // The cap is generous now because the sequence is deliberately played in
-    // slow motion, on its own screen, with Skip in view throughout. It is not
-    // unbounded: two and a bit seconds down, and never more than the beat
-    // that gets them up again.
-    expect(at(HAMMER_FALL)).toBeGreaterThan(at("bonk"));
-    expect(at(HAMMER_RECOVERY) - at(HAMMER_FALL)).toBeLessThanOrEqual(2.5);
+    // The character is squashed rather than felled — a fall reads as defeat,
+    // a squash as an indignity about to be objected to. Two things keep that
+    // reading: the squash is brief, and the beat that follows it is the
+    // character's own.
+    expect(at(HAMMER_SQUASH)).toBeGreaterThan(at("bonk"));
+    expect(at(HAMMER_ANGRY) - at(HAMMER_SQUASH)).toBeLessThanOrEqual(1.5);
+    expect(at(HAMMER_RECOVERY)).toBeGreaterThan(at(HAMMER_ANGRY));
 
-    // And the encouragement follows the getting-up rather than arriving while
-    // the avatar is still on the floor.
+    // And the encouragement follows the straightening-up rather than
+    // arriving while the avatar is still flattened or still shouting.
     expect(at(HAMMER_MESSAGE)).toBeGreaterThan(at(HAMMER_RECOVERY));
     expect(at(HAMMER_MESSAGE) - at(HAMMER_RECOVERY)).toBeLessThanOrEqual(1.5);
   });
@@ -212,8 +209,10 @@ describe("the tier storyboards", () => {
 
     expect(beats[beatIndexAt(beats, 0)]?.id).toBe("arrive");
     expect(beats[beatIndexAt(beats, 1)]?.id).toBe(HAMMER_RAISE);
-    expect(beats[beatIndexAt(beats, 2.8)]?.id).toBe("bonk");
-    expect(beats[beatIndexAt(beats, 5.8)]?.id).toBe(HAMMER_RECOVERY);
+    expect(beats[beatIndexAt(beats, 2.4)]?.id).toBe("bonk");
+    expect(beats[beatIndexAt(beats, 3)]?.id).toBe(HAMMER_SQUASH);
+    expect(beats[beatIndexAt(beats, 4)]?.id).toBe(HAMMER_ANGRY);
+    expect(beats[beatIndexAt(beats, 5.2)]?.id).toBe(HAMMER_RECOVERY);
     // Past the end it stays settled rather than running off the array.
     expect(beats[beatIndexAt(beats, 99)]?.id).toBe(SETTLED);
   });

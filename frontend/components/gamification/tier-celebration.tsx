@@ -14,10 +14,11 @@ import { useSequence, type SequenceState } from "@/lib/motion/use-sequence";
 import {
   CROWN_DELIGHT,
   CROWN_LANDING,
-  HAMMER_FALL,
+  HAMMER_ANGRY,
   HAMMER_MESSAGE,
   HAMMER_RAISE,
   HAMMER_RECOVERY,
+  HAMMER_SQUASH,
   TIER_STORYBOARDS,
 } from "@/lib/motion/storyboards";
 import { DURATION, EASE, SPRING, SPRING_SOFT } from "@/lib/motion/tokens";
@@ -222,10 +223,10 @@ function FullScreen({
  * contact. A cue that leads its picture reads as a different sound entirely.
  *
  * The hammer has two, and the gap between them is doing real work. `bonk` is
- * the contact; `wah` is six-tenths of a second later, as the character goes
- * over. Played together they read as the platform's verdict on the score.
- * Separated, the second one is the character's own reaction to falling —
- * which is the difference between slapstick and a scolding.
+ * the contact; `wah` lands three-tenths of a second later, as the character
+ * concertinas. Played together they read as the platform's verdict on the
+ * score. Separated, the second one is the character's own reaction to being
+ * squashed — which is the difference between slapstick and a scolding.
  */
 const CUES_BY_TIER: Record<RewardTier, [Cue, string][]> = {
   crown: [["victory", "confetti"]],
@@ -233,7 +234,7 @@ const CUES_BY_TIER: Record<RewardTier, [Cue, string][]> = {
   steady: [["soft", "nod"]],
   hammer: [
     ["bonk", "bonk"],
-    ["wah", HAMMER_FALL],
+    ["wah", HAMMER_SQUASH],
   ],
 };
 
@@ -250,7 +251,11 @@ function Stage({
   big?: boolean;
 }) {
   const { at, reached, beatId } = sequence;
-  const floored = tier === "hammer" && (beatId === HAMMER_FALL || beatId === "dazed");
+  // The only beats in the whole system that are *left* again — everything
+  // else is monotonic — so they are passed down rather than derived from
+  // `reached`, which would keep the character squashed after it stood up.
+  const squashed = tier === "hammer" && beatId === HAMMER_SQUASH;
+  const cross = tier === "hammer" && (beatId === "bonk" || beatId === HAMMER_SQUASH);
 
   return (
     // `overflow-visible` so confetti can leave the stage; the fixed height
@@ -279,7 +284,7 @@ function Stage({
         transition={{ duration: DURATION.settle, ease: EASE.standard }}
       />
 
-      {tier === "hammer" && at(HAMMER_FALL) ? <DustPuff big={big} /> : null}
+      {tier === "hammer" && at(HAMMER_SQUASH) ? <DustPuff big={big} /> : null}
 
       <m.div
         // Just under three-quarters of the stage. The quarter above the
@@ -301,8 +306,8 @@ function Stage({
         <AvatarCharacter
           code={code}
           variant="figure"
-          expression={expressionFor(tier, reached, floored)}
-          pose={poseFor(tier, reached, floored)}
+          expression={expressionFor(tier, reached, squashed)}
+          pose={poseFor(tier, reached, squashed)}
           groundShadow={false}
           className="h-full w-auto"
         />
@@ -342,7 +347,20 @@ function Stage({
           <CartoonHammer beatId={beatId} />
         ) : null}
 
-        {tier === "hammer" && at("dazed") ? <OrbitStars scale={big ? 2.6 : 1} /> : null}
+        {cross ? (
+          // Inside the figure's transform, so the stars follow the head as it
+          // is driven down — and carrying the exact inverse of the squash, so
+          // they stay a round orbit while the body flattens. Left to inherit
+          // it, the formation stretched to half again its width and threw one
+          // star clear of the character altogether.
+          <m.div
+            className="absolute inset-0"
+            animate={unsquash(beatId)}
+            transition={poseTransition(beatId)}
+          >
+            <OrbitStars scale={big ? 2.4 : 1} />
+          </m.div>
+        ) : null}
       </m.div>
 
       {tier === "crown" && reached(CROWN_DELIGHT) && !sequence.isSettled ? <Sparkles /> : null}
@@ -382,16 +400,20 @@ function CartoonHammer({ beatId }: { beatId: string }) {
   // the character. About the foot, the same rotation walks the head halfway
   // across the stage.
   const frames: Record<string, Record<string, number | string>> = {
-    // `x` is the same on every frame and is not a stagger: the transform
-    // origin sits 11% of the width left of the box's centre, so without it
-    // the striking face lands that far to the left of the character on every
-    // beat — the blow arrived beside the head rather than on it.
+    // Wound back at the right of frame, close to the camera and oversized,
+    // then swinging in along an arc and shrinking to scene size as it lands.
+    // Straight down the centre line it read as a hand reaching in from
+    // off-stage; arriving from the front, it is a swing.
+    //
+    // The `x` on the contact frame is not a stagger: the transform origin
+    // sits 11% of the width left of the box's centre, so without it the
+    // striking face lands that far to the left of the character.
     //
     // The `y` values are measured rather than guessed. Against the crown of
-    // the hair the face sits roughly 70px clear when raised, 25px clear at
-    // the top of the swing, and 8px into the head on contact.
-    [HAMMER_RAISE]: { x: "13%", y: "-72%", rotate: 152, scale: 1.2, opacity: 1 },
-    swing: { x: "12%", y: "-42%", rotate: 172, scale: 1.1, opacity: 1 },
+    // the hair the face sits about 25px clear at the top of the swing and
+    // 9px into the head on contact.
+    [HAMMER_RAISE]: { x: "78%", y: "-34%", rotate: 96, scale: 1.55, opacity: 1 },
+    swing: { x: "42%", y: "-40%", rotate: 140, scale: 1.28, opacity: 1 },
     bonk: { x: "11%", y: "-18%", rotate: 182, scale: 1, opacity: 1 },
   };
 
@@ -419,7 +441,7 @@ function CartoonHammer({ beatId }: { beatId: string }) {
       // Enters from above the frame at nearly twice the size and shrinks as
       // it comes down. That change of scale is what reads as *towards you*;
       // a prop that arrives at its final size has simply appeared.
-      initial={{ x: "11%", y: "-150%", rotate: 116, scale: 1.9, opacity: 0 }}
+      initial={{ x: "125%", y: "-14%", rotate: 58, scale: 2.1, opacity: 0 }}
       animate={frames[beatId] ?? frames[HAMMER_RAISE]}
       transition={{
         duration: travel[beatId] ?? DURATION.slow,
@@ -555,13 +577,16 @@ function Controls({ sequence }: { sequence: SequenceState }) {
 function expressionFor(
   tier: RewardTier,
   reached: (id: string) => boolean,
-  floored: boolean,
+  squashed: boolean,
 ): Expression {
   if (tier === "hammer") {
-    if (reached(HAMMER_RECOVERY)) return "determined";
-    if (floored) return "dizzy";
-    // Held up in front of them and coming down slowly, the mallet is
-    // something the character can see arriving.
+    // Read newest-first: the sequence walks forward through these and the
+    // last matching clause wins for any beat it has not reached yet.
+    if (reached(HAMMER_RECOVERY)) return "neutral";
+    if (reached(HAMMER_ANGRY)) return "angry";
+    if (squashed) return "dizzy";
+    // Wound back in front of them, the mallet is something the character can
+    // see arriving.
     if (reached(HAMMER_RAISE)) return "surprised";
     return "neutral";
   }
@@ -582,10 +607,11 @@ function expressionFor(
  * expression is still neutral. Deriving one from the other would lose that —
  * and a body that reacts only after contact reads as a doll being hit.
  */
-function poseFor(tier: RewardTier, reached: (id: string) => boolean, floored: boolean): Pose {
+function poseFor(tier: RewardTier, reached: (id: string) => boolean, squashed: boolean): Pose {
   if (tier === "hammer") {
-    if (reached(HAMMER_RECOVERY)) return "brace";
-    if (floored) return "sprawl";
+    if (reached(HAMMER_RECOVERY)) return "rest";
+    if (reached(HAMMER_ANGRY)) return "fists";
+    if (squashed) return "sprawl";
     if (reached(HAMMER_RAISE)) return "guard";
     return "rest";
   }
@@ -614,13 +640,14 @@ function groundShadow(
   if (tier === "hammer") {
     // Flattened wide on the impact, because the figure is compressed onto it.
     if (beatId === "bonk") return { width: [w(56), w(74), w(62)], opacity: 1 };
-    // A body lying down casts a long shadow, not a round one, and it has to
-    // be long enough to sit under the whole figure.
-    if (beatId === HAMMER_FALL) return { width: [w(62), w(150), w(140)], opacity: 0.9 };
-    if (beatId === "dazed") return { width: w(140), opacity: 0.85 };
-    // Pulled back in as the figure comes upright and momentarily leaves the
+    // A squashed body is pressed onto its own shadow, so the shadow spreads
+    // with it rather than travelling. This is most of what sells the squash —
+    // more than any amount of easing on the body.
+    if (beatId === HAMMER_SQUASH) return { width: [w(62), w(104), w(96)], opacity: 1 };
+    // Pulled back in as the figure springs upright and momentarily leaves the
     // floor at the top of the bounce.
-    if (beatId === HAMMER_RECOVERY) return { width: [w(140), w(42), w(56)], opacity: 1 };
+    if (beatId === HAMMER_ANGRY) return { width: [w(96), w(46), w(58)], opacity: 1 };
+    if (beatId === HAMMER_RECOVERY) return rest;
     return rest;
   }
 
@@ -644,41 +671,53 @@ function groundShadow(
 /** A framer-motion target: a value, or keyframes through several. */
 type Frame = Record<string, number | string | (number | string)[]>;
 
+/**
+ * How far the body concertinas, in one place.
+ *
+ * Written once because two things need it and they must not drift: the body
+ * squashes by it, and anything drawn *on top of* the body — the orbiting
+ * stars — has to carry its exact inverse or it stretches with it.
+ */
+const SQUASH: { scaleY: number[]; scaleX: number[] } = {
+  scaleY: [0.92, 0.46, 0.54],
+  scaleX: [1, 1.42, 1.3],
+};
+
+/** The inverse, keyframe for keyframe. */
+function unsquash(beatId: string): Frame {
+  if (beatId === HAMMER_SQUASH) {
+    return {
+      scaleY: SQUASH.scaleY.map((v) => 1 / v),
+      scaleX: SQUASH.scaleX.map((v) => 1 / v),
+    };
+  }
+  if (beatId === "bonk") return { scaleY: [1, 1 / 0.86, 1 / 0.92], scaleX: 1 };
+  return { scaleX: 1, scaleY: 1 };
+}
+
 function avatarPose(tier: RewardTier, beatId: string): Frame {
-  const rest = { opacity: 1, y: 0, x: "0%", rotate: 0, scale: 1, scaleY: 1 };
+  const rest = { opacity: 1, y: 0, x: "0%", rotate: 0, scale: 1, scaleY: 1, scaleX: 1 };
 
   if (tier === "hammer") {
     // Flinching away from something they can see coming.
     if (beatId === HAMMER_RAISE) return { ...rest, rotate: -3, scaleY: 0.98 };
-    // The blow: compressed onto the floor, not yet moving sideways.
-    if (beatId === "bonk") return { ...rest, scaleY: [1, 0.84, 0.94], y: [0, 10, 4] };
-    // Over. About the feet, so the body swings rather than slides — and a
-    // little short of horizontal, because a figure flat on its back reads as
-    // unconscious and this one is about to get up.
-    //
-    // The x is not decoration. Rotating a figure 78° about its feet puts the
-    // head a whole body-length to the right of the pivot, so it ends up
-    // wholly in the right half of the stage with the ground shadow left
-    // behind under nothing. Shifting the pivot half a body left lands the
-    // lying figure across the centre. In percent, so it holds at both sizes.
-    if (beatId === HAMMER_FALL) {
-      return { ...rest, rotate: [8, 88, 78], x: ["0%", "-62%", "-72%"], y: -14 };
-    }
-    // Slightly *above* the standing baseline rather than below it. A body
-    // rotated three-quarters of a turn about its feet is widest at the
-    // bottom of its own box, and at the stage's full height that reached
-    // past the floor and into the Skip button underneath.
-    if (beatId === "dazed") return { ...rest, rotate: 78, x: "-72%", y: -14 };
-    // The largest movement in the sequence, and deliberately so: it overshoots
-    // upright, lifts off the floor and comes back down. This is the beat
+    // The contact itself: a first, shallow compression, so the deep one has
+    // something to come from.
+    if (beatId === "bonk") return { ...rest, scaleY: [1, 0.86, 0.92], y: [0, 8, 4] };
+    // The squash. Volume is conserved the way it is in every cartoon: down to
+    // about half height and half again as wide, about the feet, so the head
+    // comes down and the shoes stay planted.
+    if (beatId === HAMMER_SQUASH)
+      return { ...rest, scaleY: [...SQUASH.scaleY], scaleX: [...SQUASH.scaleX] };
+    // And back — overshooting past full height, with a shake in it. The
+    // largest movement in the sequence, and deliberately so: this is the beat
     // FR-7.7 exists for, and it should be the one a student remembers.
-    if (beatId === HAMMER_RECOVERY) {
+    if (beatId === HAMMER_ANGRY) {
       return {
         ...rest,
-        rotate: [78, -6, 0],
-        x: ["-72%", "0%", "0%"],
-        y: [-14, -28, 0],
-        scale: [1, 1.06, 1],
+        scaleY: [SQUASH.scaleY[2] as number, 1.12, 1],
+        scaleX: [SQUASH.scaleX[2] as number, 0.92, 1],
+        rotate: [0, -4, 4, 0],
       };
     }
     return rest;
@@ -711,8 +750,11 @@ function avatarPose(tier: RewardTier, beatId: string): Frame {
  * than register.
  */
 function poseTransition(beatId: string) {
-  if (beatId === HAMMER_RECOVERY) return { duration: DURATION.slow, ease: EASE.anticipate };
-  if (beatId === HAMMER_FALL) return { duration: DURATION.slow, ease: EASE.anticipate };
+  // Fast in, slow out. A squash that takes as long as the recovery reads as
+  // the character sinking rather than being hit.
+  if (beatId === HAMMER_SQUASH) return { duration: DURATION.base, ease: EASE.anticipate };
+  if (beatId === HAMMER_ANGRY) return { duration: DURATION.slow, ease: EASE.anticipate };
+  if (beatId === HAMMER_RECOVERY) return { duration: DURATION.settle, ease: EASE.standard };
   if (beatId === HAMMER_RAISE) return { duration: DURATION.settle, ease: EASE.standard };
   if (beatId === CROWN_LANDING) return { duration: DURATION.base, ease: EASE.anticipate };
   if (beatId === CROWN_DELIGHT) return { duration: DURATION.beat, ease: EASE.anticipate };

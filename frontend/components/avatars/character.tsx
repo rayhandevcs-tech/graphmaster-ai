@@ -55,6 +55,15 @@ export type Expression =
   /** Eyes wide, brows up, mouth open. The beat a crown lands, and nothing else. */
   | "surprised"
   | "dizzy"
+  /**
+   * Brows driven down, shouting.
+   *
+   * The hammer's answer beat. Indignant *at the mallet* — which is the whole
+   * reason it is allowed: a character with a grievance has agency, where one
+   * lying dazed on the floor is only a victim. FR-7.6 rules out the second,
+   * not the first.
+   */
+  | "angry"
   | "determined";
 
 /**
@@ -65,7 +74,7 @@ export type Expression =
  * hammer sequence needs a guarded pose while the face is still neutral, which
  * a derivation could not express.
  */
-export type Pose = "rest" | "cheer" | "brace" | "guard" | "sprawl";
+export type Pose = "rest" | "cheer" | "brace" | "guard" | "fists" | "sprawl";
 
 /**
  * Which drawn character belongs to a profile.
@@ -404,6 +413,16 @@ function Arms({ pose, look }: { pose: Pose; look: Look }) {
         [77, 117],
       ],
     },
+    // Fists up at chest height, elbows out. Reads as *about to say
+    // something*, which is what the angry beat needs — hands on hips is
+    // sulking and arms down is nothing at all.
+    fists: {
+      arms: ["M29 86 15 94 36 84", "M71 86 85 94 64 84"],
+      hands: [
+        [38, 82],
+        [62, 82],
+      ],
+    },
     sprawl: {
       arms: ["M29 86 8 94", "M71 86 92 94"],
       hands: [
@@ -472,6 +491,42 @@ function Face({ expression, look }: { expression: Expression; look: Look }) {
             and this beat is not polite. */}
         <path d="M39 55h22c0 8-5 12-11 12s-11-4-11-12z" className="fill-character-eye" />
         <path d="M45 63c0-2 2-3 5-3s5 1 5 3-2 4-5 4-5-2-5-4z" className="fill-character-blush" />
+      </g>
+    );
+  }
+
+  if (expression === "angry") {
+    return (
+      <g>
+        {/* Flushed rather than blushing: the same token, pushed up. */}
+        <g className="fill-character-blush" opacity="0.55">
+          <ellipse cx="29" cy="57" rx="7" ry="4" />
+          <ellipse cx="71" cy="57" rx="7" ry="4" />
+        </g>
+
+        {/* Brows are the whole expression. Driven down towards the nose —
+            *inner* ends low — which is the one arrangement that cannot be
+            read as anything else. Thicker than the other faces, because at
+            list size this is all that survives. */}
+        <g className={brow} strokeWidth="4.5" strokeLinecap="round">
+          <path d="M31 31 46 39M69 31 54 39" />
+        </g>
+
+        {/* Narrowed: the lid cuts the top off each eye, so the iris sits
+            under a hard edge instead of floating in a circle of white. */}
+        {[41, 59].map((cx) => (
+          <g key={cx}>
+            <ellipse cx={cx} cy="47" rx="7" ry="6.4" className="fill-character-sclera" />
+            <circle cx={cx} cy="48" r="4.2" className="fill-character-eye" />
+          </g>
+        ))}
+
+        {/* Shouting. A frown would be sulking; an open mouth is a protest. */}
+        <path d="M42 56h16c0 8-4 11-8 11s-8-3-8-11z" className="fill-character-eye" />
+        <path
+          d="M46 63c0-1.6 1.8-2.6 4-2.6s4 1 4 2.6-1.8 3.4-4 3.4-4-1.8-4-3.4z"
+          className="fill-character-blush"
+        />
       </g>
     );
   }

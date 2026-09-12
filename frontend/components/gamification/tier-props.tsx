@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { m } from "framer-motion";
 
 import { MotionStage } from "@/components/motion/stage";
@@ -214,80 +215,193 @@ function FlowerDrawing({ className }: { className?: string }) {
 /**
  * The mallet.
  *
- * **Deliberately a toy, and that is a requirement rather than a style choice.**
- * FR-7.6 says the lowest tier must never read as humiliating. The reference
- * for this drawing is a cartoon axe, and everything about *how* it is drawn is
- * taken from it — but the object is a fairground mallet, because a blade
- * swinging at a student who scored badly is precisely what the specification
- * rules out. A head with a cutting edge would say something the rest of this
- * screen spends its whole length not saying.
+ * **Deliberately a mallet, and that is a requirement rather than a style
+ * choice.** FR-7.6 says the lowest tier must never read as humiliating, so
+ * the head is a turned wooden barrel and not a claw, a blade or a sledge.
+ * The *materials* are drawn as convincingly as the palette allows; the
+ * *object* stays a carpenter's mallet, because what the shape says matters
+ * more than how well it is rendered.
  *
- * **What makes the reference read the way it does**, and what a first attempt
- * at "thick outline, two tones" misses entirely:
+ * **What "realistic" means for a flat two-token drawing.** Not more outline
+ * and not more geometry — four specific things, none of which the sticker
+ * version had:
  *
- * - **A big pale ellipse on the striking end.** This is most of it. The head
- *   is a cylinder seen from three-quarters on, and that ellipse is its near
- *   face catching the light. Without it the head is a rounded rectangle, and
- *   a rounded rectangle at any outline weight is a sticker of a brick.
- * - **The handle is cut, not tapered.** A second pale ellipse closes its end.
- *   Two ellipses on the same object, at the same angle, are what say *both*
- *   of these things are round.
- * - **One long highlight down the handle's lit side**, running its whole
- *   length rather than sitting in the middle of it.
- * - **The whole tool is tilted.** Square to the page it is a diagram; at an
- *   angle it is a thing someone is holding.
+ * - **End grain.** The face of the head shows concentric rings and a pith
+ *   line. It is the single most recognisable thing about cut timber, and it
+ *   turns a pale ellipse into the end of a log.
+ * - **Grain along the length.** Three long, uneven arcs down the barrel and
+ *   the handle. Evenly spaced lines read as a barcode; wood is irregular.
+ * - **Steel ferrules.** Two bands in `--silver` with a hard highlight along
+ *   the top of each. They are also what says the head is *fitted* to the
+ *   handle rather than drawn continuous with it.
+ * - **A terminator on the shadow side.** One dark shape down the underside
+ *   of both the barrel and the handle, sitting inside the silhouette rather
+ *   than tracing it. Two flat planes make a cartoon; a plane plus a
+ *   terminator makes a cylinder.
  *
- * Each pale shape is painted twice: once in `currentColor` with the outline,
- * then again in `fill-card` at half strength with no stroke. That is what
- * makes a *tint of the tier's own colour* — a `fill-card` shape on its own
- * would be white where it overhangs the body, and a lighter second token
- * would need a third colour per tier for no gain.
+ * The outline stays, thinner than the crown's and the flower's. Dropped
+ * entirely, the head disappears against a light card; at the sticker weight
+ * it flattens everything the shading just bought.
  */
 export function TierMallet({ className }: { className?: string }) {
-  const tilt = "rotate(-18 36 47)";
+  const uid = useId().replace(/:/g, "");
+  const tilt = "rotate(-16 36 46)";
 
   return (
     <svg viewBox="0 0 72 94" className={cn("size-14", className)} aria-hidden>
-      <g
-        className="stroke-tier-hammer-line"
-        strokeWidth="4.5"
-        style={STICKER}
-        {...LINE}
-        transform={tilt}
-      >
-        {/* Handle first, so the head sits over its top end. Long — half again
-            the height of the head — and flat-bottomed: the cut end is closed
-            by its own ellipse below, the way a sawn dowel is, rather than
-            rounded off into a nub. */}
-        <path d="M29 42h14v42H29z" fill="currentColor" />
+      <defs>
+        {/* Across the barrel: lit along the top, turning under at the bottom.
+            Both stops are `currentColor`, so this is a shape of light rather
+            than a pair of colours and survives either theme. */}
+        <linearGradient id={`${uid}-barrel`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="currentColor" stopOpacity="0.82" />
+          <stop offset="0.42" stopColor="currentColor" stopOpacity="1" />
+          <stop offset="1" stopColor="currentColor" stopOpacity="0.72" />
+        </linearGradient>
+        <linearGradient id={`${uid}-shaft`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="currentColor" stopOpacity="0.78" />
+          <stop offset="0.35" stopColor="currentColor" stopOpacity="1" />
+          <stop offset="1" stopColor="currentColor" stopOpacity="0.68" />
+        </linearGradient>
+        {/* Clips the grain to the timber it runs through, so a long arc can be
+            drawn past the edge and still stop at it. */}
+        <clipPath id={`${uid}-barrel-clip`}>
+          <rect x="3" y="8" width="58" height="38" rx="15" />
+        </clipPath>
+        <clipPath id={`${uid}-shaft-clip`}>
+          <path d="M29 42h14v42H29z" />
+        </clipPath>
+      </defs>
 
-        {/* The head. Wide, deep, and four times the width of its own handle —
-            nothing shaped like this swings at anyone. */}
-        <rect x="3" y="8" width="58" height="38" rx="15" fill="currentColor" />
+      <g transform={tilt}>
+        {/* ── The handle ─────────────────────────────────────────────────── */}
+        <g>
+          <path
+            d="M29 42h14v42H29z"
+            fill={`url(#${uid}-shaft)`}
+            className="stroke-tier-hammer-line"
+            strokeWidth="2.4"
+            strokeLinejoin="round"
+            style={STICKER}
+          />
+          <g clipPath={`url(#${uid}-shaft-clip)`}>
+            {/* The shadow side, inside the silhouette. */}
+            <path d="M39 42h4v42h-4z" className="fill-tier-hammer-line" opacity="0.3" />
+            {/* Two grain lines, neither straight nor parallel. */}
+            <path
+              d="M33 44c-1 12 1 20 0 40M36.5 43c1 14-1 22 0 41"
+              className="stroke-tier-hammer-line fill-none"
+              strokeOpacity="0.3"
+              strokeWidth="1"
+            />
+            {/* And the lit side. */}
+            <path d="M30.5 43h2.5v41h-2.5z" className="fill-card" opacity="0.34" />
+          </g>
+        </g>
 
-        {/* The near face of the head, and the cut end of the handle. Both are
-            filled in the body colour here and tinted in the group below, so
-            the outline has something opaque to sit against.
-            
-            The face is *inset*: a rim of the body colour all the way round it
-            is what makes it read as a plane at the end of a cylinder. Sized
-            to the end cap exactly, it split the head into a pale half and an
-            orange half instead. */}
-        <ellipse cx="49" cy="27" rx="9.5" ry="14.5" fill="currentColor" />
-        <ellipse cx="36" cy="84" rx="7" ry="4.5" fill="currentColor" />
-      </g>
+        {/* The cut end of the handle: a disc of end grain, not a rounded nub. */}
+        <g>
+          <ellipse
+            cx="36"
+            cy="84"
+            rx="7"
+            ry="4.5"
+            fill="currentColor"
+            className="stroke-tier-hammer-line"
+            strokeWidth="2.2"
+            style={STICKER}
+          />
+          <ellipse cx="36" cy="84" rx="7" ry="4.5" className="fill-card" opacity="0.42" />
+          <ellipse
+            cx="36"
+            cy="84"
+            rx="3.4"
+            ry="2.1"
+            className="stroke-tier-hammer-line fill-none"
+            strokeOpacity="0.35"
+            strokeWidth="0.9"
+          />
+        </g>
 
-      {/* The lit tones, over the outlined shapes and carrying no outline of
-          their own: a stroke around a highlight turns it into a second
-          object. */}
-      <g className="fill-card" transform={tilt}>
-        <ellipse cx="49" cy="27" rx="9.5" ry="14.5" opacity="0.5" />
-        <ellipse cx="36" cy="84" rx="7" ry="4.5" opacity="0.5" />
-        {/* Along the top of the head, where the light grazes it. */}
-        <path d="M13 14h20a4.5 4.5 0 0 1 0 9H13a4.5 4.5 0 0 1 0-9z" opacity="0.4" />
-        {/* And the full length of the handle's lit side, not a mark in the
-            middle of it. */}
-        <path d="M31.5 46h5v36h-5z" opacity="0.42" />
+        {/* ── The head ───────────────────────────────────────────────────── */}
+        <g>
+          <rect
+            x="3"
+            y="8"
+            width="58"
+            height="38"
+            rx="15"
+            fill={`url(#${uid}-barrel)`}
+            className="stroke-tier-hammer-line"
+            strokeWidth="2.6"
+            strokeLinejoin="round"
+            style={STICKER}
+          />
+          <g clipPath={`url(#${uid}-barrel-clip)`}>
+            {/* The terminator along the underside. */}
+            <path d="M3 36h58v10H3z" className="fill-tier-hammer-line" opacity="0.26" />
+            {/* Grain running the length of the barrel — three uneven arcs. */}
+            <path
+              d="M8 17c14-3 30-3 48 1M6 25c16 3 32 2 50-2M9 34c14 4 30 3 46-1"
+              className="stroke-tier-hammer-line fill-none"
+              strokeOpacity="0.26"
+              strokeWidth="1.1"
+            />
+            {/* And the lit band along the top. */}
+            <path
+              d="M12 11h30a4 4 0 0 1 0 8H12a4 4 0 0 1 0-8z"
+              className="fill-card"
+              opacity="0.4"
+            />
+          </g>
+
+          {/* Two steel ferrules. They are also what says the head is fitted
+              to the handle rather than carved out of one piece with it. */}
+          {[14, 52].map((x) => (
+            <g key={x}>
+              <rect
+                x={x}
+                y="8"
+                width="6"
+                height="38"
+                className="fill-silver stroke-tier-hammer-line"
+                strokeWidth="1.8"
+                clipPath={`url(#${uid}-barrel-clip)`}
+              />
+              <rect
+                x={x + 0.8}
+                y="12"
+                width="1.8"
+                height="28"
+                className="fill-card"
+                opacity="0.6"
+              />
+            </g>
+          ))}
+        </g>
+
+        {/* The striking face: end grain, which is what a mallet is used on
+            its ends for. Rings and a pith line, inset so a rim of the barrel
+            shows all the way round and it reads as a plane at the end of a
+            cylinder rather than a hole in one. */}
+        <g>
+          <ellipse
+            cx="49"
+            cy="27"
+            rx="9.5"
+            ry="14.5"
+            fill="currentColor"
+            className="stroke-tier-hammer-line"
+            strokeWidth="2.4"
+            style={STICKER}
+          />
+          <ellipse cx="49" cy="27" rx="9.5" ry="14.5" className="fill-card" opacity="0.46" />
+          <g className="stroke-tier-hammer-line fill-none" strokeOpacity="0.32" strokeWidth="1">
+            <ellipse cx="49" cy="27" rx="6.4" ry="10" />
+            <ellipse cx="49.5" cy="27" rx="3.4" ry="5.4" />
+            <path d="M49.5 22v10" strokeOpacity="0.22" />
+          </g>
+        </g>
       </g>
     </svg>
   );
