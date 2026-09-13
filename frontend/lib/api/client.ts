@@ -108,15 +108,28 @@ function refreshAccessToken(): Promise<string | null> {
 /* -------------------------------------------------------------------------- */
 
 function buildUrl(path: string, query?: Record<string, QueryValue>): string {
-  const url = new URL(`${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`);
+  const rawUrl = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+
+  // Supports both:
+  //   absolute API URL: https://graphmaster-api.onrender.com/api/v1
+  //   same-origin proxy: /api/v1
+  const url = new URL(
+    rawUrl,
+    typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
+  );
+
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value === null || value === undefined || value === "") continue;
+
     if (Array.isArray(value)) {
-      for (const item of value) url.searchParams.append(key, String(item));
+      for (const item of value) {
+        url.searchParams.append(key, String(item));
+      }
     } else {
       url.searchParams.set(key, String(value));
     }
   }
+
   return url.toString();
 }
 
